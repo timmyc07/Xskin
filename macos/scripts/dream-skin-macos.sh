@@ -1,0 +1,621 @@
+#!/bin/bash
+
+set -euo pipefail
+
+SOURCE_ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+WRAPPER_PATH="$(cd "$(dirname "$0")" && pwd -P)/$(basename "$0")"
+THEME_PROFILE_SCRIPT="$(cd "$(dirname "$0")" && pwd -P)/set-theme-profile.mjs"
+WORLD_CUP_THEME_URL="https://cdn.nano-banana-2-ai.com/uploads/codex-dream-skin/themes/world-cup-victory-night.png"
+WORLD_CUP_STATE_ROOT="${HOME}/Library/Application Support/CodexDreamSkinStudio"
+WORLD_CUP_RESULT_PATH="${WORLD_CUP_STATE_ROOT}/world-cup-install-result.txt"
+WORLD_CUP_LOG_PATH="${WORLD_CUP_STATE_ROOT}/world-cup-install.log"
+WORLD_CUP_ERROR_LOG_PATH="${WORLD_CUP_STATE_ROOT}/world-cup-install-error.log"
+CUSTOM_RESULT_PATH="${WORLD_CUP_STATE_ROOT}/custom-install-result.txt"
+CUSTOM_LOG_PATH="${WORLD_CUP_STATE_ROOT}/custom-install.log"
+CUSTOM_ERROR_LOG_PATH="${WORLD_CUP_STATE_ROOT}/custom-install-error.log"
+
+fail() {
+  printf 'Codex Dream Skin Skill: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'EOF'
+Usage: dream-skin-macos.sh <command> [arguments]
+
+Commands:
+  world-cup                     One-click install, apply, and verify the World Cup theme
+  world-cup-status              Read the one-click installation result without restarting
+  apply-custom-url URL          One-click install, apply, and verify an HTTPS image theme
+  apply-video-file PATH         Install, apply, and verify a local MP4 background (256 MiB max)
+  apply-video-url URL           Install, apply, and verify an HTTPS MP4 background
+  apply-custom-file PATH        One-click install, apply, and verify a local image theme
+  custom-install-status         Read the custom installation result without restarting
+  autostart enable|disable|status  Manage automatic backgrounds on normal Codex launches
+  panel [--json]                Open the native macOS Xskin app
+  source                         Validate the bundled macOS video runtime
+  doctor [--require-live]        Validate Codex, runtime, payload, and optional live session
+  install [options]              Install without launching; supports --port/--no-launchers
+  customize [options]            Open the native image picker and prepare a theme
+  customize-url URL [options]    Download an HTTPS banner and prepare it without restarting Codex
+  customize-file PATH [options]  Prepare a local banner without restarting Codex
+  reset-demo                     Select the bundled Midnight Aurora preset without applying it
+  library-add-url URL [options]  Add an HTTPS image as a saved theme without applying it
+  library-add-file PATH [opts]   Add a local image as a saved theme without applying it
+  list-themes                    List saved theme IDs and names
+  select-theme ID                Select a saved theme without applying it
+  switch-theme ID                Select and safely apply a saved theme
+  status [--short|--json|--deep] Read the current session, port, process, and theme state
+  start [options]                Start or reapply; prompts before restarting a running Codex
+  start-authorized [options]     Restart without prompting; requires prior explicit authorization
+  pause [--port PORT]            Remove the live skin but keep base appearance settings
+  verify [options]               Verify live injection; supports --screenshot ABSOLUTE_PATH
+  restore [options]              Remove the skin and restore base appearance
+  menubar-install [--no-brew]    Install the optional SwiftBar menu controller
+  menubar-apply                  Apply from the menu controller with native confirmation
+  build-client-release [PATH]    Build a customer ZIP and print its SHA-256
+  build-release [--skip-tests]   Build the complete runtime release ZIP
+  test                           Run the bundled runtime regression suite
+
+This macOS video edition includes its runtime; no additional source download is needed.
+EOF
+}
+
+require_macos() {
+  [ "$(/usr/bin/uname -s)" = "Darwin" ] || fail "This wrapper supports macOS only."
+}
+
+ensure_source() {
+  require_macos
+  [ -s "$SOURCE_ROOT/scripts/video-file.mjs" ] || fail "Bundled video runtime is missing. Reinstall the complete skill folder."
+  [ -s "$SOURCE_ROOT/presets/preset-midnight-aurora/theme.json" ] || fail "Bundled default theme is missing."
+}
+
+ensure_default_theme() {
+  (
+    . "$SOURCE_ROOT/scripts/common-macos.sh"
+    discover_codex_app
+    require_macos_runtime
+    ensure_state_root
+    seed_bundled_presets
+    if [ ! -f "$THEME_DIR/theme.json" ]; then
+      "$SCRIPT_DIR/switch-theme-macos.sh" --id preset-midnight-aurora --no-apply >/dev/null
+    fi
+  )
+}
+
+installed_script() {
+  local name="$1"
+  local path="${HOME}/.codex/codex-dream-skin-studio/scripts/${name}"
+  [ -x "$path" ] || fail "Dream Skin is not installed. Run the install command first."
+  printf '%s\n' "$path"
+}
+
+reject_argument() {
+  local forbidden="$1"
+  shift
+  local argument
+  for argument in "$@"; do
+    [ "$argument" != "$forbidden" ] || fail "Argument $forbidden is not allowed for this command. Use the explicit authorized command after user approval."
+  done
+}
+
+run_safe_start() {
+  reject_argument --restart-existing "$@"
+  reject_argument --restart-new-launch "$@"
+  local starter
+  starter="$(installed_script start-dream-skin-macos.sh)"
+  exec "$starter" --prompt-restart "$@"
+}
+
+download_https_image() {
+  local url="$1"
+  local output="$2"
+  local limit="${3:-52428800}"
+  case "$url" in
+    https://*) ;;
+    *) fail "Only HTTPS media URLs are accepted." ;;
+  esac
+  command -v curl >/dev/null 2>&1 || fail "curl is required to download a banner URL."
+  curl --fail --location --silent --show-error \
+    --proto '=https' --proto-redir '=https' \
+    --connect-timeout 15 --max-time 120 --max-filesize "$limit" \
+    --output "$output" "$url"
+  [ -s "$output" ] || fail "The downloaded banner is empty."
+  bytes="$(/usr/bin/stat -f '%z' "$output")"
+  [ "$bytes" -le "$limit" ] || fail "The downloaded media exceeds its size limit."
+}
+
+write_world_cup_result() {
+  local status="$1"
+  local detail="$2"
+  local screenshot="${3:-}"
+  local temporary
+  /bin/mkdir -p "$WORLD_CUP_STATE_ROOT"
+  /bin/chmod 700 "$WORLD_CUP_STATE_ROOT"
+  temporary="${WORLD_CUP_RESULT_PATH}.tmp.$$"
+  /usr/bin/printf '%s\n' \
+    "status=${status}" \
+    'theme=World Cup Victory Night' \
+    "detail=${detail}" \
+    "screenshot=${screenshot}" \
+    > "$temporary"
+  /bin/chmod 600 "$temporary"
+  /bin/mv -f "$temporary" "$WORLD_CUP_RESULT_PATH"
+}
+
+write_custom_result() {
+  local status="$1"
+  local detail="$2"
+  local screenshot="${3:-}"
+  local temporary
+  /bin/mkdir -p "$WORLD_CUP_STATE_ROOT"
+  /bin/chmod 700 "$WORLD_CUP_STATE_ROOT"
+  temporary="${CUSTOM_RESULT_PATH}.tmp.$$"
+  /usr/bin/printf '%s\n' \
+    "status=${status}" \
+    'theme=My Codex Dream Skin' \
+    "detail=${detail}" \
+    "screenshot=${screenshot}" \
+    > "$temporary"
+  /bin/chmod 600 "$temporary"
+  /bin/mv -f "$temporary" "$CUSTOM_RESULT_PATH"
+}
+
+launch_world_cup_helper() {
+  ensure_source
+  (
+    . "$SOURCE_ROOT/scripts/common-macos.sh"
+    discover_codex_app
+    require_macos_runtime
+    ensure_state_root
+    : > "$WORLD_CUP_LOG_PATH"
+    : > "$WORLD_CUP_ERROR_LOG_PATH"
+    /bin/chmod 600 "$WORLD_CUP_LOG_PATH" "$WORLD_CUP_ERROR_LOG_PATH"
+    "$NODE" -e '
+      const fs = require("node:fs");
+      const { spawn } = require("node:child_process");
+      const [stdoutPath, stderrPath, wrapper] = process.argv.slice(1);
+      const stdout = fs.openSync(stdoutPath, "a");
+      const stderr = fs.openSync(stderrPath, "a");
+      const child = spawn("/bin/bash", [wrapper, "__world-cup-helper"], {
+        detached: true,
+        env: process.env,
+        stdio: ["ignore", stdout, stderr],
+      });
+      fs.closeSync(stdout);
+      fs.closeSync(stderr);
+      child.unref();
+      process.stdout.write(String(child.pid));
+    ' "$WORLD_CUP_LOG_PATH" "$WORLD_CUP_ERROR_LOG_PATH" "$WRAPPER_PATH"
+  )
+}
+
+launch_custom_helper() {
+  local source_kind="$1"
+  local source_value="$2"
+  ensure_source
+  (
+    . "$SOURCE_ROOT/scripts/common-macos.sh"
+    discover_codex_app
+    require_macos_runtime
+    ensure_state_root
+    : > "$CUSTOM_LOG_PATH"
+    : > "$CUSTOM_ERROR_LOG_PATH"
+    /bin/chmod 600 "$CUSTOM_LOG_PATH" "$CUSTOM_ERROR_LOG_PATH"
+    "$NODE" -e '
+      const fs = require("node:fs");
+      const { spawn } = require("node:child_process");
+      const [stdoutPath, stderrPath, wrapper, sourceKind, sourceValue] = process.argv.slice(1);
+      const stdout = fs.openSync(stdoutPath, "a");
+      const stderr = fs.openSync(stderrPath, "a");
+      const child = spawn("/bin/bash", [wrapper, "__custom-helper", sourceKind, sourceValue], {
+        detached: true,
+        env: process.env,
+        stdio: ["ignore", stdout, stderr],
+      });
+      fs.closeSync(stdout);
+      fs.closeSync(stderr);
+      child.unref();
+      process.stdout.write(String(child.pid));
+    ' "$CUSTOM_LOG_PATH" "$CUSTOM_ERROR_LOG_PATH" "$WRAPPER_PATH" "$source_kind" "$source_value"
+  )
+}
+
+run_world_cup_helper() {
+  local temporary_image=""
+  local screenshot_path="${HOME}/Desktop/World Cup Victory Night - Verify.png"
+  local install_script customizer starter verifier
+
+  write_world_cup_result running '正在自动安装和应用，请勿手动重新打开 Codex。'
+  world_cup_failed() {
+    local exit_code="$1"
+    local line="$2"
+    [ -z "$temporary_image" ] || /bin/rm -f "$temporary_image"
+    write_world_cup_result failed "安装在第 ${line} 行失败（退出码 ${exit_code}），请读取 world-cup-install-error.log。"
+  }
+  trap 'exit_code=$?; world_cup_failed "$exit_code" "$LINENO"' ERR
+
+  ensure_source
+  install_script="$SOURCE_ROOT/scripts/install-dream-skin-macos.sh"
+  "$install_script" --no-launch
+
+  temporary_image="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/codex-world-cup.XXXXXX")"
+  download_https_image "$WORLD_CUP_THEME_URL" "$temporary_image"
+  customizer="$(installed_script customize-theme-macos.sh)"
+  "$customizer" --image "$temporary_image" --no-apply \
+    --name 'World Cup Victory Night' \
+    --tagline '冠军之夜，为热爱全力以赴。' \
+    --quote 'PLAY BOLD. BUILD BOLDER.' \
+    --accent '#d7aa42' --secondary '#0b8f62' --highlight '#f6d77a'
+  (
+    . "$SOURCE_ROOT/scripts/common-macos.sh"
+    ensure_state_root
+    "$NODE" "$THEME_PROFILE_SCRIPT" "$THEME_DIR/theme.json" 'World Cup Victory Night'
+  )
+  /bin/rm -f "$temporary_image"
+  temporary_image=""
+
+  starter="$(installed_script start-dream-skin-macos.sh)"
+  "$starter" --restart-existing
+  verifier="$(installed_script verify-dream-skin-macos.sh)"
+  "$verifier" --screenshot "$screenshot_path"
+  write_world_cup_result success '主题已安装、应用并通过 Verify。' "$screenshot_path"
+  trap - ERR
+}
+
+run_custom_helper() {
+  local source_kind="$1"
+  local source_value="$2"
+  local temporary_image=""
+  local selected_image=""
+  local screenshot_path="${HOME}/Desktop/Codex Custom Theme - Verify.png"
+  local install_script customizer starter verifier
+
+  write_custom_result running '正在自动安装和应用自定义主题，请勿手动重新打开 Codex。'
+  custom_failed() {
+    local exit_code="$1"
+    local line="$2"
+    [ -z "$temporary_image" ] || /bin/rm -f "$temporary_image"
+    write_custom_result failed "安装在第 ${line} 行失败（退出码 ${exit_code}），请读取 custom-install-error.log。"
+  }
+  trap 'exit_code=$?; custom_failed "$exit_code" "$LINENO"' ERR
+
+  ensure_source
+  local media_limit=52428800
+  case "$source_kind" in video-*) media_limit=268435456 ;; esac
+  case "$source_kind" in
+    url|video-url)
+      temporary_image="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/codex-custom-theme.XXXXXX")"
+      if [[ "$source_kind" == video-* ]]; then
+        /bin/mv "$temporary_image" "$temporary_image.mp4"
+        temporary_image="$temporary_image.mp4"
+      fi
+      download_https_image "$source_value" "$temporary_image" "$media_limit"
+      selected_image="$temporary_image"
+      ;;
+    file|video-file)
+      [ -f "$source_value" ] || fail "Image does not exist: $source_value"
+      [ ! -L "$source_value" ] || fail "Staged custom image must not be a symbolic link."
+      staged_relative="${source_value#"${WORLD_CUP_STATE_ROOT}/"}"
+      case "$staged_relative" in
+        custom-source-*/*|*/custom-source-*|*/*) fail "Invalid staged custom image path." ;;
+        custom-source-*) ;;
+        *) fail "Custom image was not staged by the public apply command." ;;
+      esac
+      temporary_image="$source_value"
+      selected_image="$source_value"
+      ;;
+    *) fail "Unknown custom media source: $source_kind" ;;
+  esac
+  case "$source_kind" in
+    video-*)
+      . "$SOURCE_ROOT/scripts/common-macos.sh"
+      discover_codex_app
+      require_macos_runtime
+      "$NODE" "$SOURCE_ROOT/scripts/video-file.mjs" "$selected_image"
+      ;;
+  esac
+
+  install_script="$SOURCE_ROOT/scripts/install-dream-skin-macos.sh"
+  "$install_script" --no-launch
+
+  case "$source_kind" in
+    video-*)
+      customizer="$(installed_script load-video-theme-macos.sh)"
+      "$customizer" --file "$selected_image" --no-apply --name 'My Codex Dream Skin'
+      ;;
+    *)
+      customizer="$(installed_script customize-theme-macos.sh)"
+      "$customizer" --image "$selected_image" --no-apply \
+        --name 'My Codex Dream Skin' \
+        --tagline '把喜欢的画面变成可交互的 Codex 工作台。' \
+        --quote 'MAKE SOMETHING WONDERFUL'
+      ;;
+  esac
+  (
+    . "$SOURCE_ROOT/scripts/common-macos.sh"
+    ensure_state_root
+    "$NODE" "$THEME_PROFILE_SCRIPT" "$THEME_DIR/theme.json" 'My Codex Dream Skin'
+  )
+  [ -z "$temporary_image" ] || /bin/rm -f "$temporary_image"
+  temporary_image=""
+
+  starter="$(installed_script start-dream-skin-macos.sh)"
+  "$starter" --restart-existing
+  verifier="$(installed_script verify-dream-skin-macos.sh)"
+  "$verifier" --screenshot "$screenshot_path"
+  write_custom_result success '自定义主题已安装、应用并通过 Verify。' "$screenshot_path"
+  trap - ERR
+}
+
+require_macos
+[ "$#" -gt 0 ] || { usage; exit 2; }
+command_name="$1"
+shift
+
+case "$command_name" in
+  world-cup)
+    [ "$#" -eq 0 ] || fail "The world-cup command takes no arguments."
+    /usr/bin/osascript <<'APPLESCRIPT' >/dev/null
+display dialog "将自动关闭并重新打开 Codex 一次，然后安装、应用并验证世界杯主题。整个过程无需手动操作。" buttons {"取消", "安装世界杯主题"} default button "安装世界杯主题" cancel button "取消" with title "Codex Dream Skin"
+APPLESCRIPT
+    write_world_cup_result pending '等待后台接管。'
+    helper_pid="$(launch_world_cup_helper)"
+    case "$helper_pid" in ''|*[!0-9]*) fail "Could not start the one-click theme helper." ;; esac
+    printf '世界杯主题已开始自动安装。Codex 将只重启一次，请不要手动关闭或重新打开。\n'
+    ;;
+  world-cup-status)
+    [ "$#" -eq 0 ] || fail "The world-cup-status command takes no arguments."
+    if [ -f "$WORLD_CUP_RESULT_PATH" ]; then
+      /bin/cat "$WORLD_CUP_RESULT_PATH"
+    else
+      printf 'status=not-started\n'
+    fi
+    status_script="${HOME}/.codex/codex-dream-skin-studio/scripts/status-dream-skin-macos.sh"
+    if [ -x "$status_script" ]; then
+      "$status_script" --json --deep || true
+    fi
+    ;;
+  apply-custom-url|apply-custom-file|apply-video-url|apply-video-file)
+    [ "$#" -eq 1 ] || fail "${command_name} requires exactly one media URL or path."
+    source_kind="url"
+    case "$command_name" in *-file) source_kind="file" ;; esac
+    media_limit=52428800
+    case "$command_name" in
+      apply-video-*) source_kind="video-$source_kind"; media_limit=268435456 ;;
+    esac
+    source_value="$1"
+    if [[ "$source_kind" == *url ]]; then
+      case "$source_value" in https://*) ;; *) fail "Only HTTPS media URLs are accepted." ;; esac
+    else
+      [ -f "$source_value" ] || fail "Image does not exist: $source_value"
+      source_bytes="$(/usr/bin/stat -f '%z' "$source_value")"
+      [ "$source_bytes" -le "$media_limit" ] || fail "Selected media exceeds its size limit."
+      if [ "$source_kind" = "video-file" ]; then
+        . "$SOURCE_ROOT/scripts/common-macos.sh"
+        discover_codex_app
+        require_macos_runtime
+        "$NODE" "$SOURCE_ROOT/scripts/video-file.mjs" "$source_value"
+      fi
+    fi
+    /usr/bin/osascript <<'APPLESCRIPT' >/dev/null
+display dialog "将自动关闭并重新打开 Codex 一次，然后安装、应用并验证你选择的圖片或影片主題。整个过程无需手动操作。" buttons {"取消", "安装这个主题"} default button "安装这个主题" cancel button "取消" with title "Codex Dream Skin"
+APPLESCRIPT
+    if [[ "$source_kind" == *file ]]; then
+      /bin/mkdir -p "$WORLD_CUP_STATE_ROOT"
+      /bin/chmod 700 "$WORLD_CUP_STATE_ROOT"
+      staged_source="$(/usr/bin/mktemp "${WORLD_CUP_STATE_ROOT}/custom-source-XXXXXX")"
+      if [ "$source_kind" = "video-file" ]; then
+        /bin/mv "$staged_source" "$staged_source.mp4"
+        staged_source="$staged_source.mp4"
+      fi
+      /bin/cp "$source_value" "$staged_source"
+      /bin/chmod 600 "$staged_source"
+      source_value="$staged_source"
+    fi
+    write_custom_result pending '等待后台接管。'
+    if ! helper_pid="$(launch_custom_helper "$source_kind" "$source_value")"; then
+      [[ "$source_kind" != *file ]] || /bin/rm -f "$source_value"
+      write_custom_result failed '后台安装进程未能启动，Codex 未重启。'
+      fail "Could not start the custom theme helper."
+    fi
+    case "$helper_pid" in
+      ''|*[!0-9]*)
+        [[ "$source_kind" != *file ]] || /bin/rm -f "$source_value"
+        fail "Could not start the custom theme helper."
+        ;;
+    esac
+    printf '自定义主题已开始自动安装。Codex 将只重启一次，请不要手动关闭或重新打开。\n'
+    ;;
+  custom-install-status)
+    [ "$#" -eq 0 ] || fail "The custom-install-status command takes no arguments."
+    if [ -f "$CUSTOM_RESULT_PATH" ]; then
+      /bin/cat "$CUSTOM_RESULT_PATH"
+    else
+      printf 'status=not-started\n'
+    fi
+    status_script="${HOME}/.codex/codex-dream-skin-studio/scripts/status-dream-skin-macos.sh"
+    if [ -x "$status_script" ]; then
+      "$status_script" --json --deep || true
+    fi
+    ;;
+  __world-cup-helper)
+    [ "$#" -eq 0 ] || fail "The internal world-cup helper takes no arguments."
+    /bin/sleep 2
+    run_world_cup_helper
+    ;;
+  __custom-helper)
+    [ "$#" -eq 2 ] || fail "The internal custom helper requires a source kind and value."
+    /bin/sleep 2
+    run_custom_helper "$1" "$2"
+    ;;
+  source)
+    [ "$#" -eq 0 ] || fail "The source command takes no arguments."
+    ensure_source
+    printf 'Bundled Codex Dream Skin video runtime ready.\n'
+    ;;
+  doctor)
+    ensure_source
+    ensure_default_theme
+    exec "$SOURCE_ROOT/scripts/doctor-macos.sh" "$@"
+    ;;
+  install)
+    reject_argument --in-place "$@"
+    ensure_source
+    exec "$SOURCE_ROOT/scripts/install-dream-skin-macos.sh" --no-launch "$@"
+    ;;
+  customize)
+    customizer="$(installed_script customize-theme-macos.sh)"
+    exec "$customizer" --no-apply "$@"
+    ;;
+  customize-url)
+    [ "$#" -gt 0 ] || fail "customize-url requires an HTTPS image URL."
+    url="$1"
+    shift
+    customizer="$(installed_script customize-theme-macos.sh)"
+    temporary_image="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/codex-dream-skin.XXXXXX")"
+    cleanup_download() { /bin/rm -f "$temporary_image"; }
+    trap cleanup_download EXIT INT TERM
+    download_https_image "$url" "$temporary_image"
+    "$customizer" --image "$temporary_image" --no-apply "$@"
+    cleanup_download
+    trap - EXIT INT TERM
+    printf 'Banner prepared. Run the start command to apply it.\n'
+    ;;
+  customize-file)
+    [ "$#" -gt 0 ] || fail "customize-file requires an image path."
+    image_path="$1"
+    shift
+    [ -f "$image_path" ] || fail "Image does not exist: $image_path"
+    customizer="$(installed_script customize-theme-macos.sh)"
+    exec "$customizer" --image "$image_path" --no-apply "$@"
+    ;;
+  reset-demo)
+    [ "$#" -eq 0 ] || fail "The reset-demo command takes no arguments."
+    selector="$(installed_script switch-theme-macos.sh)"
+    exec "$selector" --id preset-midnight-aurora --no-apply
+    ;;
+  library-add-url)
+    [ "$#" -gt 0 ] || fail "library-add-url requires an HTTPS image URL."
+    url="$1"
+    shift
+    loader="$(installed_script load-image-theme-macos.sh)"
+    temporary_dir="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/codex-dream-skin-library.XXXXXX")"
+    source_image="$temporary_dir/source-image"
+    temporary_image="$temporary_dir/banner.jpg"
+    cleanup_library_download() {
+      /bin/rm -f "$source_image" "$temporary_image"
+      /bin/rmdir "$temporary_dir" 2>/dev/null || true
+    }
+    trap cleanup_library_download EXIT INT TERM
+    download_https_image "$url" "$source_image"
+    /usr/bin/sips -s format jpeg -s formatOptions 84 -Z 3200 "$source_image" --out "$temporary_image" >/dev/null \
+      || fail "macOS could not convert the downloaded image. Use a PNG, JPEG, HEIC, TIFF, or WebP URL."
+    [ -s "$temporary_image" ] || fail "The converted banner is empty."
+    "$loader" --file "$temporary_image" --no-apply "$@"
+    cleanup_library_download
+    trap - EXIT INT TERM
+    printf 'Theme saved in the image library. Use list-themes and switch-theme to apply it.\n'
+    ;;
+  library-add-file)
+    [ "$#" -gt 0 ] || fail "library-add-file requires an image path."
+    image_path="$1"
+    shift
+    [ -f "$image_path" ] || fail "Image does not exist: $image_path"
+    loader="$(installed_script load-image-theme-macos.sh)"
+    exec "$loader" --file "$image_path" --no-apply "$@"
+    ;;
+  list-themes)
+    [ "$#" -eq 0 ] || fail "The list-themes command takes no arguments."
+    themes_root="${HOME}/Library/Application Support/CodexDreamSkinStudio/themes"
+    if [ ! -d "$themes_root" ]; then
+      printf 'No saved themes.\n'
+      exit 0
+    fi
+    . "$SOURCE_ROOT/scripts/common-macos.sh"
+    discover_codex_app
+    require_macos_runtime
+    found="false"
+    for theme_dir in "$themes_root"/*; do
+      [ -d "$theme_dir" ] || continue
+      [ -f "$theme_dir/theme.json" ] || continue
+      theme_id="$(/usr/bin/basename "$theme_dir")"
+      theme_name="$("$NODE" -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).name || process.argv[2]);' "$theme_dir/theme.json" "$theme_id" 2>/dev/null || printf '%s' "$theme_id")"
+      printf '%s\t%s\n' "$theme_id" "$theme_name"
+      found="true"
+    done
+    [ "$found" = "true" ] || printf 'No saved themes.\n'
+    ;;
+  select-theme)
+    [ "$#" -eq 1 ] || fail "select-theme requires exactly one theme ID."
+    selector="$(installed_script switch-theme-macos.sh)"
+    exec "$selector" --id "$1" --no-apply
+    ;;
+  switch-theme)
+    [ "$#" -eq 1 ] || fail "switch-theme requires exactly one theme ID."
+    selector="$(installed_script switch-theme-macos.sh)"
+    "$selector" --id "$1" --no-apply
+    run_safe_start
+    ;;
+  panel)
+    ensure_source
+    exec "$SOURCE_ROOT/scripts/open-background-studio.sh" "$@"
+    ;;
+  status)
+    status_script="$(installed_script status-dream-skin-macos.sh)"
+    exec "$status_script" "$@"
+    ;;
+  autostart)
+    autostart_script="$(installed_script autostart-dream-skin-macos.sh)"
+    exec "$autostart_script" "$@"
+    ;;
+  start)
+    run_safe_start "$@"
+    ;;
+  start-authorized)
+    starter="$(installed_script start-dream-skin-macos.sh)"
+    exec "$starter" --restart-existing "$@"
+    ;;
+  pause)
+    pause_script="$(installed_script pause-dream-skin-macos.sh)"
+    exec "$pause_script" "$@"
+    ;;
+  verify)
+    verifier="$(installed_script verify-dream-skin-macos.sh)"
+    exec "$verifier" "$@"
+    ;;
+  restore)
+    restorer="$(installed_script restore-dream-skin-macos.sh)"
+    exec "$restorer" --restore-base-theme "$@"
+    ;;
+  menubar-install)
+    menubar_installer="$(installed_script install-menubar-macos.sh)"
+    exec "$menubar_installer" "$@"
+    ;;
+  menubar-apply)
+    [ "$#" -eq 0 ] || fail "The menubar-apply command takes no arguments."
+    menubar_apply="$(installed_script apply-from-menubar-macos.sh)"
+    exec "$menubar_apply"
+    ;;
+  build-client-release)
+    ensure_source
+    exec "$SOURCE_ROOT/scripts/build-client-release.sh" "$@"
+    ;;
+  build-release)
+    ensure_source
+    exec "$SOURCE_ROOT/scripts/build-release.sh" "$@"
+    ;;
+  test)
+    [ "$#" -eq 0 ] || fail "The test command takes no arguments."
+    ensure_source
+    exec "$SOURCE_ROOT/tests/run-tests.sh"
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    fail "Unknown command: $command_name"
+    ;;
+esac

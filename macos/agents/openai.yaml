@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Dream Skin Video"
+  short_description: "Apply reversible MP4 video or image backgrounds to Codex"
+  default_prompt: "Use $codex-dream-skin to apply my MP4 video or image as a Codex background and verify playback."

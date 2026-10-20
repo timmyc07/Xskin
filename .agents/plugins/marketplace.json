@@ -1,0 +1,20 @@
+{
+  "name": "codex-background-studio-local",
+  "interface": {
+    "displayName": "Xskin"
+  },
+  "plugins": [
+    {
+      "name": "codex-background-studio",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

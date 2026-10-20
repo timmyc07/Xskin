@@ -1,0 +1,38 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "codex-background-studio",
+  "version": "1.4.0",
+  "description": "Xskin：以原生 macOS 程式匯入、預覽並套用 Codex 圖片或 4K MP4 背景。",
+  "author": {
+    "name": "Xskin contributors"
+  },
+  "repository": "https://github.com/timmyc07/Xskin",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "background",
+    "image",
+    "video",
+    "macos"
+  ],
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "onboardingSkill": "./skills/background-studio/SKILL.md",
+      "interface": {
+        "displayName": "Xskin",
+        "shortDescription": "原生程式管理圖片與 4K 影片背景",
+        "longDescription": "Xskin 是獨立的 macOS 原生程式，可匯入、預覽並直接套用 Codex 圖片與 MP4 背景。媒體全程留在本機，影片保留原始畫質。",
+        "developerName": "Xskin contributors",
+        "category": "Productivity",
+        "capabilities": [
+          "Interactive",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "開啟 Xskin"
+        ]
+      }
+    }
+  }
+}

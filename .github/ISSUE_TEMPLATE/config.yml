@@ -1,0 +1,16 @@
+# Blank issues are disabled; please choose a template.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Xskin README
+    url: https://github.com/timmyc07/Xskin/blob/main/README.md
+    about: 產品介紹、下載與系統需求 · Features, downloads, and requirements
+  - name: Xskin 使用指南 / User guide
+    url: https://github.com/timmyc07/Xskin/blob/main/docs/background-panel.md
+    about: 原生 macOS App 安裝、素材匯入與背景套用 · Native app installation, import, and apply
+  - name: 平台與路徑 / Platforms and paths
+    url: https://github.com/timmyc07/Xskin/blob/main/docs/platforms.md
+    about: Xskin 原生程式與背景引擎的目錄說明 · Native app and background engine paths
+  - name: Changelog (macOS)
+    url: https://github.com/timmyc07/Xskin/blob/main/macos/CHANGELOG.md
+    about: 版本更新與修復說明 · Release notes and fixes
