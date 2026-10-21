@@ -696,6 +696,8 @@ async function verifySession(session) {
       mainClear: clearSurface(document.querySelector(mainSelector)),
       sidebarClear: clearSurface(document.querySelector(sidebarSelector)),
       headerClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] header.app-header-tint')),
+      messagingClear: [...document.querySelectorAll(mainSelector + ' .messaging-root.messaging-embedded, ' +
+        mainSelector + ' .messaging-root.messaging-embedded .thread-pane')].every(clearSurface),
     };
     const dotNodes = surface === 'dot' ? [...document.querySelectorAll(
       '[data-avatar-overlay-native-surface-id="composer"], [data-avatar-overlay-native-surface-id^="activity-"]'
@@ -774,7 +776,8 @@ async function verifySession(session) {
     );
     const maskPass = !result.wallpaperLayout || (
       wallpaperMask.opacity !== null && wallpaperMask.uniform && wallpaperMask.fullViewport &&
-      wallpaperMask.pointerEvents === 'none' && wallpaperMask.mainClear && wallpaperMask.sidebarClear && wallpaperMask.headerClear
+      wallpaperMask.pointerEvents === 'none' && wallpaperMask.mainClear && wallpaperMask.sidebarClear &&
+      wallpaperMask.headerClear && wallpaperMask.messagingClear
     );
     result.pass = Boolean(basePass && homePass && maskPass && (!result.video || result.video.suspended || (result.video.ready && result.videoBox?.visible && result.videoPointerEvents === 'none')));
     result.softNotes = {

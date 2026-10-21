@@ -261,6 +261,11 @@ html.codex-dream-skin[data-dream-wallpaper="true"] #root main[data-app-shell-mai
   box-shadow: none !important;
 }
 
+html.codex-dream-skin[data-dream-wallpaper="true"] main[data-app-shell-main-surface] .messaging-root.messaging-embedded,
+html.codex-dream-skin[data-dream-wallpaper="true"] main[data-app-shell-main-surface] .messaging-root.messaging-embedded .thread-pane {
+  background: transparent !important;
+}
+
 html.codex-dream-skin[data-dream-wallpaper="true"] #root [class*="_MainContentTopFade_"],
 html.codex-dream-skin[data-dream-wallpaper="true"] #root .pointer-events-none.from-surface,
 html.codex-dream-skin[data-dream-wallpaper="true"] #root .pointer-events-none.bg-surface,
@@ -526,14 +531,14 @@ html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface
   text-shadow: none;
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
+html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article:not(.message-row) {
   border: 1px solid rgb(var(--ds-muted-rgb) / .12);
   background: rgb(var(--ds-panel-rgb) / .44);
   box-shadow: 0 8px 24px rgb(var(--ds-bg-rgb) / .10);
   backdrop-filter: blur(7px) saturate(105%);
 }
 
-html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
+html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article:not(.message-row) {
   background: rgb(var(--ds-panel-rgb) / .72);
 }
 
@@ -1144,7 +1149,7 @@ html.codex-dream-skin button[class~="bg-token-foreground"] {
   box-shadow: 0 5px 14px rgb(var(--ds-accent-rgb) / .20) !important;
 }
 
-html.codex-dream-skin article,
+html.codex-dream-skin article:not(.message-row),
 html.codex-dream-skin [data-message-author-role] { border-radius: 16px; }
 
 @media (max-width: 1120px) {

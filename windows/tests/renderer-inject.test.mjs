@@ -10,6 +10,14 @@ const windowsRoot = path.resolve(here, "..");
 const template = await fs.readFile(path.join(windowsRoot, "assets", "renderer-inject.js"), "utf8");
 const css = await fs.readFile(path.join(windowsRoot, "assets", "dream-skin.css"), "utf8");
 
+assert.match(css,
+  /data-dream-wallpaper="true"\] main\[data-app-shell-main-surface\] \.messaging-root\.messaging-embedded,\s*html\.codex-dream-skin\[data-dream-wallpaper="true"\] main\[data-app-shell-main-surface\] \.messaging-root\.messaging-embedded \.thread-pane\s*\{\s*background: transparent !important;/,
+  "Native Your dot must reveal the shared wallpaper through every nested messaging root and thread pane.",
+);
+assert.doesNotMatch(css, /html\.codex-dream-skin[^{}]*\barticle\s*[,\{]/,
+  "Generic article panels must exclude Dot message rows so they do not frame the existing native bubbles twice.",
+);
+
 assert.doesNotMatch(
   css,
   /main\[data-app-shell-main-surface\]\s*>\s*header\.app-header-tint\s*\{[^}]*\b(?:position|z-index)\s*:/,

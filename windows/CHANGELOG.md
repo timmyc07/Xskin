@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-10-22
 
+- Fix the main-window **Your dot** conversation remaining opaque: clear its nested embedded messaging roots and thread panes so the existing original-quality video shows through. Keep message bubbles and composer styling; reject opaque inner messaging layers during verification instead of checking only the outer shell. A 60-second live test retained 3840×2160 at approximately 30 fps with zero added dropped frames, and changing pixels were captured inside the formerly opaque conversation area.
+- Exclude Dot message rows from generic article styling so the native bubbles do not sit inside a second full-width background, border, shadow and blur.
 - Recognize the official app's embedded `https://chatgpt.com` Work webview and Dot avatar control surfaces, while excluding unrelated webviews, empty detached windows and foreign origins. Keep the registered-app/browser identity and loopback checks.
 - Apply the original video and one full-window mask to Work, including its sidebar. Follow the native embedder's actual visibility: preloaded hidden Work pages may report `document.hidden === false` and defer decoding. Verify them as explicitly suspended, resume on display, and pause the covered Codex video instead of decoding both backgrounds continuously.
 - Play the original video in Dot composer/activity cards using one shared player, clipped to their rounded bounds. Follow card movement, animation and size changes; pause when all cards are hidden. Keep the surrounding desktop transparent and retain poster fallback for loading, errors and Reduce Motion. Reload, pause and removal clean up observers and animation callbacks.

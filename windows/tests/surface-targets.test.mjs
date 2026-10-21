@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import {detectSurface, earlyPayloadFor, isValidCdpTarget, waitForVerifiedSession} from '../scripts/injector.mjs';
 
@@ -66,4 +67,33 @@ for (const hostHidden of [true, false]) {
   }};
   const result = await waitForVerifiedSession(session, 250, theme, true);
   assert.equal(result.pass, hostHidden, 'Only an explicitly hidden embedder may defer its first video frame.');
+}
+
+const version = (await fs.readFile(new URL('../VERSION', import.meta.url), 'utf8')).trim();
+const messagingSelector = selectors.codex[0] + ' .messaging-root.messaging-embedded, ' +
+  selectors.codex[0] + ' .messaging-root.messaging-embedded .thread-pane';
+for (const blockedLayer of [-1, 0, 1, 2, 3, 'image']) {
+  const clearStyle = {backgroundColor:'rgba(0, 0, 0, 0)', backgroundImage:'none', pointerEvents:'none'};
+  const node = {getBoundingClientRect: () => ({x:0, y:0, width:100, height:100}), style:clearStyle};
+  const layers = Array.from({length:4}, (_, index) => ({style:{...clearStyle,
+    ...(index === blockedLayer ? {backgroundColor:'rgb(24, 24, 24)'} : {}),
+    ...(blockedLayer === 'image' && index === 3 ? {backgroundImage:'linear-gradient(black, black)'} : {}),
+  }}));
+  const session = {async evaluate(expression) {
+    return vm.runInNewContext(expression, {
+      innerWidth:100, innerHeight:100,
+      window:{__CODEX_DREAM_SKIN_STATE__:{surface:'codex', version, themeId:'messaging', wallpaper:true}},
+      getComputedStyle:(element, pseudo) => pseudo ? {backgroundColor:'rgba(0, 0, 0, 0.62)',
+        backgroundImage:'none', position:'fixed', top:'0px', right:'0px', bottom:'0px', left:'0px', pointerEvents:'none'} : element.style,
+      document:{body:node, documentElement:{classList:{contains:() => true},
+        scrollWidth:100, clientWidth:100, scrollHeight:100, clientHeight:100},
+        querySelector:selector => selectors.codex.includes(selector) ? node : null,
+        querySelectorAll:selector => {assert.equal(selector, messagingSelector); return layers;},
+        getElementById:id => ['codex-dream-skin-style', 'codex-dream-skin-chrome'].includes(id) ? node : null},
+    });
+  }};
+  const result = await waitForVerifiedSession(session, 250, {id:'messaging', maskOpacity:0.62});
+  assert.equal(result.wallpaperMask.messagingClear, blockedLayer === -1);
+  assert.equal(result.pass, blockedLayer === -1,
+    'Native Your dot verification must reject every opaque inner messaging surface, including background images.');
 }
