@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## Unreleased
+
+- Stream MP4 integrity checks through a 1 MiB buffer and reuse the content digest when fingerprinting a theme. Keep the complete-file audit, file-change guards and original media untouched.
+- Add separate benchmarks for theme-load CPU/peak memory and live Windows CPU/GPU/private memory. This work has not established a sustained GPU improvement and is not a new Windows release.
+
 ## Xskin Windows 1.5.2 — 2026-10-21
 
 - Avoid scanning the entire Codex document for ordinary streamed message content. Refresh theme routing only when shell/home markers change, including existing-page activation; keep periodic repair and resize handling.

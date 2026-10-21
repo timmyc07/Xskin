@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { MAX_VIDEO_BYTES, readVideo, validateVideoName } from "../scripts/video-file.mjs";
+import { MAX_VIDEO_BYTES, inspectVideo, validateVideoName } from "../scripts/video-file.mjs";
 import { attachVideoToSession, loadPayload, waitForVerifiedSession } from "../scripts/injector.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -12,18 +13,45 @@ const mp4 = Buffer.from("000000186674797069736f6d0000020069736f6d6d703431", "hex
 try {
   const video = path.join(temporary, "background.mp4");
   await fs.writeFile(video, mp4);
-  assert.deepEqual(await readVideo(video), mp4);
-  assert.deepEqual(await readVideo(video, { headerOnly: true }), mp4);
+  assert.deepEqual(await inspectVideo(video), { size: mp4.length, key: createHash("sha256").update(mp4).digest("hex") });
+  assert.deepEqual(await inspectVideo(video, { headerOnly: true }), { size: mp4.length, key: null });
+  const chunked = path.join(temporary, "chunked.mp4");
+  const chunkedBytes = Buffer.concat([mp4, Buffer.alloc(2 * 1024 * 1024 + 123, 0x37)]);
+  await fs.writeFile(chunked, chunkedBytes);
+  assert.deepEqual(await inspectVideo(chunked), { size: chunkedBytes.length, key: createHash("sha256").update(chunkedBytes).digest("hex") }, "Hash every chunk, including the partial tail, without retaining the video.");
+  const originalOpen = fs.open;
+  try {
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      const read = handle.read.bind(handle);
+      handle.read = (buffer, offset, length, position) => read(buffer, offset, Math.min(7, length), position);
+      return handle;
+    };
+    assert.equal((await inspectVideo(video)).key, createHash("sha256").update(mp4).digest("hex"), "Partial file reads must not invalidate a valid MP4 header or hash.");
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      const read = handle.read.bind(handle);
+      handle.read = async (...readArgs) => {
+        const result = await read(...readArgs);
+        if (readArgs[3] === 0) await fs.appendFile(chunked, "changed");
+        return result;
+      };
+      return handle;
+    };
+    await assert.rejects(inspectVideo(chunked), /changed while being read/, "Streaming must retain the full-read mutation guard.");
+  } finally {
+    fs.open = originalOpen;
+  }
   for (const name of ["../a.mp4", "a/b.mp4", "a\\b.mp4", "C:movie.mp4", "a.mp4:stream.mp4", "a\n.mp4", "a.webm"]) {
     assert.throws(() => validateVideoName(name));
   }
   await fs.writeFile(path.join(temporary, "bad.mp4"), "not an MP4 container");
-  await assert.rejects(readVideo(path.join(temporary, "bad.mp4")), /MP4/);
-  await assert.rejects(readVideo(path.join(temporary, "bad.mp4"), { headerOnly: true }), /MP4/);
+  await assert.rejects(inspectVideo(path.join(temporary, "bad.mp4")), /MP4/);
+  await assert.rejects(inspectVideo(path.join(temporary, "bad.mp4"), { headerOnly: true }), /MP4/);
   const oversized = path.join(temporary, "big.mp4");
   await fs.writeFile(oversized, mp4);
   await fs.truncate(oversized, MAX_VIDEO_BYTES + 1);
-  await assert.rejects(readVideo(oversized), /256 MiB/);
+  await assert.rejects(inspectVideo(oversized), /256 MiB/);
 
   await fs.copyFile(path.join(root, "assets/dream-reference.jpg"), path.join(temporary, "background.jpg"));
   const theme = { name: "中文 $& theme", image: "background.jpg", video: "background.mp4", layout: "wallpaper", maskOpacity: 0.62 };

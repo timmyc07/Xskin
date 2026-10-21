@@ -72,6 +72,8 @@ On Windows, right-click **Codex (Xskin)** → **Show more options** → **Pin to
 
 Windows 1.5.2 avoids rescanning the whole page for ordinary message updates. In a controlled 100-update test, route scans fell from **104 to 1** while the original **3840×2160** video kept playing. This measures background-maintenance work, not a 99% reduction in total CPU or GPU use. See the [benchmark and limits](windows/references/performance.md).
 
+An **unreleased** streaming-integrity change reduced theme-load CPU time and peak memory in local measurements. GPU savings have not been established, so the published Windows download remains **1.5.2**. The [resource report](windows/references/performance.md) separates load-time results from continuous playback.
+
 ## Supported media
 
 | Type | Formats | File limit | Processing |

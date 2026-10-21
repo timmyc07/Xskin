@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readImageMetadata } from "./image-metadata.mjs";
-import { readVideo, validateVideoName } from "./video-file.mjs";
+import { inspectVideo, validateVideoName } from "./video-file.mjs";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
@@ -383,7 +383,6 @@ async function loadTheme(themeDir) {
   }
   theme.artMetadata = artMetadata;
   let videoSource = null;
-  let videoBytes = null;
   if (raw.video !== undefined) {
     theme.video = validateVideoName(raw.video);
     const videoPath = path.join(realThemeDir, theme.video);
@@ -391,17 +390,17 @@ async function loadTheme(themeDir) {
     if (stat.isSymbolicLink() || path.dirname(await fs.realpath(videoPath)) !== realThemeDir) {
       throw new Error("Theme video cannot escape through a link or junction");
     }
-    videoBytes = await readVideo(videoPath);
+    const video = await inspectVideo(videoPath);
     if (videoStamp(await fs.lstat(videoPath)) !== videoStamp(stat)) throw new Error("Video changed while being read");
-    theme.videoKey = createHash("sha256").update(videoBytes).digest("hex");
-    theme.videoBytes = videoBytes.length;
+    theme.videoKey = video.key;
+    theme.videoBytes = video.size;
     videoSource = { path: videoPath, stamp: videoStamp(stat), key: theme.videoKey };
   }
   const fingerprint = createHash("sha256")
     .update(themeText, "utf8")
     .update("\0")
     .update(imageBytes)
-    .update(videoBytes ?? "")
+    .update(theme.videoKey ?? "")
     .digest("hex");
   return {
     theme,
