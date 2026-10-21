@@ -2,6 +2,7 @@
 
 ## Xskin Windows 1.5.1 — 2026-10-21
 
+- Allow launcher reapplication when Windows still enumerates an exited injector, while rejecting running or unrelated processes.
 - Use the registered Codex application's icon for Desktop/Start automatic-background shortcuts, while retaining the managed background launcher.
 - Port the macOS 1.5.1 renderer, stylesheet, current Codex shell selectors, adaptive layout, video lifecycle, and exact theme/mask/playback verification. Retire the old Windows renderer selectors that prevented Apply from finding Codex.
 - Match the Mac panel's dark preview/source/preferences flow, pending/applied state, image dimensions, paused original-quality video preview, drag-and-drop, four persisted interface languages, and independent debounced whole-window mask updates.

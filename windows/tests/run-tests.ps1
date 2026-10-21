@@ -848,6 +848,7 @@ try {
   if ($panelTest.ExitCode -ne 0) { throw ($panelTest.Output -join "`n") }
   & (Join-Path $PSScriptRoot 'xskin-theme.test.ps1')
   & (Join-Path $PSScriptRoot 'xskin-parity.test.ps1')
+  & (Join-Path $PSScriptRoot 'injector-process.test.ps1')
   Write-Host 'PASS: config transactions, restore scoping, state safety, argument quoting, loopback CDP and video.'
 } finally {
   Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue

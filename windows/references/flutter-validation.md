@@ -21,6 +21,9 @@ Live Codex validation completed with the original 26,595,461-byte MP4 and manage
 - Renderer reload: the watcher restored the video automatically; playhead advanced from 0.495s to 1.802s with 39 additional decoded frames.
 - Reduced Motion paused decoded video; clearing the temporary emulation resumed advancing playback. The user's OS settings were not changed.
 - Independent mask update verified at 50%, then restored to 62%. Pause removed the skin and video; Resume restored 4K playback, adding 37 decoded frames in approximately 1.2s. Final state is enabled at the original 62% mask.
+- The Codex (Xskin) shortcut was pinned through Windows Explorer and the original Codex pin removed through Windows Shell. The pinned copy retains the managed launcher arguments and registered Codex icon. Two consecutive ShellExecute launches of that exact pinned shortcut exited successfully with the panel closed, preserved the current Codex session/theme, and verified 4K playback; the last sample added 36 frames in approximately 1.2s. The already-running Codex session was not restarted.
+
+Repeated shortcut launches exposed a Windows process-enumeration race: an injector that had exited could still appear in `Get-Process` after `Wait-Process`. Relaunch now checks `HasExited` before reporting failure. Regression checks cover exited, absent and still-running injectors, and ensure unrelated process identities remain rejected. The full Windows suite passed after this fix.
 
 The first live test exposed a missing `theme.videoBytes` in the Windows injector. The shared Mac renderer correctly rejected that incomplete file contract. Windows now supplies the original byte length, retains the renderer's detailed error, and tests that handoff contract.
 
