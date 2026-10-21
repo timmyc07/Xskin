@@ -2,12 +2,12 @@
 param(
   [Parameter(Mandatory = $true)]
   [ValidateSet('state','validate','import','apply','pause','launch','restore','save','select')][string]$Action,
+  [Parameter(Mandatory = $true)][string]$RequestPath,
   [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
 )
 
 $ErrorActionPreference = 'Stop'
 $utf8 = [System.Text.UTF8Encoding]::new($false)
-[Console]::InputEncoding = $utf8
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
 . (Join-Path $PSScriptRoot 'xskin-theme.ps1')
@@ -38,14 +38,15 @@ function Get-XskinPanelState {
 }
 
 try {
+  Assert-DreamSkinNoReparseComponents -Path $RequestPath
+  if ((Get-Item -LiteralPath $RequestPath).Length -gt 24MB) { throw 'Panel request exceeds the size limit.' }
+  $inputText = Read-DreamSkinUtf8File -Path $RequestPath
+  $request = if ($inputText.Trim()) { $inputText | ConvertFrom-Json } else { [pscustomobject]@{} }
+  if ($request -is [array] -or $request -is [string] -or $null -eq $request) { throw 'Panel request must be an object.' }
   $panelOperation = Enter-DreamSkinOperationLock
   $paths = Initialize-DreamSkinThemeStore -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
   $settingsPath = Join-Path $StateRoot 'studio.json'
   Assert-DreamSkinNoReparseComponents -Path $settingsPath
-  $inputText = [Console]::In.ReadToEnd()
-  if ($inputText.Length -gt 24MB) { throw 'Panel request exceeds the size limit.' }
-  $request = if ($inputText.Trim()) { $inputText | ConvertFrom-Json } else { [pscustomobject]@{} }
-  if ($request -is [array] -or $request -is [string] -or $null -eq $request) { throw 'Panel request must be an object.' }
   switch ($Action) {
     'state' { }
     'validate' {

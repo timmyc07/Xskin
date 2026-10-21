@@ -38,53 +38,67 @@ class XskinEngine {
         'Extract the complete Xskin ZIP before opening the app.',
       );
     }
-    final process = await Process.start(
-      path.join(
-        Platform.environment['SystemRoot']!,
-        'System32',
-        'WindowsPowerShell',
-        'v1.0',
-        'powershell.exe',
-      ),
-      [
-        '-NoProfile',
-        '-STA',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        script,
-        '-Action',
-        action,
-      ],
-      mode: ProcessStartMode.normal,
-    );
-    final output = process.stdout.transform(utf8.decoder).join();
-    final errors = process.stderr
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .join();
-    process.stdin.add(utf8.encode(jsonEncode(request)));
-    await process.stdin.close();
-    final code = await process.exitCode;
-    final stdout = await output;
-    final stderr = await errors;
-    final resultLines = const LineSplitter()
-        .convert(stdout)
-        .where((line) => line.startsWith('XSKIN_RESULT:'));
-    if (resultLines.isEmpty) {
-      throw StateError(
-        stderr.trim().isEmpty
-            ? 'The background engine exited without a result (code $code).'
-            : stderr.trim(),
+    // Large posters can stall on Windows PowerShell's redirected stdin.
+    final temporary = await Directory.systemTemp.createTemp('xskin-request-');
+    final requestFile = File(path.join(temporary.path, 'request.json'));
+    try {
+      await requestFile.writeAsString(
+        jsonEncode(request),
+        encoding: utf8,
+        flush: true,
       );
-    }
-    final result =
-        jsonDecode(resultLines.last.substring('XSKIN_RESULT:'.length))
-            as Map<String, dynamic>;
-    if (code != 0 || result['ok'] != true) {
-      throw StateError(
-        result['error'] as String? ?? 'The background operation failed.',
+      final process = await Process.start(
+        path.join(
+          Platform.environment['SystemRoot']!,
+          'System32',
+          'WindowsPowerShell',
+          'v1.0',
+          'powershell.exe',
+        ),
+        [
+          '-NoProfile',
+          '-STA',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          script,
+          '-Action',
+          action,
+          '-RequestPath',
+          requestFile.path,
+        ],
+        mode: ProcessStartMode.normal,
       );
+      final output = process.stdout.transform(utf8.decoder).join();
+      final errors = process.stderr
+          .transform(const Utf8Decoder(allowMalformed: true))
+          .join();
+      await process.stdin.close();
+      final code = await process.exitCode;
+      final stdout = await output;
+      final stderr = await errors;
+      final resultLines = const LineSplitter()
+          .convert(stdout)
+          .where((line) => line.startsWith('XSKIN_RESULT:'));
+      if (resultLines.isEmpty) {
+        throw StateError(
+          stderr.trim().isEmpty
+              ? 'The background engine exited without a result (code $code).'
+              : stderr.trim(),
+        );
+      }
+      final result =
+          jsonDecode(resultLines.last.substring('XSKIN_RESULT:'.length))
+              as Map<String, dynamic>;
+      if (code != 0 || result['ok'] != true) {
+        throw StateError(
+          result['error'] as String? ?? 'The background operation failed.',
+        );
+      }
+      return PanelState.fromJson(result['state'] as Map<String, dynamic>);
+    } finally {
+      if (await requestFile.exists()) await requestFile.delete();
+      await temporary.delete();
     }
-    return PanelState.fromJson(result['state'] as Map<String, dynamic>);
   }
 }

@@ -145,11 +145,12 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
     );
     if (file == null) return;
     await _run(() async {
+      if (mounted) setState(() => _status = 'Validating media...');
       await widget.engine.command('validate', {'path': file.path});
       final request = <String, dynamic>{'path': file.path};
       if (path.extension(file.path).toLowerCase() == '.mp4') {
-        await _openVideo(file.path);
         if (mounted) setState(() => _status = 'Preparing a still preview...');
+        await _openVideo(file.path);
         final player = _player!;
         if ((player.state.width ?? 0) == 0) {
           await player.stream.width
@@ -187,6 +188,7 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
           codec.dispose();
         }
       }
+      if (mounted) setState(() => _status = 'Saving media and preview...');
       await _show(await widget.engine.command('import', request));
     });
   }

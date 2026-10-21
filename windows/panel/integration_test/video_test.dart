@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:path/path.dart' as path;
+import 'package:xskin/engine.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +23,9 @@ void main() {
     );
     final player = Player();
     final controller = VideoController(player);
+    final temporary = await Directory.systemTemp.createTemp(
+      'xskin-video-test-',
+    );
     try {
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       await player.setVolume(0);
@@ -34,6 +40,43 @@ void main() {
       expect(poster!.length, greaterThan(100));
       expect(player.state.playing, isFalse);
       expect(player.state.volume, 0);
+      final scripts = await Directory(
+        path.join(temporary.path, 'scripts'),
+      ).create();
+      final engineScript = path.absolute('../scripts/xskin-command.ps1');
+      final stateRoot = path.join(temporary.path, 'state');
+      String quote(String value) => "'${value.replaceAll("'", "''")}'";
+      await File(path.join(scripts.path, 'xskin-command.ps1')).writeAsString(
+        'param(\$Action, \$RequestPath)\n'
+        '& ${quote(engineScript)} -Action \$Action -RequestPath \$RequestPath '
+        '-StateRoot ${quote(stateRoot)}\n',
+      );
+      final engine = XskinEngine(temporary.path);
+      final before = await engine.command('state');
+      final originalTheme = await File(
+        path.join(stateRoot, 'active-theme', 'theme.json'),
+      ).readAsString();
+      final imported = await engine
+          .command('import', {
+            'path': source,
+            'posterPng': base64Encode(poster),
+          })
+          .timeout(const Duration(seconds: 30));
+      expect(imported.pending, isTrue);
+      expect(imported.videoPath, isNotNull);
+      expect(
+        await File(imported.videoPath!).readAsBytes(),
+        await File(source).readAsBytes(),
+      );
+      expect(await File(imported.imagePath).readAsBytes(), poster);
+      expect(await File(before.imagePath).exists(), isTrue);
+      expect(
+        await File(
+          path.join(stateRoot, 'active-theme', 'theme.json'),
+        ).readAsString(),
+        originalTheme,
+      );
+      expect((await engine.command('state')).videoPath, imported.videoPath);
       await tester.pumpWidget(
         MaterialApp(
           home: Video(controller: controller, controls: NoVideoControls),
@@ -46,6 +89,7 @@ void main() {
       expect(player.state.playing, isFalse);
     } finally {
       await player.dispose();
+      await temporary.delete(recursive: true);
     }
   });
 }

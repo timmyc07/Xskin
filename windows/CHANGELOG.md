@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## Xskin Windows 1.0.1 — 2026-10-21
+
+- Fix video import remaining busy when a large poster stalls in the Dart/PowerShell stdin pipe. Transfer requests through validated temporary UTF-8 files and remove them after completion or failure.
+- Show the current import stage and test large requests, cleanup, and actual MP4 decoding through pending-theme storage.
+
 ## Xskin Windows 1.0.0 — 2026-10-21
 
 - Add a Flutter desktop panel with a native file picker, image/MP4 previews, muted playback, mask controls, saved themes, pause, launch and restore.
