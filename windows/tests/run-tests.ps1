@@ -709,16 +709,15 @@ try {
 
   $css = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\dream-skin.css')
   foreach ($requiredCss in @(
-    'background-image: var(--dream-art)',
-    'main.main-surface > header.app-header-tint',
-    '[class~="group/application-menu-top-bar"]',
+    'background-image: var(--dream-skin-art)',
+    'main[data-app-shell-main-surface] > header.app-header-tint',
+    '#codex-dream-skin-video',
     '.app-shell-main-content-top-fade',
     '.thread-scroll-container .bg-gradient-to-t.from-token-main-surface-primary',
-    '--dream-immersive-composer',
-    'background-position: var(--dream-art-position)',
-    '.dream-home-utility',
-    ':has(.dream-home-utility) .composer-surface-chrome',
-    ':is(.dream-task-ambient, .dream-task-banner):has(main.main-surface:not(.dream-home-shell))'
+    '--dream-skin-mask-opacity',
+    'background-position: var(--ds-art-position)',
+    'data-dream-wallpaper="true"',
+    '[data-composer-body]'
   )) {
     if (-not $css.Contains($requiredCss)) { throw "Windows immersive CSS is missing: $requiredCss" }
   }
@@ -734,6 +733,11 @@ try {
     throw 'Tray menu metadata enumeration still performs full image parsing on every open.'
   }
   $restoreSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\restore-dream-skin.ps1')
+  foreach ($source in @($traySource, $restoreSource)) {
+    if (-not $source.Contains('Set-XskinAutostart -Enabled $false')) {
+      throw 'Pause/restore must disable the owned automatic launch entries.'
+    }
+  }
   if (-not $restoreSource.Contains('Stop-DreamSkinTrayProcess')) {
     throw 'Complete restore does not stop a separately launched tray process.'
   }
@@ -742,6 +746,9 @@ try {
     throw 'Restore still executes the WindowsApps path instead of activating the registered package.'
   }
   $startSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\start-dream-skin.ps1')
+  if (-not $startSource.Contains("throw 'Dream Skin launch was cancelled; Codex was not changed.'")) {
+    throw 'Cancelled startup must fail Apply so the pending theme is preserved and the previous theme restored.'
+  }
   if ($startSource.Contains('Start-Process -FilePath $codex.Executable') -or
     -not $startSource.Contains('Start-DreamSkinCodex -Codex $codex')) {
     throw 'Start still executes the WindowsApps path instead of activating the registered package.'
@@ -764,7 +771,7 @@ try {
   }
 
   $rendererSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\renderer-inject.js')
-  foreach ($requiredRendererBehavior in @('dream-home-utility', 'artMetadata', 'detectShellAppearance')) {
+  foreach ($requiredRendererBehavior in @('data-dream-shell', 'artMetadata', 'detectShellMode')) {
     if (-not $rendererSource.Contains($requiredRendererBehavior)) {
       throw "Renderer adaptive behavior is missing: $requiredRendererBehavior"
     }
@@ -816,7 +823,7 @@ try {
   if ($payloadTest.ExitCode -ne 0) { throw 'Injector self-test failed.' }
   $managedPayloadTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $Root 'scripts\injector.mjs'), '--check-payload', '--theme-dir', $themePaths.Active)
-  if ($managedPayloadTest.ExitCode -ne 0) { throw 'Managed theme payload validation failed.' }
+  if ($managedPayloadTest.ExitCode -ne 0) { throw "Managed theme payload validation failed: $($managedPayloadTest.Output -join [Environment]::NewLine)" }
   $oversizedPayloadTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $Root 'scripts\injector.mjs'), '--check-payload', '--theme-dir', $oversizedTheme)
   if ($oversizedPayloadTest.ExitCode -eq 0) { throw 'Node injector accepted an image over the 16 MB limit.' }
@@ -833,7 +840,16 @@ try {
     (Join-Path $PSScriptRoot 'image-metadata.test.mjs'))
   if ($imageMetadataTest.ExitCode -ne 0) { throw 'Image metadata regression test failed.' }
 
-  Write-Host 'PASS: config transactions, restore scoping, state safety, argument quoting, and loopback CDP validation.'
+  $videoTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'video-theme.test.mjs'))
+  if ($videoTest.ExitCode -ne 0) { throw ($videoTest.Output -join "`n") }
+  $panelTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'panel-command.test.mjs'))
+  if ($panelTest.ExitCode -ne 0) { throw ($panelTest.Output -join "`n") }
+  & (Join-Path $PSScriptRoot 'xskin-theme.test.ps1')
+  & (Join-Path $PSScriptRoot 'xskin-parity.test.ps1')
+  & (Join-Path $PSScriptRoot 'injector-process.test.ps1')
+  Write-Host 'PASS: config transactions, restore scoping, state safety, argument quoting, loopback CDP and video.'
 } finally {
   Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

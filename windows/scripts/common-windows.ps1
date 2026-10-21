@@ -140,6 +140,9 @@ function Install-DreamSkinRuntimeEngine {
     'scripts\theme-windows.ps1',
     'scripts\tray-dream-skin.ps1',
     'scripts\verify-dream-skin.ps1'
+    'scripts\video-file.mjs',
+    'scripts\xskin-theme.ps1',
+    'scripts\xskin-command.ps1'
   )
   foreach ($relative in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot $relative) -PathType Leaf)) {
@@ -300,13 +303,17 @@ function Invoke-DreamSkinNative {
 function Get-DreamSkinNodeRuntime {
   param([int]$MinimumMajor = 22)
 
-  $command = Get-Command node.exe -ErrorAction SilentlyContinue
-  if (-not $command) { $command = Get-Command node -ErrorAction SilentlyContinue }
-  if (-not $command) { throw "Node.js $MinimumMajor or newer is required and was not found in PATH." }
-  $versionProbe = Invoke-DreamSkinNative -FilePath $command.Source -ArgumentList @('-p', 'process.versions.node') -DiscardStderr
+  $executable = Join-Path $PSScriptRoot 'node.exe'
+  if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+    $command = Get-Command node.exe -ErrorAction SilentlyContinue
+    if (-not $command) { $command = Get-Command node -ErrorAction SilentlyContinue }
+    if (-not $command) { throw "Node.js $MinimumMajor or newer is required for a source checkout." }
+    $executable = $command.Source
+  }
+  $versionProbe = Invoke-DreamSkinNative -FilePath $executable -ArgumentList @('-p', 'process.versions.node') -DiscardStderr
   $version = ($versionProbe.Output -join '').Trim()
   if ($versionProbe.ExitCode -ne 0 -or -not $version) { throw 'The Node.js runtime could not be validated.' }
-  $pathProbe = Invoke-DreamSkinNative -FilePath $command.Source -ArgumentList @('-p', 'process.execPath') -DiscardStderr
+  $pathProbe = Invoke-DreamSkinNative -FilePath $executable -ArgumentList @('-p', 'process.execPath') -DiscardStderr
   $runtimePath = ($pathProbe.Output -join '').Trim()
   if ($pathProbe.ExitCode -ne 0 -or -not $runtimePath -or -not (Test-Path -LiteralPath $runtimePath)) {
     throw 'The Node.js executable path could not be validated.'
@@ -756,7 +763,8 @@ function Stop-DreamSkinRecordedInjector {
 
   Stop-Process -Id $processId -Force -ErrorAction Stop
   try { Wait-Process -Id $processId -Timeout 5 -ErrorAction Stop } catch {}
-  if (Get-Process -Id $processId -ErrorAction SilentlyContinue) {
+  $remainingProcess = Get-Process -Id $processId -ErrorAction SilentlyContinue
+  if ($remainingProcess -and -not $remainingProcess.HasExited) {
     throw "The recorded Dream Skin injector did not stop: PID $processId"
   }
   return $true

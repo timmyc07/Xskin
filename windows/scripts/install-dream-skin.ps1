@@ -78,9 +78,6 @@ try {
       $tray.Description = 'Open Codex Dream Skin status and theme controls in the system tray'
       $tray.Save()
     }
-    Start-Process -FilePath $powershell -ArgumentList `
-      "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$trayScript`"$portArgument" `
-      -WindowStyle Hidden | Out-Null
   }
 
   if ($NoShortcuts) {

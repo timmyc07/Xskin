@@ -1,148 +1,69 @@
-# Windows image-theme runtime (upstream)
+# Xskin for Windows 1.5.2 (Flutter)
 
-These upstream sources are retained for image themes. They are **not the native Xskin app** and do not provide its macOS interface or MP4 background support. For the current product, see the [Xskin README](../README.md).
+**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.2/Xskin-1.5.2-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.2)
 
-Codex Dream Skin loads an external theme into the official Codex Windows desktop app through loopback CDP. The native sidebar, project picker, task content, and composer remain interactive. The tool does not modify WindowsApps, `app.asar`, or the app signature.
+Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
-## Requirements
+## Run
 
-- The official `OpenAI.Codex` app installed from Microsoft Store and registered for the current user.
-- Node.js 22 or newer, with `node.exe` available on `PATH`.
-- Windows PowerShell 5.1 or newer.
+1. Install the official Microsoft Store `OpenAI.Codex` app.
+2. Extract the **complete** Windows ZIP and open `xskin.exe`. Keep its DLLs, `data`, `scripts` and `assets` beside it. Node.js is bundled; no separate Node or Flutter installation is needed.
+3. Choose **Choose file**, or drop one image/MP4 into the panel. Imported copies stay pending; the current background remains unchanged.
+4. Check the preview, resolution and size, then press **Apply this background**. Video previews start paused; the Codex background plays silently in a loop at the original quality and frame rate.
+5. If Codex is already running without a background connection, the first Apply asks to restart it once. Save unfinished input before accepting. Cancel or failed verification preserves the previous theme.
 
-Run the installer after Codex has fully exited. Normal use does not require administrator access or ownership changes under WindowsApps.
+The right side shows the active background, language, automatic apply and whole-window overlay. English, Traditional Chinese, Simplified Chinese and Japanese are available. The version is visible at the top right. Errors remain available under **Details**.
 
-## Install
+## Preferences and saved backgrounds
 
-Open PowerShell in the repository's `windows` directory and run:
+- **Overlay opacity:** 0–100%, default 62%. Release the slider to persist and update the current background. This does not import another copy or reopen the preview player. Keyboard changes are debounced.
+- **Apply on Codex launch:** creates managed **Codex (Xskin)** entries on Desktop and Start. Open Codex through those entries to apply the saved background while the Xskin panel stays closed. This is the Windows equivalent of the Mac direct-launch Dock entry. Original Microsoft Store/taskbar entries are unchanged. An already-open ordinary Codex window is left running; use manual Apply to authorize its first restart.
+- **Taskbar:** right-click the Desktop **Codex (Xskin)** shortcut → **Show more options** → **Pin to taskbar**. After confirming it launches correctly, unpin the original Codex icon. Pin this shortcut rather than the running official-app window; the shortcut retains the managed engine arguments and official Codex icon.
+- **Saved backgrounds:** contains launch, pause/resume, save, selection and restore controls. Selecting a saved theme prepares a draft for Apply.
+- **Pause / Restore:** disable the managed automatic-launch entries. Restore closes the managed debugging session and reopens ordinary Codex after the restart prompt.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-dream-skin.ps1
-```
+Imports, the overlay and language survive panel restarts. All media processing stays local; there is no account, API key or `.env` requirement.
 
-The installer validates the official Codex Store package and Node.js, saves a recoverable appearance baseline, and initializes the local theme store. By default it also creates these shortcuts:
+## Media
 
-- `Codex Dream Skin`: launch or reapply the skin.
-- `Codex Dream Skin - Tray`: open the system tray theme controls.
-- `Codex Dream Skin - Restore`: restore the stock appearance and close the saved CDP session.
+| Type | Formats | Handling |
+| --- | --- | --- |
+| Image | PNG, JPEG, WebP, HEIC/HEIF, TIFF | Sources ≤50 MiB, ≤16384px per side and ≤50MP; converted locally to JPEG, quality 90, longest side ≤4096px and output ≤16 MiB. |
+| Video | MP4, H.264 recommended | ≤256 MiB; original file copied without transcoding, including 4K. Import uses a still fallback while the preview prepares independently. |
 
-Pass `-Port` during installation to use a fixed custom port. Valid ports range from `1024` through `65535`.
+Image conversion uses Windows Imaging Component. HEIF/HEIC and WebP require their Windows image codecs; missing codecs produce a conversion error and preserve the current theme. The Flutter preview uses media_kit/libmpv; Codex uses Chromium. Apply verifies the **selected theme, mask, decoded video and progressing playhead**, rather than accepting a previous background or a frozen frame. Hidden windows and Reduce Motion suspend video; still artwork remains available on decode failure.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-dream-skin.ps1 -Port 9444
-```
+## Managed engine and verification
 
-## Launch and verify
-
-The `Codex Dream Skin` shortcut is the recommended launcher. It asks for confirmation before restarting an open Codex window.
-
-Command-line launch:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-dream-skin.ps1 -PromptRestart
-```
-
-Run verification after launch:
+Apply installs a self-contained engine under `%LOCALAPPDATA%\CodexDreamSkin\engine`. Media, drafts, settings and logs stay under `%LOCALAPPDATA%\CodexDreamSkin`. Metadata uses strict UTF-8, atomic writes, checked managed paths and recoverable transactions. Normal Apply does not rewrite `config.toml`.
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-dream-skin.ps1 `
-  -ScreenshotPath "$env:TEMP\codex-dream-skin.png"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-dream-skin.ps1 -ScreenshotPath "$env:TEMP\xskin.png"
 ```
 
-The verification script confirms:
+CDP remains loopback-only and verifies the registered Store package, process ownership and Browser ID. The official app, WindowsApps permissions and system execution policy are unchanged. The panel is unsigned; use trusted builds and trusted local software while the debugging connection is active.
 
-- The CDP endpoint is bound to loopback and belongs to the current official Codex package.
-- The current renderer has loaded the expected skin version.
-- The native sidebar and composer remain present.
-- The decorative skin layer does not intercept pointer events.
-- When the current route is home, the themed home structure has loaded.
+The retained installer/tray can still manage legacy appearance-key backups. For that optional setup, close Codex and run `Install Xskin.cmd`. Full appearance-key restoration is available through `scripts\restore-dream-skin.ps1 -RestoreBaseTheme -PromptRestart -Uninstall` when an appearance backup exists.
 
-Next, use the generated screenshot to check horizontal overflow and text contrast. On both the home and normal task routes, manually check the project menu and composer interaction. See [`references/qa-inventory.md`](./references/qa-inventory.md) for the complete visual checklist.
+## Build and test
 
-## Change and save themes
-
-Open `Codex Dream Skin - Tray` to:
-
-- Import a PNG, JPEG, or WebP background.
-- Save the active theme and switch through saved themes.
-- Pause or resume the skin.
-- Reapply the theme or fully restore Codex.
-
-Import a UI-free wallpaper rather than a preview containing a window, sidebar, composer, text, or buttons. Images may be at most 16 MB, 16384 pixels on either side, and 50 million total pixels.
-
-## Restore and remove shortcuts
-
-Restore the stock appearance. If Codex is running, confirm its closure and relaunch:
+Source builds require Flutter stable 3.47.7, Visual Studio 2022 Desktop development with C++, a Windows SDK, and Node.js 22+. Flutter plugin builds require directory-link support. These are developer requirements, not packaged-app requirements.
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\restore-dream-skin.ps1 `
-  -RestoreBaseTheme -PromptRestart
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\tests\run-tests.ps1
+cd windows\panel
+flutter pub get
+flutter analyze
+flutter test
+flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-Add `-Uninstall` to also remove the shortcuts created by Dream Skin:
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.2-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.5.2` release tag.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\restore-dream-skin.ps1 `
-  -RestoreBaseTheme -PromptRestart -Uninstall
-```
+## Performance
 
-`-RecoverConfigBackup` restores the complete pre-install `config.toml` backup and saves the current configuration first. Reserve it for a damaged configuration that normal `-RestoreBaseTheme` recovery cannot resolve.
+Ordinary streamed message content no longer triggers a full-document route scan. Shell/home changes, page activation, resize and periodic repair still refresh the background. Preview starts paused, hidden previews release the player, and hidden Codex windows / Reduce Motion pause video. Original video bytes, resolution and frame rate are preserved.
 
-## Files and logs
+The local 100-update benchmark reduced route scans from 104 to 1 while a 4K video continued playing. Overall CPU timing was similar during this short run; this is a reduction in unnecessary background-maintenance work, not a total CPU/GPU guarantee. See [measurements and reproduction](references/performance.md).
 
-| Purpose | Path |
-|---------|------|
-| Dream Skin state root | `%LOCALAPPDATA%\CodexDreamSkin` |
-| Active theme | `%LOCALAPPDATA%\CodexDreamSkin\active-theme` |
-| Saved themes | `%LOCALAPPDATA%\CodexDreamSkin\themes` |
-| Imported image archive | `%LOCALAPPDATA%\CodexDreamSkin\images` |
-| Session state | `%LOCALAPPDATA%\CodexDreamSkin\state.json` |
-| Injector log | `%LOCALAPPDATA%\CodexDreamSkin\injector.log` |
-| Injector error log | `%LOCALAPPDATA%\CodexDreamSkin\injector-error.log` |
-| Verification log | `%LOCALAPPDATA%\CodexDreamSkin\verify.log` |
-| Codex configuration | `%USERPROFILE%\.codex\config.toml` |
-
-See [`../docs/platforms.md`](../docs/platforms.md) for the complete platform path reference.
-
-## Troubleshooting
-
-### Node.js is missing
-
-Run `node --version`, confirm that it reports version 22 or newer, and reopen PowerShell so an updated `PATH` takes effect.
-
-### The official Codex package is missing
-
-Run:
-
-```powershell
-Get-AppxPackage -Name OpenAI.Codex
-```
-
-The scripts accept only a registered official Store package. They do not launch Codex from an arbitrary executable path.
-
-### The installer asks you to close Codex
-
-Close every Codex window and run the installer again. Installation requires stable app and configuration state.
-
-### The port is occupied
-
-When `-Port` is omitted, the launcher searches for a free port beginning at `9335`. If another process owns an explicitly requested port, choose a different port rather than stopping an unknown listener.
-
-### Verification cannot find a CDP endpoint
-
-Launch Codex through the `Codex Dream Skin` shortcut, then run verification. A normal Codex launch does not open the debug session used by Dream Skin.
-
-### The skin stops working after a Codex update
-
-Run the installer and launch shortcut again. The scripts rediscover the currently registered Store package instead of trusting an executable path from an older app version.
-
-Open the repository's [new issue page](https://github.com/Fei-Away/Codex-Dream-Skin/issues/new/choose) and choose the bug form when reporting a problem. Include the Windows version, Codex source, reproduction steps, and relevant log lines. Remove secrets, `auth.json`, relay tokens, and private conversation content.
-
-## Security boundaries
-
-- CDP binds only to `127.0.0.1`. Avoid untrusted local software while the skin is active.
-- The tool does not modify the official Codex installation, WindowsApps, `app.asar`, or signatures.
-- It does not write API keys, Base URLs, or model provider settings.
-- Restore controls only Codex processes that pass package identity, executable path, and recorded session checks.
-
-Maintainer and agent constraints live in [`SKILL.md`](./SKILL.md). See [`references/runtime-notes.md`](./references/runtime-notes.md) for deeper runtime troubleshooting.
+See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.

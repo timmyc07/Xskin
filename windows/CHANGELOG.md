@@ -1,5 +1,39 @@
 # Windows Changelog
 
+## Xskin Windows 1.5.2 — 2026-10-21
+
+- Avoid scanning the entire Codex document for ordinary streamed message content. Refresh theme routing only when shell/home markers change, including existing-page activation; keep periodic repair and resize handling.
+- Publish the Windows x64 Flutter portable ZIP with bundled Node.js, a SHA-256 checksum and a separate Windows release tag. macOS keeps its existing release.
+
+## Xskin Windows 1.5.1 — 2026-10-21
+
+- Allow launcher reapplication when Windows still enumerates an exited injector, while rejecting running or unrelated processes.
+- Use the registered Codex application's icon for Desktop/Start automatic-background shortcuts, while retaining the managed background launcher.
+- Port the macOS 1.5.1 renderer, stylesheet, current Codex shell selectors, adaptive layout, video lifecycle, and exact theme/mask/playback verification. Retire the old Windows renderer selectors that prevented Apply from finding Codex.
+- Match the Mac panel's dark preview/source/preferences flow, pending/applied state, image dimensions, paused original-quality video preview, drag-and-drop, four persisted interface languages, and independent debounced whole-window mask updates.
+- Import MP4 directly without waiting for a screenshot or PNG conversion. Normalize common image formats through Windows Imaging Component to JPEG, up to 4096px, with the same 50 MiB source and 50MP limits. HEIC/HEIF and WebP use the installed Windows codecs.
+- Add the Windows equivalent of the Mac direct-launch entry: managed Desktop/Start shortcuts named Codex (Xskin), with ownership checks and automatic apply while the panel is closed. Pause/Restore disable these entries; original Codex shortcuts and binaries remain intact.
+- Bundle Node.js and its license, use a managed engine for Apply, preserve settings across imports, and clean completed/replaced drafts. Test the real 4K pending video in the full Flutter import/playback flow.
+- Supply the original video length required by the Mac renderer's file validation, and preserve renderer errors in the handoff log. The missing length prevented the first live video handoff despite a healthy Flutter preview.
+
+## Xskin Windows 1.0.2 — 2026-10-21
+
+- Display the packaged version in the panel and license page so a stale shortcut is immediately recognizable.
+- Exercise the real panel import handler and verify that successful MP4 import enables Apply and supports muted preview playback.
+
+## Xskin Windows 1.0.1 — 2026-10-21
+
+- Fix video import remaining busy when a large poster stalls in the Dart/PowerShell stdin pipe. Transfer requests through validated temporary UTF-8 files and remove them after completion or failure.
+- Show the current import stage and test large requests, cleanup, and actual MP4 decoding through pending-theme storage.
+
+## Xskin Windows 1.0.0 — 2026-10-21
+
+- Add a Flutter desktop panel with a native file picker, image/MP4 previews, muted playback, mask controls, saved themes, pause, launch and restore.
+- Keep imports pending until Apply; persist pending drafts and mask settings. Verify Apply and roll back the previous image/video theme and pause state on failure.
+- Preserve original MP4 bytes up to 256 MiB and transfer local files over CDP without embedding video bytes in JavaScript. Restore video after reload; suspend for hidden documents or reduced motion.
+- Keep the native Codex layout under one continuous wallpaper and mask. Existing adaptive image themes remain usable in the retained tray.
+- Add Flutter widget/engine-bridge regression tests, a Windows release build script and GitHub Actions packaging.
+
 ## 1.2.0 — 2026-07-17
 
 ### 新增

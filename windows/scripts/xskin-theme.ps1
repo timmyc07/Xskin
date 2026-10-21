@@ -1,0 +1,215 @@
+. (Join-Path $PSScriptRoot 'common-windows.ps1')
+. (Join-Path $PSScriptRoot 'theme-windows.ps1')
+
+function New-XskinImport {
+  param(
+    [Parameter(Mandatory = $true)][string]$ImagePath,
+    [string]$VideoPath,
+    [string]$Name,
+    [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
+  )
+  Assert-DreamSkinImageFile -Path $ImagePath
+  if ($VideoPath) { Assert-DreamSkinVideoFile -Path $VideoPath }
+  $directory = Join-Path $StateRoot ('imports\' + [guid]::NewGuid().ToString('N'))
+  Ensure-DreamSkinManagedDirectory -Path $directory -Root $StateRoot
+  try {
+  $imageName = 'background' + [System.IO.Path]::GetExtension($ImagePath).ToLowerInvariant()
+  Copy-Item -LiteralPath $ImagePath -Destination (Join-Path $directory $imageName)
+  $source = if ($VideoPath) { $VideoPath } else { $ImagePath }
+  $name = if ($Name) { $Name } else { [System.IO.Path]::GetFileNameWithoutExtension($source) }
+  $theme = [pscustomobject]@{
+    id = 'xskin-' + [guid]::NewGuid().ToString('N')
+    name = $name.Substring(0, [Math]::Min(80, $name.Length))
+    image = $imageName
+    layout = 'wallpaper'
+    appearance = 'dark'
+    maskOpacity = 0.62
+    art = [pscustomobject]@{ focusX = 0.5; focusY = 0.5; safeArea = 'none'; taskMode = 'ambient' }
+  }
+  if ($VideoPath) {
+    Copy-Item -LiteralPath $VideoPath -Destination (Join-Path $directory 'background.mp4')
+    $theme | Add-Member -NotePropertyName video -NotePropertyValue 'background.mp4'
+  }
+  Write-DreamSkinTheme -ThemeDirectory $directory -Theme $theme
+  return Read-DreamSkinTheme -ThemeDirectory $directory
+  } catch {
+    Remove-DreamSkinRuntimeTree -Path $directory -StateRoot $StateRoot
+    throw
+  }
+}
+
+function Convert-XskinImage {
+  param([Parameter(Mandatory = $true)][string]$Source, [Parameter(Mandatory = $true)][string]$Destination)
+  Assert-DreamSkinNoReparseComponents -Path $Source
+  Assert-DreamSkinNoReparseComponents -Path $Destination
+  if ([IO.Path]::GetExtension($Source).ToLowerInvariant() -notin @('.png','.jpg','.jpeg','.webp','.heic','.heif','.tif','.tiff')) {
+    throw 'Choose MP4, PNG, JPEG, WebP, HEIC, or TIFF.'
+  }
+  $file = Get-Item -LiteralPath $Source
+  if ($file.PSIsContainer -or $file.Length -lt 1 -or $file.Length -gt 50MB) { throw 'Images must be regular files no larger than 50 MiB.' }
+  Add-Type -AssemblyName PresentationCore
+  $stream = [IO.File]::Open($Source, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+  try {
+    $decoder = [Windows.Media.Imaging.BitmapDecoder]::Create($stream,
+      [Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat, [Windows.Media.Imaging.BitmapCacheOption]::OnDemand)
+    $frame = $decoder.Frames[0]
+    if ($frame.PixelWidth -lt 1 -or $frame.PixelHeight -lt 1 -or $frame.PixelWidth -gt 16384 -or
+      $frame.PixelHeight -gt 16384 -or [long]$frame.PixelWidth * $frame.PixelHeight -gt 50000000) { throw 'Unsupported image dimensions (16384px / 50MP limit).' }
+    $scale = [Math]::Min(1, 4096 / [double][Math]::Max($frame.PixelWidth, $frame.PixelHeight))
+    $scaled = [Windows.Media.Imaging.TransformedBitmap]::new($frame, [Windows.Media.ScaleTransform]::new($scale,$scale))
+    $encoder = [Windows.Media.Imaging.JpegBitmapEncoder]::new()
+    $encoder.QualityLevel = 90
+    $encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($scaled))
+    $output = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try { $encoder.Save($output) } finally { $output.Dispose() }
+  } catch {
+    throw "Image conversion failed. HEIC/HEIF requires a Windows image codec. $($_.Exception.Message)"
+  } finally { $stream.Dispose() }
+  Assert-DreamSkinImageFile -Path $Destination
+}
+
+function Read-XskinSettings {
+  param([Parameter(Mandatory = $true)][string]$StateRoot)
+  $file = Join-Path $StateRoot 'studio.json'
+  Assert-DreamSkinNoReparseComponents -Path $file
+  if (-not (Test-Path -LiteralPath $file)) { return [pscustomobject]@{} }
+  $settings = (Read-DreamSkinUtf8File -Path $file) | ConvertFrom-Json
+  if ($null -eq $settings -or $settings -is [array] -or $settings -is [string]) { throw 'Invalid studio settings.' }
+  if ($settings.language -and $settings.language -notin @('en','zh-Hant','zh-Hans','ja')) { throw 'Unsupported saved language.' }
+  return $settings
+}
+
+function Write-XskinSettings {
+  param([Parameter(Mandatory = $true)][string]$StateRoot, [Parameter(Mandatory = $true)][hashtable]$Values)
+  $settings = Read-XskinSettings -StateRoot $StateRoot
+  foreach ($key in $Values.Keys) { $settings | Add-Member -NotePropertyName $key -NotePropertyValue $Values[$key] -Force }
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $StateRoot 'studio.json') -Content ($settings | ConvertTo-Json -Depth 5)
+}
+
+function Get-XskinLaunchShortcutPaths {
+  return @((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Codex (Xskin).lnk'),
+    (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Codex (Xskin).lnk'))
+}
+
+function Get-XskinAutostart {
+  param([Parameter(Mandatory = $true)][string]$StateRoot)
+  $script = Join-Path $StateRoot 'engine\scripts\start-dream-skin.ps1'
+  $shell = New-Object -ComObject WScript.Shell
+  $owned = @()
+  $foreign = @()
+  $shortcutPaths = @(Get-XskinLaunchShortcutPaths)
+  foreach ($file in $shortcutPaths) {
+    if (-not (Test-Path -LiteralPath $file)) { continue }
+    Assert-DreamSkinNoReparseComponents -Path $file
+    $link = $shell.CreateShortcut($file)
+    if ($link.Description -ne 'Xskin automatic Codex background launcher' -or
+      -not (Test-DreamSkinCommandLineToken -CommandLine $link.Arguments -Token $script)) {
+      $foreign += $file
+      continue
+    }
+    $owned += $file
+  }
+  return [pscustomobject]@{ Enabled = $owned.Count -gt 0; Loaded = $owned.Count -eq $shortcutPaths.Count -and (Test-Path -LiteralPath $script); Owned = $owned; Foreign = $foreign }
+}
+
+function Set-XskinAutostart {
+  param([Parameter(Mandatory = $true)][bool]$Enabled, [Parameter(Mandatory = $true)][string]$SkillRoot,
+    [Parameter(Mandatory = $true)][string]$StateRoot)
+  $startup = Get-XskinAutostart -StateRoot $StateRoot
+  if ($Enabled) {
+    if ($startup.Foreign.Count -gt 0) { throw "Refusing to change an unrelated shortcut: $($startup.Foreign[0])" }
+    $codex = Get-DreamSkinCodexInstall
+    $engine = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
+    $shell = New-Object -ComObject WScript.Shell
+    $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    foreach ($file in Get-XskinLaunchShortcutPaths) {
+      $link = $shell.CreateShortcut($file)
+      $link.TargetPath = $powershell
+      $link.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($engine.Start)`""
+      $link.WorkingDirectory = $engine.Root
+      $link.IconLocation = "$($codex.Executable),0"
+      $link.Description = 'Xskin automatic Codex background launcher'
+      $link.WindowStyle = 7
+      $link.Save()
+    }
+  } else {
+    foreach ($file in $startup.Owned) { Remove-Item -LiteralPath $file -Force }
+  }
+}
+
+function Test-XskinApplied {
+  param([Parameter(Mandatory = $true)][string]$StateRoot)
+  if (Test-DreamSkinPaused -StateRoot $StateRoot) { return $false }
+  $state = Read-DreamSkinState -Path (Join-Path $StateRoot 'state.json')
+  if ($null -eq $state -or -not (Get-Process -Id $state.injectorPid -ErrorAction SilentlyContinue)) { return $false }
+  $codex = Get-DreamSkinCodexInstallFromState -State $state
+  if ($null -eq $codex) { return $false }
+  $identity = Get-DreamSkinVerifiedCdpIdentity -Port $state.port -Codex $codex
+  return $null -ne $identity -and $identity.BrowserId -ceq $state.browserId
+}
+
+function Set-XskinMask {
+  param([Parameter(Mandatory = $true)][double]$Opacity, [Parameter(Mandatory = $true)][string]$StateRoot,
+    [Parameter(Mandatory = $true)][scriptblock]$Apply)
+  if ([double]::IsNaN($Opacity) -or [double]::IsInfinity($Opacity) -or $Opacity -lt 0 -or $Opacity -gt 1) {
+    throw 'Mask opacity must be a number between 0 and 1.'
+  }
+  $active = Join-Path $StateRoot 'active-theme'
+  $theme = Read-DreamSkinTheme -ThemeDirectory $active
+  $previous = Read-DreamSkinUtf8File -Path $theme.ThemePath
+  $theme.Theme | Add-Member -NotePropertyName maskOpacity -NotePropertyValue $Opacity -Force
+  Write-DreamSkinTheme -ThemeDirectory $active -Theme $theme.Theme
+  try { & $Apply | Out-Host } catch {
+    $failure = $_
+    Write-DreamSkinUtf8FileAtomically -Path $theme.ThemePath -Content $previous
+    try { & $Apply | Out-Null } catch {}
+    throw $failure
+  }
+}
+
+function Invoke-XskinApply {
+  param(
+    [Parameter(Mandatory = $true)][string]$ThemeDirectory,
+    [Parameter(Mandatory = $true)][scriptblock]$Apply,
+    [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
+  )
+  $operation = Enter-DreamSkinOperationLock
+  $backup = Join-Path $StateRoot ('.xskin-rollback-' + [guid]::NewGuid().ToString('N'))
+  $preserveBackup = $false
+  try {
+    if (-not (Test-DreamSkinThemePathWithin -Path $ThemeDirectory -Root $StateRoot)) {
+      throw 'Select an imported or saved Xskin theme.'
+    }
+    $candidate = Read-DreamSkinTheme -ThemeDirectory $ThemeDirectory
+    $paths = Get-DreamSkinThemePaths -StateRoot $StateRoot
+    $previous = Read-DreamSkinTheme -ThemeDirectory $paths.Active
+    $wasPaused = Test-DreamSkinPaused -StateRoot $StateRoot
+    Ensure-DreamSkinManagedDirectory -Path $backup -Root $StateRoot
+    Copy-Item -LiteralPath $previous.ImagePath -Destination $backup
+    if ($previous.VideoPath) { Copy-Item -LiteralPath $previous.VideoPath -Destination $backup }
+    Write-DreamSkinTheme -ThemeDirectory $backup -Theme $previous.Theme
+    $previous = Read-DreamSkinTheme -ThemeDirectory $backup
+    try {
+      $null = Set-DreamSkinActiveTheme -ImagePath $candidate.ImagePath -VideoPath $candidate.VideoPath `
+        -Theme $candidate.Theme -StateRoot $StateRoot
+      & $Apply | Out-Host
+    } catch {
+      $applyError = $_
+      try {
+        $null = Set-DreamSkinActiveTheme -ImagePath $previous.ImagePath -VideoPath $previous.VideoPath `
+          -Theme $previous.Theme -StateRoot $StateRoot
+        $null = Set-DreamSkinPaused -Paused $wasPaused -StateRoot $StateRoot
+      } catch {
+        $preserveBackup = $true
+        throw "Apply and rollback failed. Previous theme preserved at ${backup}: $($_.Exception.Message)"
+      }
+      throw $applyError
+    }
+  } finally {
+    try {
+      if (-not $preserveBackup -and (Test-Path -LiteralPath $backup)) {
+        Remove-DreamSkinRuntimeTree -Path $backup -StateRoot $StateRoot
+      }
+    } finally { Exit-DreamSkinOperationLock -Mutex $operation }
+  }
+}
