@@ -7,12 +7,12 @@
 Bring your favorite images and original 4K videos into Codex.<br>
 Import, preview, and apply from one focused, native macOS app.
 
-[![Version](https://img.shields.io/badge/version-1.5.0-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0)
+[![Version](https://img.shields.io/badge/version-1.5.1-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Download Xskin 1.5.0](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0)** · [User guide](docs/background-panel.md) · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+**[Download Xskin 1.5.1](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)** · [User guide](docs/background-panel.md) · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
@@ -36,7 +36,7 @@ A quiet photograph. A moving landscape. A workspace that feels a little more lik
 
 Download and extract the app, move **Xskin.app** to Applications, and open it. The prebuilt app requires no separate Node.js installation, package manager, or Xcode.
 
-> v1.5.0 uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Download from this project's Release page and review the [user guide](docs/background-panel.md).
+> v1.5.1 uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Download from this project's Release page and review the [user guide](docs/background-panel.md).
 
 ## Details that make room for your work
 
@@ -87,7 +87,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Item | Requirement |
 | --- | --- |
 | Operating system | macOS 13 or later |
-| Processor | Apple Silicon; the v1.5.0 prebuilt app is arm64 |
+| Processor | Apple Silicon; the v1.5.1 prebuilt app is arm64 |
 | Required software | Official Codex Desktop, with a bundled runtime that passes verification |
 | Installation | Standalone app; an optional Codex plugin launches the same app. See the [user guide](docs/background-panel.md). |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
@@ -129,4 +129,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Download Xskin →](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0)
+**Bring your favorite scene into your everyday work.** [Download Xskin →](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)

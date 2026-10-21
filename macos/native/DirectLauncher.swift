@@ -14,11 +14,24 @@ private func tileURL(_ tile: [String: Any]) -> URL? {
 private func replacingURL(_ tile: [String: Any], with url: URL) -> [String: Any] {
   var result = tile
   var data = result["tile-data"] as? [String: Any] ?? [:]
+  // Dock can prefer the old bookmark and bundle identity over the displayed URL.
+  for key in ["book", "file-mod-date", "parent-mod-date"] { data.removeValue(forKey: key) }
+  data["bundle-identifier"] = managedBundleID
   data["file-data"] = ["_CFURLString": url.absoluteString, "_CFURLStringType": 15]
   data["file-label"] = "Codex (Xskin)"
   result["tile-data"] = data
   result["tile-type"] = "file-tile"
   return result
+}
+
+private func managedTileIsCurrent(_ tile: [String: Any]) -> Bool {
+  guard tileURL(tile) == managedApp.standardizedFileURL,
+    let data = tile["tile-data"] as? [String: Any], data["bundle-identifier"] as? String == managedBundleID else { return false }
+  guard let bookmark = data["book"] else { return true }
+  guard let bookmark = bookmark as? Data else { return false }
+  var stale = false
+  let resolved = try? URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale)
+  return !stale && resolved?.standardizedFileURL == managedApp.standardizedFileURL
 }
 
 private func installEntry(official: URL) throws {
@@ -69,21 +82,25 @@ private func configureDock(official: URL?, restore: Bool) throws {
     }
   } else {
     guard let official else { throw CocoaError(.fileReadInvalidFileName) }
-    if tiles.contains(where: { tileURL($0) == managedApp.standardizedFileURL }) { return }
-    for index in tiles.indices where tileURL(tiles[index]) == official.standardizedFileURL {
-      let guid = tiles[index]["GUID"] as? Int ?? Int.random(in: 1...Int(Int32.max))
-      originals.append(["GUID": guid, "original": tiles[index]])
+    if let index = tiles.firstIndex(where: { tileURL($0) == managedApp.standardizedFileURL }) {
+      if managedTileIsCurrent(tiles[index]) { return }
       tiles[index] = replacingURL(tiles[index], with: managedApp)
-      tiles[index]["GUID"] = guid
+    } else {
+      for index in tiles.indices where tileURL(tiles[index]) == official.standardizedFileURL {
+        let guid = tiles[index]["GUID"] as? Int ?? Int.random(in: 1...Int(Int32.max))
+        originals.append(["GUID": guid, "original": tiles[index]])
+        tiles[index] = replacingURL(tiles[index], with: managedApp)
+        tiles[index]["GUID"] = guid
+      }
+      if originals.isEmpty {
+        let guid = Int.random(in: 1...Int(Int32.max))
+        originals.append(["GUID": guid])
+        tiles.append(replacingURL(["GUID": guid], with: managedApp))
+      }
+      try FileManager.default.createDirectory(at: stateFolder, withIntermediateDirectories: true)
+      try PropertyListSerialization.data(fromPropertyList: originals, format: .binary, options: 0).write(to: backup, options: .atomic)
+      try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: backup.path)
     }
-    if originals.isEmpty {
-      let guid = Int.random(in: 1...Int(Int32.max))
-      originals.append(["GUID": guid])
-      tiles.append(replacingURL(["GUID": guid], with: managedApp))
-    }
-    try FileManager.default.createDirectory(at: stateFolder, withIntermediateDirectories: true)
-    try PropertyListSerialization.data(fromPropertyList: originals, format: .binary, options: 0).write(to: backup, options: .atomic)
-    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: backup.path)
   }
   CFPreferencesSetAppValue(key, tiles as CFArray, domain)
   guard CFPreferencesAppSynchronize(domain) else { throw CocoaError(.fileWriteUnknown) }
@@ -120,13 +137,30 @@ private struct DirectLauncher {
   private static func run() throws {
     let args = Array(CommandLine.arguments.dropFirst())
     if args == ["--self-check"] {
-      let original: [String: Any] = ["GUID": 7, "tile-type": "file-tile", "tile-data": ["file-data": ["_CFURLString": "file:///Applications/ChatGPT.app/", "_CFURLStringType": 15], "keep": true]]
+      let original: [String: Any] = ["GUID": 7, "tile-type": "file-tile", "tile-data": ["file-data": ["_CFURLString": "file:///Applications/ChatGPT.app/", "_CFURLStringType": 15], "book": Data([1, 2, 3]), "bundle-identifier": "com.openai.codex", "file-mod-date": 1, "parent-mod-date": 2, "keep": true]]
       assert(tileURL(original)?.path == "/Applications/ChatGPT.app")
       let changed = replacingURL(original, with: managedApp)
       assert(changed["GUID"] as? Int == 7)
       assert((changed["tile-data"] as? [String: Any])?["keep"] as? Bool == true)
       assert(tileURL(changed) == managedApp.standardizedFileURL)
-      print("PASS: direct-launch entry preserves Dock metadata and uses a distinct managed bundle.")
+      let changedData = changed["tile-data"] as! [String: Any]
+      assert(changedData["book"] == nil && changedData["file-mod-date"] == nil && changedData["parent-mod-date"] == nil)
+      assert(changedData["bundle-identifier"] as? String == managedBundleID)
+      assert(managedTileIsCurrent(changed))
+      var stale = changed
+      var staleData = changedData
+      staleData["bundle-identifier"] = "com.openai.codex"
+      stale["tile-data"] = staleData
+      assert(!managedTileIsCurrent(stale))
+      staleData["bundle-identifier"] = managedBundleID
+      staleData["book"] = try FileManager.default.temporaryDirectory.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+      stale["tile-data"] = staleData
+      assert(!managedTileIsCurrent(stale))
+      staleData["book"] = Data([1, 2, 3])
+      stale["tile-data"] = staleData
+      assert(!managedTileIsCurrent(stale))
+      assert(managedTileIsCurrent(replacingURL(stale, with: managedApp)))
+      print("PASS: Dock replacements clear stale launch bookmarks and identities, retain ordering, and repair existing entries.")
       return
     }
     if args.count == 2, ["--install", "--link-dock"].contains(args[0]) {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1 — 2026-10-21
+
+- Fix Dock entries whose visible URL pointed to Xskin while their bookmark and bundle identity still launched the original app.
+- Repair existing entries during setup, clear stale launch metadata, and preserve the original Dock backup for restoration.
+- Cover stale, corrupt, and mismatched Dock bookmarks in native regression checks.
+
 ## 1.5.0 — 2026-10-21
 
 - Default to English with persistent English, Traditional Chinese, Simplified Chinese, and Japanese interface choices.

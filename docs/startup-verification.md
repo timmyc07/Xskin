@@ -1,33 +1,39 @@
-# Startup verification — Xskin 1.5.0
+# Startup verification
 
 Tested on 2026-10-21 with macOS 26.6.2 on Apple Silicon and official Codex 26.1013.40934.
 
-## Single-launch result
+## 1.5.1 — Dock launch regression
 
-The test closed Codex once, opened the managed **Codex (Xskin)** entry without command-line arguments, and observed native process identities for 15 seconds. Xskin remained closed throughout.
+The reported failure was reproduced in Dock preferences: the displayed file URL pointed to **Codex (Xskin)**, but its internal bookmark resolved to the original official app and its bundle identifier remained `com.openai.codex`. The resulting process had no background connection.
+
+The fix clears the old bookmark and file timestamps, sets the managed bundle identity, and repairs existing entries instead of treating their displayed URL as proof of success. The original Dock backup remained byte-for-byte unchanged during the live repair.
+
+The new test resolves the effective target from Dock preferences, including its bookmark when present, then opens that target through normal Launch Services without forcing a new instance. Xskin remained closed. Native process identities were observed for 15 seconds.
 
 | Check | Result |
 | --- | --- |
+| Effective Dock target and bundle identity | Correct managed entry |
 | Distinct Codex application processes during startup | 1 |
-| Opening the Dock entry again | Same Codex process; no restart |
-| Original video | H.264, 3840 × 2160, 60 fps; original file bytes retained |
-| Playback after startup | Decoded and advancing |
+| Opening the resolved Dock entry again | Same process; no restart |
+| Video | Original H.264, 3840 × 2160, 60 fps; decoded and advancing |
 | Overlay | 62%, uniform and full-window |
 | Main, sidebar, and header backgrounds | Transparent beneath one overlay |
 | Native Xskin app | Closed |
-| First overlay ready | 6.431 s |
-| First decoded 4K frame | 7.048 s |
-| Startup verification completed | 7.420 s |
-| Independent verification completed | 8.136 s |
+| First overlay ready | 6.361 s |
+| First decoded 4K frame | 7.002 s |
+| Startup verification completed | 7.137 s |
+| Independent verification completed | 7.922 s |
 
-These are observations from one cold application launch on this Mac, not a performance guarantee. The earlier 1.4.0 normal-launch handoff took 11.402 seconds through full verification. A cold application launch still needs loading and video decoding; this release does not claim an instantaneous first frame.
+The full macOS suite and live Home/task route verification passed, including stale, corrupt, and mismatched bookmark regression checks. The test exercises the Dock's resolved target through Launch Services; it does not synthesize a physical Dock mouse click.
 
-The automatic quit-and-relaunch handoff and duplicate launch request were removed. The original official app can still be opened directly, but it is left running without an automatic background. Use the managed Dock entry for background-enabled launches.
+## 1.5.0 — Historical direct-file baseline
 
-## Other checks
+The previous test opened the managed app file directly and therefore missed the stale Dock bookmark. It verified media application but did **not** establish correct Dock routing. Its first decoded 4K frame was observed at 7.048 seconds and independent verification finished at 8.136 seconds.
 
-The full macOS suite passed, including early injection before HTML creation, safe injector shutdown, original-video preservation, imports and rollback, configuration round trips, and 101 interface strings across four languages. English, Traditional Chinese, Simplified Chinese, and Japanese were also checked in the native interface, including language persistence.
+## Limits and other checks
 
-Live verification passed on both Home and task routes.
+These measurements come from one cold application launch per version on this Mac, not a performance guarantee. Application loading and media decoding still take time; no instantaneous first frame is claimed.
 
-Public release archives exclude local videos, private screenshots, credentials, and test state. The official app and bundled runtime retained valid signatures.
+Opening the original official app directly leaves it running without an automatic background. Use the repaired managed Dock entry for background-enabled launches. Automatic quit-and-relaunch behavior remains removed.
+
+The media import, rollback, configuration round-trip, safe injector shutdown, early document bootstrap, and four-language checks passed. Public archives exclude local videos, private screenshots, credentials, and test state. Official application files and signatures remain unchanged.

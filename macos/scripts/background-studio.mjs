@@ -100,7 +100,7 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.5.0",
+    version: "1.5.1",
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,
