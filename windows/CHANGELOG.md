@@ -1,5 +1,12 @@
 # Windows Changelog
 
+## Unreleased — 2026-10-22
+
+- Recognize the official app's embedded `https://chatgpt.com` Work webview and Dot avatar control surfaces, while excluding unrelated webviews, empty detached windows and foreign origins. Keep the registered-app/browser identity and loopback checks.
+- Apply the original video and one full-window mask to Work, including its sidebar. Follow the native embedder's actual visibility: preloaded hidden Work pages may report `document.hidden === false` and defer decoding. Verify them as explicitly suspended, resume on display, and pause the covered Codex video instead of decoding both backgrounds continuously.
+- Apply the selected poster and mask only to Dot composer/activity cards. Keep the mascot's surrounding desktop transparent and avoid an additional 4K decoder in the floating overlay. Reload, pause and removal clean up the host visibility hooks.
+- Add GPU dedicated/shared allocation and per-process private-memory reporting to the live sampler. Four interleaved 60-second playback measurements failed to establish a GPU/private-memory improvement from releasing the poster; discard that experiment. No new Windows release or sustained-resource reduction is claimed.
+
 ## Xskin Windows 1.5.3 — 2026-10-21
 
 - Stream MP4 integrity checks through a 1 MiB buffer and reuse the content digest when fingerprinting a theme. Keep the complete-file audit, file-change guards and original media untouched.

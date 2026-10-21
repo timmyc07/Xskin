@@ -1,4 +1,23 @@
-# Windows performance — 2026-10-21
+# Windows performance — 2026-10-22
+
+## Unreleased playback investigation: no established resource reduction
+
+A poster-lifetime prototype removed the video element's duplicate poster loader, released the unused poster URL after decoding and retained only the compressed image for fallback. A short initial sample suggested lower GPU composition activity, but the longer interleaved comparison below did not reproduce it. **The prototype was discarded; it is not part of the source change or a Windows release.**
+
+Each round used 30 seconds of warm-up followed by 60 seconds of counters in the same 16-process session, with the panel closed and other background surfaces removed for the comparison. The original 26,595,461-byte 3840×2160 AV1 video, playback rate 1, 62% mask and 2560×1438/DPR 1 viewport were preserved. The sequence brackets both baseline runs with the prototype to expose timing drift. No forced GC, working-set trimming, transcoding or frame cap was used.
+
+| Measurement | Prototype A | Released 1.5.3 A | Released 1.5.3 B | Prototype B |
+| --- | ---: | ---: | ---: | ---: |
+| GPU 3D engine busy | 1.387% | 1.370% | 1.281% | 1.382% |
+| GPU video-decode engine busy | 8.498% | 8.845% | 9.629% | 9.744% |
+| Total private commit | 2,663.04 MiB | 2,666.03 MiB | 2,647.87 MiB | 2,669.98 MiB |
+| Total private working set | 2,002.45 MiB | 2,006.21 MiB | 1,967.27 MiB | 2,007.02 MiB |
+| GPU dedicated allocation | 564.57 MiB | 568.03 MiB | 570.86 MiB | 563.49 MiB |
+| Average decoded FPS | 30.014 | 29.989 | 29.993 | 29.983 |
+
+All four samples recorded zero additional dropped frames. GPU allocation is reported separately and is not evidence of lower private RAM. Ongoing conversation updates and decoder clock/warm-up variation remain limits; these results do not support a GPU or steady-memory savings percentage. The downloadable Windows release remains 1.5.3.
+
+The separate unreleased Work/Dot fix avoids a new double-playback cost: live verification showed the original Work video advancing at about 30 fps with no added dropped frames, the covered Codex player paused, and Codex resuming when Work was hidden. This checks the playback lifecycle, not a measured improvement over 1.5.3's GPU/RAM use. Dot floating cards use a poster, not a second video player. The sampler now also reports per-process private commit/working set and dedicated/shared GPU allocations for further investigation.
 
 ## Windows 1.5.3: bounded video integrity checks
 

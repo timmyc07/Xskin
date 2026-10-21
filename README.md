@@ -81,6 +81,8 @@ Windows 1.5.2 avoids rescanning the whole page for ordinary message updates. In 
 
 These are **load-time** improvements included in the **1.5.3 Windows ZIP**. Lower GPU use and sustained playback memory have not been established. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
 
+**Unreleased Windows changes:** the source now covers embedded ChatGPT/Work video backgrounds and Dot floating control cards. Work follows the native container's visibility, so hidden preloaded pages do not block Apply and the covered Codex video pauses while Work is visible. Dot cards use the selected poster and mask while the surrounding desktop stays transparent. These changes are not in the 1.5.3 download. A further four-round playback comparison did not establish lower GPU or sustained memory use; the tested poster-release experiment was discarded and no new performance release is claimed.
+
 ## Supported media
 
 | Type | Formats | File limit | Processing |

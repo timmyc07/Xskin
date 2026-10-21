@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {detectSurface, earlyPayloadFor, isValidCdpTarget, waitForVerifiedSession} from '../scripts/injector.mjs';
+
+const selectors = {
+  codex: ['[data-app-shell-active-page="true"] main[data-app-shell-main-surface]', 'aside.app-shell-left-panel'],
+  work: ['main#main #thread', '#prompt-textarea'],
+  dot: ['.codex-avatar-root', '[data-avatar-overlay-native-surface-id="composer"]'],
+};
+const fixture = (url, markers) => ({
+  location: new URL(url), URLSearchParams, window: {},
+  document: {documentElement:{}, body:{}, querySelector: selector => markers.includes(selector) ? {} : null},
+  setTimeout() {throw new Error('A recognized surface must install immediately');}, clearTimeout() {},
+});
+for (const [kind, url] of [
+  ['codex', 'app://-/index.html'],
+  ['work', 'https://chatgpt.com/?source=codex_app_embedded'],
+  ['dot', 'app://-/index.html?initialRoute=%2Favatar-overlay'],
+]) {
+  const context = fixture(url, selectors[kind]);
+  assert.equal(vm.runInNewContext(`(${detectSurface.toString()})()`, context), kind);
+  vm.runInNewContext(earlyPayloadFor('window.installed = true', 'fixture'), context);
+  assert.equal(context.window.installed, true);
+}
+for (const [url, markers] of [
+  ['https://example.com/', selectors.codex],
+  ['https://chatgpt.com.evil.example/', selectors.work],
+  ['app://-/detached-window.html', []],
+  ['app://-/index.html', [selectors.codex[0]]],
+  ['app://-/index.html?initialRoute=%2Favatar-overlay', [selectors.dot[0]]],
+]) assert.equal(vm.runInNewContext(`(${detectSurface.toString()})()`, fixture(url, markers)), null);
+
+const target = {id:'fixture', type:'webview', url:'https://chatgpt.com/?source=codex_app_embedded',
+  webSocketDebuggerUrl:'ws://127.0.0.1:9335/devtools/page/fixture'};
+assert.equal(isValidCdpTarget(target, 9335), true);
+for (const invalid of [
+  {...target, url:'https://chatgpt.com.evil.example/'},
+  {...target, url:'http://chatgpt.com/'},
+  {...target, url:'https://user@chatgpt.com/'},
+  {...target, type:'iframe'},
+  {...target, type:'page'},
+  {...target, webSocketDebuggerUrl:'ws://example.com:9335/devtools/page/fixture'},
+  {...target, webSocketDebuggerUrl:'ws://127.0.0.1:9336/devtools/page/fixture'},
+  {...target, webSocketDebuggerUrl:'ws://127.0.0.1:9335/devtools/page/different'},
+]) assert.equal(isValidCdpTarget(invalid, 9335), false);
+const theme = {id:'fixture', video:'original.mp4', videoKey:'original-key', maskOpacity:0.62};
+for (const opacity of [0.62, 0.3]) {
+  const session = {async evaluate(expression) {
+    assert.doesNotThrow(() => new vm.Script(expression), 'The browser verification expression must parse.');
+    return {pass:true, surface:'dot', themeId:theme.id, videoKey:theme.videoKey, video:null,
+      wallpaperLayout:false, dotCards:[{poster:true,opacity}]};
+  }};
+  const result = await waitForVerifiedSession(session, 250, theme, true);
+  assert.equal(result.pass, opacity === 0.62, 'Dot cards must verify their real mask without starting a video decoder.');
+}
+console.log('PASS: Codex, embedded Work and Dot are detected; auxiliary and foreign surfaces stay untouched.');
+
+for (const hostHidden of [true, false]) {
+  const session = {async evaluate(expression) {
+    assert.doesNotThrow(() => new vm.Script(expression));
+    return {pass:true, surface:'work', themeId:theme.id, videoKey:theme.videoKey,
+      video:{hostHidden, suspended:true, decoded:false}, wallpaperLayout:false};
+  }};
+  const result = await waitForVerifiedSession(session, 250, theme, true);
+  assert.equal(result.pass, hostHidden, 'Only an explicitly hidden embedder may defer its first video frame.');
+}

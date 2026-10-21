@@ -35,6 +35,8 @@ function Get-ResourceSample {
   $engines = @(Get-CimInstance Win32_PerfRawData_GPUPerformanceCounters_GPUEngine -Filter $gpuFilter |
     Where-Object { $_.Name -match '^pid_(\d+)_' -and [int]$Matches[1] -in $ids })
   if (-not $engines.Count) { throw 'Windows GPU engine counters are unavailable.' }
+  $gpuMemory = @(Get-CimInstance Win32_PerfRawData_GPUPerformanceCounters_GPUProcessMemory -Filter $gpuFilter)
+  if (-not $gpuMemory.Count) { throw 'Windows GPU process-memory counters are unavailable.' }
   $engineMap = @{}
   foreach ($engine in $engines) { $engineMap[$engine.Name] = [double]$engine.RunningTime }
   $watcher = $rows | Where-Object IDProcess -eq $state.injectorPid
@@ -46,6 +48,11 @@ function Get-ResourceSample {
     PrivateMiB = (($rows | Measure-Object PrivateBytes -Sum).Sum) / 1MB
     WorkingPrivateMiB = (($rows | Measure-Object WorkingSetPrivate -Sum).Sum) / 1MB
     InjectorPrivateMiB = $watcher.PrivateBytes / 1MB
+    GpuDedicatedMiB = (($gpuMemory | Measure-Object DedicatedUsage -Sum).Sum) / 1MB
+    GpuSharedMiB = (($gpuMemory | Measure-Object SharedUsage -Sum).Sum) / 1MB
+    Processes = @($rows | ForEach-Object {
+      [pscustomobject]@{ Id = [int]$_.IDProcess; PrivateMiB = $_.PrivateBytes / 1MB; WorkingPrivateMiB = $_.WorkingSetPrivate / 1MB }
+    })
     Engines = $engineMap
   }
 }
@@ -111,6 +118,18 @@ $result = [pscustomobject]@{
   PrivateMiB = ($samples | Measure-Object PrivateMiB -Average).Average
   WorkingPrivateMiB = ($samples | Measure-Object WorkingPrivateMiB -Average).Average
   InjectorPrivateMiB = ($samples | Measure-Object InjectorPrivateMiB -Average).Average
+  GpuDedicatedMiB = ($samples | Measure-Object GpuDedicatedMiB -Average).Average
+  GpuSharedMiB = ($samples | Measure-Object GpuSharedMiB -Average).Average
+  Processes = @($processes | ForEach-Object {
+    $measuredId = [int]$_.ProcessId
+    $processSamples = @($samples | ForEach-Object { $_.Processes | Where-Object Id -eq $measuredId })
+    [pscustomobject]@{
+      Id = $measuredId
+      Role = if ($_.Name -eq 'node.exe') { 'injector' } elseif ($_.CommandLine -match '--type=([^\s]+)') { $Matches[1] } else { 'browser' }
+      PrivateMiB = ($processSamples | Measure-Object PrivateMiB -Average).Average
+      WorkingPrivateMiB = ($processSamples | Measure-Object WorkingPrivateMiB -Average).Average
+    }
+  })
   GpuEnginePercent = $gpu
   Video = [pscustomobject]@{
     Width = $videoAfter.width
@@ -121,6 +140,11 @@ $result = [pscustomobject]@{
     AverageFps = ($videoAfter.frames - $videoBefore.frames) / ($videoAfter.timestamp - $videoBefore.timestamp)
   }
   ProcessCount = $ids.Count
+}
+if ([math]::Abs((($result.Processes | Measure-Object PrivateMiB -Sum).Sum) - $result.PrivateMiB) -gt 0.01 -or
+  [math]::Abs((($result.Processes | Measure-Object WorkingPrivateMiB -Sum).Sum) - $result.WorkingPrivateMiB) -gt 0.01 -or
+  $result.GpuDedicatedMiB -lt 0 -or $result.GpuSharedMiB -lt 0) {
+  throw 'Per-process memory totals or GPU memory counters are inconsistent; discard this run.'
 }
 $json = $result | ConvertTo-Json -Depth 4
 if ($Output) { Write-DreamSkinUtf8FileAtomically -Path $Output -Content ($json + "`n") }

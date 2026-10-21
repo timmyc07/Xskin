@@ -222,6 +222,31 @@ html.codex-dream-skin[data-dream-video-ready="true"] #codex-dream-skin-video {
   display: block;
 }
 
+html.codex-dream-skin[data-dream-surface="work"] .dream-skin-work-surface,
+html.codex-dream-skin[data-dream-surface="work"] #thread > .composer-parent,
+html.codex-dream-skin[data-dream-surface="work"] #page-header {
+  background: transparent !important;
+}
+
+html.codex-dream-skin[data-dream-surface="work"] #stage-slideover-sidebar {
+  --sidebar-surface-primary: transparent !important;
+  background: transparent !important;
+}
+
+/* Dot's native overlay covers the desktop; only its control cards get a poster. */
+html.codex-dream-skin[data-dream-surface="dot"],
+html.codex-dream-skin[data-dream-surface="dot"] body {
+  background: transparent !important;
+}
+
+html.codex-dream-skin[data-dream-surface="dot"] [data-avatar-overlay-native-surface-id="composer"],
+html.codex-dream-skin[data-dream-surface="dot"] [data-avatar-overlay-native-surface-id^="activity-"] {
+  background-image: linear-gradient(rgb(0 0 0 / var(--dream-skin-mask-opacity, .62)),
+    rgb(0 0 0 / var(--dream-skin-mask-opacity, .62))), var(--dream-skin-art) !important;
+  background-size: cover !important;
+  background-position: var(--ds-art-position, center) !important;
+}
+
 html.codex-dream-skin[data-dream-wallpaper="true"] [data-app-shell-page-surface] {
   background: transparent !important;
 }

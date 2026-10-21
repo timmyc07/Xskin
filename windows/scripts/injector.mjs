@@ -81,15 +81,32 @@ function browserIdFromVersion(version, port) {
   return match[1];
 }
 
-function isValidCdpPageTarget(item, port) {
-  if (item?.type !== "page" || !item.url?.startsWith("app://") || typeof item.id !== "string" ||
+export function isValidCdpTarget(item, port) {
+  if (typeof item?.url !== "string" || typeof item.id !== "string" ||
       !BROWSER_ID_PATTERN.test(item.id) || !item.webSocketDebuggerUrl) return false;
   try {
+    const pageUrl = new URL(item.url);
+    const appPage = item.type === "page" && pageUrl.protocol === "app:";
+    const workView = item.type === "webview" && pageUrl.origin === "https://chatgpt.com";
+    if ((!appPage && !workView) || pageUrl.username || pageUrl.password) return false;
     const debuggerUrl = new URL(validatedDebuggerUrl(item, port));
     return debuggerUrl.pathname === `/devtools/page/${item.id}`;
   } catch {
     return false;
   }
+}
+
+export function detectSurface() {
+  const app = location.protocol === "app:";
+  const work = location.origin === "https://chatgpt.com";
+  if (!app && !work) return null;
+  if (app && document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') &&
+    document.querySelector('aside.app-shell-left-panel')) return "codex";
+  if (work && document.querySelector('main#main #thread') && document.querySelector('#prompt-textarea')) return "work";
+  if (app && new URLSearchParams(location.search).get('initialRoute') === '/avatar-overlay' &&
+    document.querySelector('.codex-avatar-root') &&
+    document.querySelector('[data-avatar-overlay-native-surface-id="composer"]')) return "dot";
+  return null;
 }
 
 export class CdpSession {
@@ -264,7 +281,8 @@ async function listAppTargets(port, expectedBrowserId = null) {
       );
     }
   }
-  return targets.filter((item) => isValidCdpPageTarget(item, port));
+  return targets.filter((item) => isValidCdpTarget(item, port))
+    .sort((left, right) => Number(left.type === "webview") - Number(right.type === "webview"));
 }
 
 async function connectBrowserIdentityAnchor(port, expectedBrowserId) {
@@ -426,6 +444,7 @@ export async function loadPayload(themeDir = path.join(root, "assets"), candidat
   loadedTheme.theme.artKey = createHash("sha256").update(loadedTheme.imageBytes).digest("hex").slice(0, 20);
   const styleRevision = createHash("sha256").update(css).digest("hex").slice(0, 20);
   const payload = template
+    .replace("__DREAM_SKIN_DETECT_SURFACE__", () => detectSurface.toString())
     .replace("__DREAM_SKIN_CSS_JSON__", () => JSON.stringify(css))
     .replace("__DREAM_SKIN_ART_JSON__", () => JSON.stringify(artDataUrl))
     .replace("__DREAM_SKIN_THEME_JSON__", () => JSON.stringify(loadedTheme.theme))
@@ -456,6 +475,7 @@ async function readThemeSourceStamp(loadedTheme) {
 
 async function probeSession(session) {
   return session.evaluate(`(() => {
+    const surface = (${detectSurface.toString()})();
     const markers = {
       shell: Boolean(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
       sidebar: Boolean(document.querySelector('aside.app-shell-left-panel')),
@@ -466,7 +486,9 @@ async function probeSession(session) {
       title: document.title,
       href: location.href,
       markers,
-      codex: markers.shell && markers.sidebar,
+      surface,
+      readyState: document.readyState,
+      codex: Boolean(surface),
     };
   })()`);
 }
@@ -578,9 +600,7 @@ export function earlyPayloadFor(payload, revision) {
       if (window[generationKey] !== generation) { stop(); return true; }
       const root = document.documentElement;
       if (!root || !document.body) return false;
-      const shell = document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
-      const sidebar = document.querySelector('aside.app-shell-left-panel');
-      if (!shell || !sidebar) return false;
+      if (!(${detectSurface.toString()})()) return false;
       stop();
       ${payload};
       window[appliedKey] = generation;
@@ -632,6 +652,7 @@ async function verifyRemovedSession(session) {
 
 async function verifySession(session) {
   return session.evaluate(`(() => {
+    const surface = window.__CODEX_DREAM_SKIN_STATE__?.surface ?? 'codex';
     const box = (node) => {
       if (!node) return null;
       const r = node.getBoundingClientRect();
@@ -653,9 +674,11 @@ async function verifySession(session) {
     const visibleCards = cardBoxes.filter((item) => item?.visible);
     const hero = box(home?.firstElementChild?.firstElementChild?.firstElementChild);
     const projectButton = box(home?.querySelector('[class~="group/project-selector"] > button'));
-    const shell = box(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]'));
+    const mainSelector = surface === 'work' ? 'main#main' : '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]';
+    const sidebarSelector = surface === 'work' ? '#stage-slideover-sidebar' : 'aside.app-shell-left-panel';
+    const shell = box(document.querySelector(mainSelector));
     const composer = box(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]'));
-    const sidebar = box(document.querySelector('aside.app-shell-left-panel'));
+    const sidebar = box(document.querySelector(sidebarSelector));
     const chrome = document.getElementById('codex-dream-skin-chrome');
     const videoElement = document.getElementById('codex-dream-skin-video');
     const maskStyle = getComputedStyle(document.body, '::before');
@@ -670,11 +693,21 @@ async function verifySession(session) {
       fullViewport: maskStyle.position === 'fixed' &&
         ['top', 'right', 'bottom', 'left'].every(edge => maskStyle[edge] === '0px'),
       pointerEvents: maskStyle.pointerEvents,
-      mainClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
-      sidebarClear: clearSurface(document.querySelector('aside.app-shell-left-panel')),
+      mainClear: clearSurface(document.querySelector(mainSelector)),
+      sidebarClear: clearSurface(document.querySelector(sidebarSelector)),
       headerClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] header.app-header-tint')),
     };
+    const dotCards = surface === 'dot' ? [...document.querySelectorAll(
+      '[data-avatar-overlay-native-surface-id="composer"], [data-avatar-overlay-native-surface-id^="activity-"]'
+    )].filter(node => box(node)?.visible).map(node => {
+      const background = getComputedStyle(node).backgroundImage;
+      const alpha = /rgba?\\(0,\\s*0,\\s*0(?:,\\s*([\\d.]+))?\\)/.exec(background);
+      return { poster: background.includes('blob:') && background.includes('linear-gradient'),
+        opacity: alpha ? Number(alpha[1] ?? 1) : null };
+    }) : [];
     const result = {
+      surface,
+      dotCards,
       installed: document.documentElement.classList.contains('codex-dream-skin'),
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
       themeId: window.__CODEX_DREAM_SKIN_STATE__?.themeId ?? null,
@@ -708,8 +741,11 @@ async function verifySession(session) {
       },
     };
     const basePass = result.installed && result.version === ${JSON.stringify(SKIN_VERSION)} &&
-      result.stylePresent && result.chromePresent && result.chromePointerEvents === 'none' &&
-      Boolean(result.shell?.visible) && Boolean(result.sidebar?.visible) && !result.documentOverflow.x;
+      result.stylePresent && !result.documentOverflow.x && (surface === 'dot'
+        ? clearSurface(document.body) && maskStyle.content === 'none' &&
+          dotCards.length > 0 && dotCards.every(card => card.poster)
+        : result.chromePresent && result.chromePointerEvents === 'none' &&
+          Boolean(result.shell?.visible) && (surface === 'work' || Boolean(result.sidebar?.visible)));
     // Project selector markup varies across Codex builds — soft requirement.
     const homePass = !result.homeRoute || (
       result.homePresent && (result.video || result.wallpaperLayout ? result.composer?.visible :
@@ -737,14 +773,20 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
     lastResult = await verifySession(session);
     // A previous, healthy background can remain visible while the next injector starts.
     lastResult.themeMatches = lastResult.themeId === expectedTheme.id
-      && Boolean(lastResult.video) === Boolean(expectedTheme.video)
+      && Boolean(lastResult.video) === Boolean(expectedTheme.video && lastResult.surface !== 'dot')
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
-    if (prepareFirstFrame && expectedTheme.video) {
+    if (prepareFirstFrame && expectedTheme.video && lastResult.surface !== 'dot' &&
+      !(lastResult.surface === 'work' && lastResult.video?.hostHidden === true)) {
       lastResult.pass &&= lastResult.video?.decoded === true;
     }
     if (lastResult.wallpaperLayout) {
       lastResult.maskMatches = Math.abs(lastResult.wallpaperMask.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005;
+      lastResult.pass &&= lastResult.maskMatches;
+    }
+    if (lastResult.surface === 'dot') {
+      lastResult.maskMatches = lastResult.dotCards.every(card =>
+        card.opacity !== null && Math.abs(card.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005);
       lastResult.pass &&= lastResult.maskMatches;
     }
     if (lastResult.video && !lastResult.video.suspended) {
@@ -997,6 +1039,12 @@ async function runWatch(options) {
         try {
           session = await connectTarget(target, options.port);
           if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
+          const initialProbe = await probeSession(session);
+          if (!initialProbe.codex && initialProbe.readyState === "complete") {
+            rejectTarget(target, 5000);
+            session.close();
+            continue;
+          }
           let earlyInjectionFallback = false;
           if (!paused) {
             try {
@@ -1102,8 +1150,8 @@ if (path.resolve(process.argv[1] || "") === path.resolve(scriptPath)) {
     { ...validPageTarget, id: 123 },
     { ...validPageTarget, type: "other" },
   ];
-  if (!valid || browserId !== "test-browser" || !isValidCdpPageTarget(validPageTarget, options.port) ||
-      invalidPageTargets.some((item) => isValidCdpPageTarget(item, options.port))) {
+  if (!valid || browserId !== "test-browser" || !isValidCdpTarget(validPageTarget, options.port) ||
+      invalidPageTargets.some((item) => isValidCdpTarget(item, options.port))) {
     throw new Error("CDP URL and target validation self-test failed");
   }
   console.log(JSON.stringify({ pass: true, version: SKIN_VERSION, test: "loopback-cdp-validation" }));

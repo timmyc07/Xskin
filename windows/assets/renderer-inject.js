@@ -1,5 +1,8 @@
 ((cssText, artDataUrl, themeConfig) => {
+  const SURFACE = (__DREAM_SKIN_DETECT_SURFACE__)();
   const STATE_KEY = "__CODEX_DREAM_SKIN_STATE__";
+  const HOST_VISIBLE_KEY = "__CODEX_DREAM_SKIN_HOST_VISIBLE__";
+  const HOST_VISIBILITY_EVENT = "codex-dream-skin-host-visibility";
   const DISABLED_KEY = "__CODEX_DREAM_SKIN_DISABLED__";
   const STYLE_ID = "codex-dream-skin-style";
   const CHROME_ID = "codex-dream-skin-chrome";
@@ -13,7 +16,7 @@
   const VERSION = __DREAM_SKIN_VERSION_JSON__;
   const STYLE_REVISION = __DREAM_SKIN_STYLE_REVISION_JSON__;
   const THEME = themeConfig && typeof themeConfig === "object" ? themeConfig : {};
-  const WALLPAPER = Boolean(THEME.video || THEME.layout === "wallpaper");
+  const WALLPAPER = SURFACE !== "dot" && Boolean(THEME.video || THEME.layout === "wallpaper");
   const ART = THEME.art && typeof THEME.art === "object" ? THEME.art : {};
   const ART_METADATA = THEME.artMetadata && typeof THEME.artMetadata === "object"
     ? THEME.artMetadata : null;
@@ -59,6 +62,60 @@
   window[DISABLED_KEY] = false;
 
   const previous = window[STATE_KEY];
+  previous?.disposeHost?.();
+  let workVisible = false;
+  const workViews = new Map();
+  let hostObserver = null;
+  const syncWorkViews = () => {
+    if (SURFACE !== "codex") return;
+    hostObserver?.disconnect();
+    const current = new Set(document.querySelectorAll("webview"));
+    for (const [view, record] of workViews) {
+      if (!current.has(view)) {
+        view.removeEventListener("did-finish-load", record.loaded);
+        workViews.delete(view);
+      }
+    }
+    let visibleWork = false;
+    for (const view of current) {
+      try {
+        if (new URL(view.getURL()).origin !== "https://chatgpt.com") continue;
+        if (!hostObserver) {
+          hostObserver = new MutationObserver(syncWorkViews);
+          document.addEventListener("visibilitychange", syncWorkViews);
+        }
+        for (let node = view; node; node = node.parentElement) {
+          hostObserver.observe(node, { attributes: true, attributeFilter: ["style", "class", "hidden"] });
+        }
+        const visible = !document.hidden && view.checkVisibility({ visibilityProperty: true, opacityProperty: true });
+        const box = view.getBoundingClientRect();
+        visibleWork ||= visible && box.width >= innerWidth * 0.95 && box.height >= innerHeight * 0.9;
+        let record = workViews.get(view);
+        if (!record) {
+          record = { visible: null, loaded: () => { record.visible = null; syncWorkViews(); } };
+          view.addEventListener("did-finish-load", record.loaded);
+          workViews.set(view, record);
+        }
+        if (record.visible === visible) continue;
+        record.visible = visible;
+        view.executeJavaScript(`(() => {
+          if (location.origin !== "https://chatgpt.com") return;
+          window.${HOST_VISIBLE_KEY} = ${visible};
+          window.dispatchEvent(new Event("${HOST_VISIBILITY_EVENT}"));
+        })()`).catch(() => { record.visible = null; });
+      } catch {}
+    }
+    if (workVisible !== visibleWork) {
+      workVisible = visibleWork;
+      videoController?.syncPlayback();
+    }
+  };
+  const disposeHost = () => {
+    hostObserver?.disconnect();
+    document.removeEventListener("visibilitychange", syncWorkViews);
+    for (const [view, record] of workViews) view.removeEventListener("did-finish-load", record.loaded);
+    workViews.clear();
+  };
   const blobUrlFor = (dataUrl) => {
     const comma = dataUrl.indexOf(",");
     const mime = /^data:([^;,]+)/.exec(dataUrl)?.[1] || "image/png";
@@ -100,7 +157,9 @@
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let disposed = false;
     let failed = false;
-    const suspended = () => document.hidden || motionQuery.matches;
+    const hostHidden = () => SURFACE === "work" && window[HOST_VISIBLE_KEY] === false;
+    const suspended = () => document.hidden || motionQuery.matches || workVisible ||
+      (SURFACE === "work" && window[HOST_VISIBLE_KEY] !== true);
     const hide = () => {
       document.documentElement.removeAttribute("data-dream-video-ready");
       document.documentElement.style.setProperty("--dream-skin-art", `url("${artUrl}")`);
@@ -124,7 +183,7 @@
       if (motionQuery.matches || failed) {
         hide();
         video.pause();
-      } else if (document.hidden) {
+      } else if (suspended()) {
         video.pause();
         revealFrame();
       } else {
@@ -135,6 +194,7 @@
     video.addEventListener("loadeddata", revealFrame);
     video.addEventListener("error", onError);
     document.addEventListener("visibilitychange", syncPlayback);
+    window.addEventListener(HOST_VISIBILITY_EVENT, syncPlayback);
     motionQuery.addEventListener("change", syncPlayback);
     (document.body || document.documentElement).appendChild(video);
     video.src = videoUrl;
@@ -144,12 +204,15 @@
         ready: !failed && video.readyState >= 2 && !video.paused,
         decoded: !failed && video.readyState >= 2,
         suspended: !failed && Boolean(suspended()),
+        hostHidden: hostHidden(),
         failed, paused: video.paused, currentTime: video.currentTime,
         width: video.videoWidth, height: video.videoHeight,
       }),
+      syncPlayback,
       dispose: () => {
         disposed = true;
         document.removeEventListener("visibilitychange", syncPlayback);
+        window.removeEventListener(HOST_VISIBILITY_EVENT, syncPlayback);
         motionQuery.removeEventListener("change", syncPlayback);
         video.removeEventListener("playing", revealFrame);
         video.removeEventListener("loadeddata", revealFrame);
@@ -634,6 +697,7 @@
     metrics.rootPasses += 1;
     ensureStyle(root);
     const shell = resolvedShell();
+    setAttribute(root, "data-dream-surface", SURFACE);
     setAttribute(root, SHELL_ATTR, shell);
     setStyleProperty(root, "--dream-skin-art", root.getAttribute("data-dream-video-ready") === "true"
       ? "none" : `url("${artUrl}")`);
@@ -652,7 +716,14 @@
     const root = document.documentElement;
     if (!root) return;
     shell ||= root.getAttribute(SHELL_ATTR) || resolvedShell();
-    const shellMain = document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
+    if (SURFACE === "dot") return;
+    const shellMain = document.querySelector(SURFACE === "work" ? 'main#main' :
+      '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
+    if (SURFACE === "work") {
+      for (let node = document.querySelector('#thread'); node && node !== document.body; node = node.parentElement) {
+        node.classList.add("dream-skin-work-surface");
+      }
+    }
     const page = document.querySelector('[data-app-shell-active-page="true"]');
     const homeIndicator = page?.querySelector('[data-testid="home-icon"]') ??
       page?.querySelector('[data-feature="game-source"]') ??
@@ -733,6 +804,7 @@
     if (window[DISABLED_KEY]) return;
     const root = document.documentElement;
     if (!root) return;
+    syncWorkViews();
     metrics.ensureCalls += 1;
     const shell = rootPass ? applyRootState(root) : null;
     if (route) syncRouteState(shell, { layout });
@@ -742,9 +814,12 @@
     const state = window[STATE_KEY];
     if (state?.installToken !== installToken) return false;
     window[DISABLED_KEY] = true;
+    disposeHost();
     state?.disposeVideo?.();
     document.documentElement?.classList.remove("codex-dream-skin");
     document.documentElement?.removeAttribute(SHELL_ATTR);
+    document.documentElement?.removeAttribute("data-dream-surface");
+    for (const node of document.querySelectorAll('.dream-skin-work-surface')) node.classList.remove('dream-skin-work-surface');
     for (const name of ART_ATTRS) document.documentElement?.removeAttribute(name);
     document.documentElement?.style.removeProperty("--dream-skin-art");
     for (const name of THEME_VARIABLES) document.documentElement?.style.removeProperty(name);
@@ -799,7 +874,7 @@
   };
   const routeMarkers = '[data-app-shell-active-page], main[data-app-shell-main-surface], [role="main"], ' +
     '[data-testid="home-icon"], [data-feature="game-source"], [class~="group/home-suggestions"], [class*="_homeUtilityBar_"], ' +
-    `#${CHROME_ID}`;
+    `#${CHROME_ID}, #thread, main#main, #prompt-textarea, webview, [data-avatar-overlay-native-surface-id]`;
   const observer = new MutationObserver((records) => {
     // Message streaming changes content, not the shell or home-route markers.
     const routeChanged = records.some((record) => record.type === "attributes" ||
@@ -836,16 +911,19 @@
     mediaQuery,
     mediaHandler,
     artUrl,
+    surface: SURFACE,
     videoKey: THEME.videoKey,
     wallpaper: WALLPAPER,
-    videoStatus: THEME.video ? () => videoController?.status() ?? {
+    videoStatus: THEME.video && SURFACE !== "dot" ? () => videoController?.status() ?? {
       ready: false, suspended: false, failed: false, paused: true, currentTime: 0,
     } : undefined,
     disposeVideo: () => videoController?.dispose(),
+    disposeHost,
     setVideo(file) {
       if (!THEME.video || file?.name !== THEME.video || file.size !== THEME.videoBytes) {
         throw new Error("Video file does not match the selected theme");
       }
+      if (SURFACE === "dot") return true;
       videoController?.dispose();
       videoController = installVideo(file);
       return true;

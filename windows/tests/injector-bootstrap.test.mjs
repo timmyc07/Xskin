@@ -15,6 +15,8 @@ function createFixture() {
   let nextTimer = 1;
   const markers = { shell: false, sidebar: false };
   const context = {
+    location: new URL('app://codex/'),
+    URLSearchParams,
     window: { installs: [] },
     document: {
       documentElement: {},

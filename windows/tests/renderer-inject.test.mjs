@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { detectSurface } from "../scripts/injector.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const windowsRoot = path.resolve(here, "..");
@@ -160,6 +161,7 @@ function createClassList(initial = []) {
 }
 
 function createFixture(theme, {
+  surface = "codex",
   nativeShell = "light",
   analysisFixture = null,
   analysisCache = null,
@@ -175,6 +177,7 @@ function createFixture(theme, {
   let nextTimer = 1;
   let nextBlob = 1;
   const documentListeners = new Map();
+  const windowListeners = new Map();
   const motionListeners = new Map();
   const motionQuery = {
     matches: false,
@@ -205,6 +208,7 @@ function createFixture(theme, {
   };
   const shellBox = { left: 280, top: 36, width: 1000, height: 764 };
   const shellMain = {
+    parentElement: body,
     classList: createClassList(),
     getBoundingClientRect() {
       return { ...shellBox };
@@ -220,6 +224,8 @@ function createFixture(theme, {
     querySelectorAll() { return []; },
   };
   const activePage = {
+    classList: createClassList(),
+    parentElement: shellMain,
     querySelector(selector) {
       if (homeRoute && selector === '[data-feature="game-source"]') return { closest: () => homeSurface };
       return null;
@@ -282,10 +288,20 @@ function createFixture(theme, {
     getElementById(id) { return nodes.get(id) ?? null; },
     querySelector(selector) {
       if (selector === '[data-app-shell-active-page="true"]') return activePage;
-      if (selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return shellMain;
+      if (selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return surface === 'codex' ? shellMain : null;
+      if (selector === 'aside.app-shell-left-panel') return surface === 'codex' ? {} : null;
+      if (surface === 'work' && selector === 'main#main') return shellMain;
+      if (surface === 'work' && ['main#main #thread', '#thread'].includes(selector)) return activePage;
+      if (surface === 'work' && selector === '#prompt-textarea') return {};
+      if (surface === 'dot' && ['.codex-avatar-root', '[data-avatar-overlay-native-surface-id="composer"]'].includes(selector)) return {};
       return null;
     },
-    querySelectorAll() { return []; },
+    querySelectorAll(selector) {
+      if (selector === '.dream-skin-work-surface') {
+        return [activePage, shellMain].filter(node => node.classList.contains('dream-skin-work-surface'));
+      }
+      return [];
+    },
   };
   const mediaQuery = {
     matches: false,
@@ -294,8 +310,9 @@ function createFixture(theme, {
   };
   const revokedUrls = [];
   const window = {
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(name, callback) { windowListeners.set(name, callback); },
+    removeEventListener(name) { windowListeners.delete(name); },
+    dispatchEvent(event) { windowListeners.get(event.type)?.(); },
     matchMedia(query) {
       if (query.includes("prefers-reduced-motion")) return motionQuery;
       mediaQuery.matches = fixtureShell === "dark";
@@ -311,6 +328,12 @@ function createFixture(theme, {
     };
   }
   const context = {
+    location: new URL(surface === 'work' ? 'https://chatgpt.com/?source=codex_app_embedded' :
+      surface === 'dot' ? 'app://-/index.html?initialRoute=%2Favatar-overlay' : 'app://codex/'),
+    URLSearchParams,
+    innerWidth: 1280,
+    innerHeight: 800,
+    Event,
     window,
     document,
     MutationObserver: class {
@@ -330,9 +353,9 @@ function createFixture(theme, {
       observe(target) { this.target = target; }
       disconnect() { this.target = null; }
     },
-    URL: {
-      createObjectURL() { return `blob:fixture-${nextBlob++}`; },
-      revokeObjectURL(value) { revokedUrls.push(value); },
+    URL: class extends URL {
+      static createObjectURL() { return `blob:fixture-${nextBlob++}`; }
+      static revokeObjectURL(value) { revokedUrls.push(value); }
     },
     Blob,
     Uint8Array,
@@ -356,6 +379,7 @@ function createFixture(theme, {
     cancelAnimationFrame() {},
   };
   const payloadFor = (nextTheme, cssText = ".fixture { color: blue; }") => template
+    .replace("__DREAM_SKIN_DETECT_SURFACE__", detectSurface.toString())
     .replace("__DREAM_SKIN_CSS_JSON__", JSON.stringify(cssText))
     .replace("__DREAM_SKIN_ART_JSON__", JSON.stringify("data:image/png;base64,AA=="))
     .replace("__DREAM_SKIN_THEME_JSON__", JSON.stringify(nextTheme))
@@ -392,6 +416,7 @@ function createFixture(theme, {
     homeSurface,
     timers,
     window,
+    windowListeners,
     setNativeShell(value) { fixtureShell = value; },
   };
 }
@@ -690,3 +715,74 @@ assert.ok(preparedVideo.window.__CODEX_DREAM_SKIN_STATE__.metrics.videoFrameRead
 assert.ok(preparedVideo.window.__CODEX_DREAM_SKIN_STATE__.metrics.maskReadyAt > 0);
 preparedVideo.window.__CODEX_DREAM_SKIN_STATE__.cleanup();
 console.log("PASS: a hidden launch prepares its original video frame and overlay before presentation.");
+
+for (const surface of ['work', 'dot']) {
+  const fixture = createFixture({id: surface, video:'background.mp4', videoKey:'same-original', videoBytes:1}, {surface});
+  vm.runInNewContext(fixture.payload, fixture.context);
+  const state = fixture.window.__CODEX_DREAM_SKIN_STATE__;
+  assert.equal(state.surface, surface);
+  assert.equal(state.videoKey, 'same-original');
+  state.setVideo({name:'background.mp4',size:1});
+  if (surface === 'work') {
+    assert.equal(state.videoStatus().width, 3840);
+    assert.equal(state.videoStatus().height, 2160);
+    assert.ok(fixture.shellMain.classList.contains('dream-skin-work-surface'));
+  } else {
+    assert.equal(state.videoStatus, undefined, 'Dot control cards must not start an extra 4K decoder.');
+    assert.equal(fixture.nodes.has('codex-dream-skin-video'), false);
+    assert.equal(fixture.attributes.has('data-dream-wallpaper'), false, 'The floating desktop must stay transparent.');
+  }
+  state.cleanup();
+  assert.equal(fixture.attributes.has('data-dream-surface'), false);
+  assert.equal(fixture.shellMain.classList.contains('dream-skin-work-surface'), false);
+}
+
+const workFixture = createFixture({id:"hosted-work",video:"background.mp4",videoKey:"original",videoBytes:1}, {surface:"work"});
+workFixture.window.__CODEX_DREAM_SKIN_HOST_VISIBLE__ = false;
+vm.runInNewContext(workFixture.payload, workFixture.context);
+workFixture.window.__CODEX_DREAM_SKIN_STATE__.setVideo({name:"background.mp4",size:1});
+const workVideo = workFixture.nodes.get("codex-dream-skin-video");
+assert.equal(workVideo.paused, true, "A hidden embedder must suspend video even when document.hidden is false.");
+assert.equal(workFixture.window.__CODEX_DREAM_SKIN_STATE__.videoStatus().hostHidden, true);
+const hostFixture = createFixture({id:"work-host",video:"background.mp4",videoKey:"original",videoBytes:1});
+let hostVisible = false;
+let viewUrl = "https://chatgpt.com/?source=codex_app_embedded";
+let handoffs = 0;
+const viewListeners = new Map();
+const view = {
+  parentElement: null,
+  getURL: () => viewUrl,
+  checkVisibility: () => hostVisible,
+  getBoundingClientRect: () => ({width:1280,height:800}),
+  addEventListener(name, callback) { viewListeners.set(name, callback); },
+  removeEventListener(name) { viewListeners.delete(name); },
+  async executeJavaScript(expression) { handoffs++; vm.runInNewContext(expression, workFixture.context); },
+};
+const queryAll = hostFixture.document.querySelectorAll;
+hostFixture.document.querySelectorAll = selector => selector === "webview" ? [view] : queryAll(selector);
+vm.runInNewContext(hostFixture.payload, hostFixture.context);
+const hostState = hostFixture.window.__CODEX_DREAM_SKIN_STATE__;
+hostState.setVideo({name:"background.mp4",size:1});
+const hostVideo = hostFixture.nodes.get("codex-dream-skin-video");
+assert.equal(hostVideo.paused, false);
+hostVisible = true;
+hostFixture.observers[2].callback();
+assert.equal(workVideo.paused, false, "Showing Work must resume its original video.");
+assert.equal(hostVideo.paused, true, "A full-window Work view must suspend the covered Codex video.");
+hostState.ensure();
+assert.equal(handoffs, 2, "Unchanged host visibility must not repeatedly execute guest JavaScript.");
+viewListeners.get("did-finish-load")();
+assert.equal(handoffs, 3, "A reloaded guest must receive the native visibility again.");
+hostVisible = false;
+hostFixture.observers[2].callback();
+assert.equal(workVideo.paused, true);
+assert.equal(hostVideo.paused, false);
+viewUrl = "https://example.com/";
+hostVisible = true;
+hostState.ensure();
+assert.equal(handoffs, 4, "Foreign navigations must receive no visibility script.");
+hostState.cleanup();
+workFixture.window.__CODEX_DREAM_SKIN_STATE__.cleanup();
+assert.equal(viewListeners.size, 0);
+assert.equal(workFixture.windowListeners.has("codex-dream-skin-host-visibility"), false);
+console.log("PASS: native Work visibility switches the active decoder and cleans up its hooks.");
