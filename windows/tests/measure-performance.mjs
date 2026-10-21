@@ -15,38 +15,54 @@ for (const target of (await get('/json/list')).filter(t => t.type === 'page' && 
 }
 assert.ok(session, 'An enabled Codex background is required');
 try {
-  await session.send('Page.bringToFront');
-  await session.send('Performance.enable');
-  const sample = async () => ({
-    browser: Object.fromEntries((await session.send('Performance.getMetrics')).metrics.map(m => [m.name,m.value])),
-    skin: await session.evaluate('({...window.__CODEX_DREAM_SKIN_STATE__.metrics})'),
-    video: await session.evaluate('(() => {const v=document.getElementById("codex-dream-skin-video"); return v ? {time:v.currentTime,frames:v.getVideoPlaybackQuality().totalVideoFrames,width:v.videoWidth,height:v.videoHeight,paused:v.paused} : null;})()'),
-  });
-  const before = await sample();
-  await session.evaluate(`(async () => {
-    const host = document.createElement('div');
-    host.id = 'xskin-performance-fixture';
-    host.hidden = true;
-    document.querySelector('[data-app-shell-active-page=true] main[data-app-shell-main-surface]').appendChild(host);
-    try {
-      for (let i=0;i<100;i++) {
-        if (document.hidden) throw new Error('Keep Codex visible during measurement');
-        host.appendChild(document.createElement('span'));
-        await new Promise(resolve=>setTimeout(resolve,50));
-      }
-    } finally { host.remove(); }
-    await new Promise(resolve=>setTimeout(resolve,150));
-  })()`);
-  const after = await sample();
-  const report = {
-    durationSeconds: after.browser.Timestamp-before.browser.Timestamp,
-    routePasses: after.skin.routePasses-before.skin.routePasses,
-    layoutReads: after.skin.layoutReads-before.skin.layoutReads,
-    scriptSeconds: after.browser.ScriptDuration-before.browser.ScriptDuration,
-    taskSeconds: after.browser.TaskDuration-before.browser.TaskDuration,
-    video: after.video,
-    decodedFrames: after.video && before.video ? after.video.frames-before.video.frames : null,
-  };
-  console.log(JSON.stringify(report,null,2));
-  if (process.argv[2]) await fs.writeFile(process.argv[2], JSON.stringify(report,null,2));
+  if (process.argv[2] === '--sample-playback') {
+    const playback = await session.evaluate(`(() => {
+      const v=document.getElementById('codex-dream-skin-video');
+      if (!v) return null;
+      const q=v.getVideoPlaybackQuality();
+      return {hidden:document.hidden,paused:v.paused,ready:v.readyState>=2&&!v.error,
+        timestamp:performance.now()/1000,frames:q.totalVideoFrames,dropped:q.droppedVideoFrames,
+        width:v.videoWidth,height:v.videoHeight,rate:v.playbackRate,src:v.currentSrc,
+        videoKey:window.__CODEX_DREAM_SKIN_STATE__.videoKey,
+        mask:getComputedStyle(document.documentElement).getPropertyValue('--dream-skin-mask-opacity'),
+        viewport:[innerWidth,innerHeight,devicePixelRatio]};
+    })()`);
+    assert.ok(playback && !playback.hidden && !playback.paused && playback.ready, 'Keep the original video playing in a visible Codex window during measurement');
+    console.log(JSON.stringify(playback));
+  } else {
+    await session.send('Page.bringToFront');
+    await session.send('Performance.enable');
+    const sample = async () => ({
+      browser: Object.fromEntries((await session.send('Performance.getMetrics')).metrics.map(m => [m.name,m.value])),
+      skin: await session.evaluate('({...window.__CODEX_DREAM_SKIN_STATE__.metrics})'),
+      video: await session.evaluate('(() => {const v=document.getElementById("codex-dream-skin-video"); return v ? {time:v.currentTime,frames:v.getVideoPlaybackQuality().totalVideoFrames,width:v.videoWidth,height:v.videoHeight,paused:v.paused} : null;})()'),
+    });
+    const before = await sample();
+    await session.evaluate(`(async () => {
+      const host = document.createElement('div');
+      host.id = 'xskin-performance-fixture';
+      host.hidden = true;
+      document.querySelector('[data-app-shell-active-page=true] main[data-app-shell-main-surface]').appendChild(host);
+      try {
+        for (let i=0;i<100;i++) {
+          if (document.hidden) throw new Error('Keep Codex visible during measurement');
+          host.appendChild(document.createElement('span'));
+          await new Promise(resolve=>setTimeout(resolve,50));
+        }
+      } finally { host.remove(); }
+      await new Promise(resolve=>setTimeout(resolve,150));
+    })()`);
+    const after = await sample();
+    const report = {
+      durationSeconds: after.browser.Timestamp-before.browser.Timestamp,
+      routePasses: after.skin.routePasses-before.skin.routePasses,
+      layoutReads: after.skin.layoutReads-before.skin.layoutReads,
+      scriptSeconds: after.browser.ScriptDuration-before.browser.ScriptDuration,
+      taskSeconds: after.browser.TaskDuration-before.browser.TaskDuration,
+      video: after.video,
+      decodedFrames: after.video && before.video ? after.video.frames-before.video.frames : null,
+    };
+    console.log(JSON.stringify(report,null,2));
+    if (process.argv[2]) await fs.writeFile(process.argv[2], JSON.stringify(report,null,2));
+  }
 } finally { session.close(); }

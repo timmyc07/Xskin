@@ -20,6 +20,13 @@ $ids = @($processes.ProcessId | Sort-Object)
 $cpuFilter = ($ids | ForEach-Object { "IDProcess=$_" }) -join ' OR '
 $gpuFilter = ($ids | ForEach-Object { "Name LIKE 'pid_$($_)_%'" }) -join ' OR '
 
+function Get-PlaybackSample {
+  $probe = Invoke-DreamSkinNative -FilePath $state.nodePath -ArgumentList @(
+    (Join-Path $PSScriptRoot 'measure-performance.mjs'), '--sample-playback')
+  if ($probe.ExitCode -ne 0) { throw ($probe.Output -join "`n") }
+  return ($probe.Output -join "`n") | ConvertFrom-Json
+}
+
 function Get-ResourceSample {
   $rows = @(Get-CimInstance Win32_PerfRawData_PerfProc_Process -Filter $cpuFilter)
   if ((@($rows.IDProcess | Sort-Object) -join ',') -ne ($ids -join ',')) {
@@ -43,6 +50,8 @@ function Get-ResourceSample {
   }
 }
 
+# shortcut: endpoint checks assume a visible window throughout; use persistent CDP sampling for unattended runs.
+$videoBefore = Get-PlaybackSample
 $samples = [Collections.Generic.List[object]]::new()
 $samples.Add((Get-ResourceSample))
 $clock = [Diagnostics.Stopwatch]::StartNew()
@@ -52,6 +61,15 @@ while ($clock.Elapsed.TotalSeconds -lt $Seconds) {
 }
 $first = $samples[0]
 $last = $samples[$samples.Count - 1]
+$videoAfter = Get-PlaybackSample
+if ($videoBefore.src -cne $videoAfter.src -or $videoBefore.videoKey -cne $videoAfter.videoKey -or
+  $videoBefore.mask -cne $videoAfter.mask -or $videoBefore.rate -ne $videoAfter.rate -or
+  $videoBefore.width -ne $videoAfter.width -or $videoBefore.height -ne $videoAfter.height -or
+  ($videoBefore.viewport -join ',') -ne ($videoAfter.viewport -join ',') -or
+  $videoAfter.frames -le $videoBefore.frames -or $videoAfter.dropped -lt $videoBefore.dropped -or
+  $videoAfter.timestamp -le $videoBefore.timestamp) {
+  throw 'Playback, theme or viewport changed during measurement; discard this run.'
+}
 $elapsed = $last.Timestamp - $first.Timestamp
 $gpuElapsed = $last.GpuTimestamp - $first.GpuTimestamp
 if ($elapsed -le 0 -or $gpuElapsed -le 0 -or $last.Cpu -lt $first.Cpu -or $cores -lt 1) {
@@ -94,6 +112,14 @@ $result = [pscustomobject]@{
   WorkingPrivateMiB = ($samples | Measure-Object WorkingPrivateMiB -Average).Average
   InjectorPrivateMiB = ($samples | Measure-Object InjectorPrivateMiB -Average).Average
   GpuEnginePercent = $gpu
+  Video = [pscustomobject]@{
+    Width = $videoAfter.width
+    Height = $videoAfter.height
+    PlaybackRate = $videoAfter.rate
+    DecodedFrames = $videoAfter.frames - $videoBefore.frames
+    DroppedFrames = $videoAfter.dropped - $videoBefore.dropped
+    AverageFps = ($videoAfter.frames - $videoBefore.frames) / ($videoAfter.timestamp - $videoBefore.timestamp)
+  }
   ProcessCount = $ids.Count
 }
 $json = $result | ConvertTo-Json -Depth 4

@@ -43,7 +43,7 @@ node windows/tests/measure-theme-load.mjs build/load-report.json
 powershell -NoProfile -File windows/tests/measure-resources.ps1 -Seconds 60 -Output build/playback-report.json
 ```
 
-For the old revision, copy `measure-theme-load.mjs` into its `windows/tests/` directory before running it. Use the same Node binary and compare multiple fresh processes. The live sampler verifies the installed package, loopback browser and injector identities and rejects process exits/replacements or counter resets. Run it sequentially, without builds or other foreground work. Private reports remain local; do not commit media or conversation screenshots.
+For the old revision, copy all three benchmark scripts (`measure-theme-load.mjs`, `measure-resources.ps1`, `measure-performance.mjs`) into its `windows/tests/` directory before running them. Use the same Node binary and compare multiple fresh processes. The live sampler verifies the installed package, loopback browser and injector identities and rejects process exits/replacements or counter resets. It also requires visible playback at both ends and rejects changed media, masks, playback rates or viewports; it reports average decoded FPS and dropped frames. Keep Codex visible throughout the interval, including between those endpoint checks. Run sequentially, without builds or other foreground work. Private reports remain local; do not commit media or conversation screenshots.
 
 ## Released 1.5.2: route maintenance
 
