@@ -72,10 +72,10 @@ const evaluateStart = source.indexOf("await session.evaluate(earlyPayloadFor", r
 const probeStart = source.indexOf("const probe = await waitForCodexProbe", registrationStart);
 assert.ok(registrationStart >= 0 && evaluateStart > registrationStart && probeStart > evaluateStart,
   "New targets must register and run the early payload before full shell probing.");
-assert.match(source, /if \(earlyInjectionFallback\) attachLoadFallback\(/,
-  "Load-event reinjection must be attached only when early injection falls back.");
-assert.match(source, /if \(!fallbackTargets\.get\(id\)\) return;/,
-  "Fallback listeners must stay inert after a successful early registration.");
+assert.match(source, /attachLoadFallback\(target.id, target, session\)/,
+  "Load events must also hand video files to early-injected documents after reload.");
+assert.match(source, /if \(!fallbackTargets\.get\(id\) && !loadedPayload.videoSource\) return;/,
+  "Successful early injection needs a load callback only for video handoff.");
 assert.match(source, /Page\.removeScriptToEvaluateOnNewDocument/,
   "Watcher shutdown and theme refresh must unregister persistent Page scripts.");
 

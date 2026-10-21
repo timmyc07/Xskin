@@ -9,6 +9,8 @@ Apply a reversible renderer skin through Chromium DevTools Protocol while launch
 
 ## Workflow
 
+For the Xskin Flutter panel, use `panel/` and the Windows README. The packaged `xskin.exe` invokes `scripts/xskin-command.ps1` with structured UTF-8 requests; image/MP4 imports remain pending until Apply. `xskin-theme.ps1` verifies apply transactions and rolls back image/video media and pause state on failure. Use `scripts/build-release.ps1` to test and package the complete Flutter runner, media libraries and engine. Run `flutter analyze` and `flutter test` in `panel/` after UI changes.
+
 1. Install Node.js 22 or newer, close Codex, then run `scripts/install-dream-skin.ps1` once. The installer preserves the user's native appearance settings, seeds the Arina Hashimoto theme, copies the runtime to `%LOCALAPPDATA%\CodexDreamSkin\engine`, and creates launch/restore/tray shortcuts that do not depend on the source checkout.
 2. Use the `Codex Dream Skin` shortcut, or run `%LOCALAPPDATA%\CodexDreamSkin\engine\scripts\start-dream-skin.ps1`. The shortcut asks before restarting an already-open Codex app; CLI callers must explicitly add `-RestartExisting`.
 3. Run `scripts/verify-dream-skin.ps1 -ScreenshotPath <absolute-path>` after launch. Treat a missing continuous wallpaper, home shell, native composer, sidebar layer, or injection marker as failure. The native suggestion count is responsive and may be two to four.
@@ -28,6 +30,7 @@ Apply a reversible renderer skin through Chromium DevTools Protocol while launch
 - Keep the injection daemon running for navigation/reload resilience. Its state and logs live under `%LOCALAPPDATA%\CodexDreamSkin`.
 - The watcher registers a generation-checked early payload for connected renderers so reload/navigation can paint the skin before the normal load-event fallback; unsupported CDP targets fall back safely.
 - The active theme, saved themes, imported images, pause marker, and tray controls live under `%LOCALAPPDATA%\CodexDreamSkin`. Reject empty or over-16 MB images before copying or encoding them.
+- MP4 backgrounds are limited to 256 MiB and stay byte-identical. Use `video-file.mjs` to check filenames, size and MP4 container headers. Never embed video bytes into injected JavaScript. Retain the poster and honor hidden-window/reduced-motion playback suspension.
 - Every managed-store write rejects junctions and other reparse points in every existing path component. Imports also use the bundled Node metadata parser before copying to reject dimensions above 16384px or 50MP.
 - CDP targets must use a same-port loopback WebSocket, belong to the current Store package, retain the launch-time Browser ID, and expose expected Codex renderer markers.
 - Loopback prevents LAN exposure, but Chromium CDP has no same-user authentication. Run only trusted local software while the skin is active, and use restore to close the debug session when it is no longer needed.

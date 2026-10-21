@@ -4,6 +4,7 @@
   const CHROME_ID = "codex-dream-skin-chrome";
   const ROOT_CLASSES = [
     "codex-dream-skin",
+    "dream-wallpaper",
     "dream-theme-light",
     "dream-theme-dark",
     "dream-art-wide",
@@ -21,6 +22,7 @@
   ];
   const ROOT_PROPERTIES = [
     "--dream-art",
+    "--dream-mask-opacity",
     "--dream-art-position",
     "--dream-focus-x",
     "--dream-focus-y",
@@ -76,6 +78,8 @@
     const metadataRatio = Number(config?.artMetadata?.ratio);
     return {
       appearance,
+      wallpaper: config.layout === "wallpaper" || Boolean(config.video),
+      maskOpacity: hasNumber(config.maskOpacity) ? clamp(config.maskOpacity) : .62,
       safeArea,
       taskMode,
       focusX: hasNumber(art.focusX) ? clamp(art.focusX) : null,
@@ -86,6 +90,7 @@
   };
 
   const previous = window[STATE_KEY];
+  previous?.disposeVideo?.();
   if (previous?.observer) previous.observer.disconnect();
   if (previous?.timer) clearInterval(previous.timer);
   if (previous?.scheduler?.timeout) clearTimeout(previous.scheduler.timeout);
@@ -98,7 +103,87 @@
     const mime = /^data:([^;,]+)/.exec(artDataUrl)?.[1] || "image/png";
     return URL.createObjectURL(new Blob([bytes], { type: mime }));
   })();
+  const installVideo = (file) => {
+    const videoUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.id = "codex-dream-skin-video";
+    video.setAttribute("aria-hidden", "true");
+    video.tabIndex = -1;
+    video.muted = video.defaultMuted = true;
+    video.volume = 0;
+    video.autoplay = video.loop = video.playsInline = true;
+    video.preload = "auto";
+    video.controls = false;
+    video.disablePictureInPicture = video.disableRemotePlayback = true;
+    video.poster = artUrl;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let disposed = false;
+    let failed = false;
+    const suspended = () => document.hidden || motionQuery.matches;
+    const hide = () => {
+      document.documentElement.removeAttribute("data-dream-video-ready");
+      document.documentElement.style.setProperty("--dream-art", `url("${artUrl}")`);
+    };
+    const onError = () => {
+      if (disposed) return;
+      failed = true;
+      hide();
+      video.pause();
+    };
+    const revealFrame = () => {
+      // Keep one decoded frame ready while hidden so presentation does not flash the poster.
+      if (!disposed && !failed && !motionQuery.matches && video.readyState >= 2) {
+        document.documentElement.setAttribute("data-dream-video-ready", "true");
+        document.documentElement.style.setProperty("--dream-art", "none");
+      }
+    };
+    const syncPlayback = () => {
+      if (disposed) return;
+      if (motionQuery.matches || failed) {
+        hide();
+        video.pause();
+      } else if (document.hidden) {
+        video.pause();
+        revealFrame();
+      } else {
+        video.play().catch(() => { if (!suspended()) onError(); });
+      }
+    };
+    video.addEventListener("playing", revealFrame);
+    video.addEventListener("loadeddata", revealFrame);
+    video.addEventListener("error", onError);
+    document.addEventListener("visibilitychange", syncPlayback);
+    motionQuery.addEventListener("change", syncPlayback);
+    (document.body || document.documentElement).appendChild(video);
+    video.src = videoUrl;
+    syncPlayback();
+    return {
+      status: () => ({
+        ready: !failed && video.readyState >= 2 && !video.paused,
+        decoded: !failed && video.readyState >= 2,
+        suspended: !failed && Boolean(suspended()),
+        failed, paused: video.paused, currentTime: video.currentTime,
+        width: video.videoWidth, height: video.videoHeight,
+      }),
+      dispose: () => {
+        disposed = true;
+        document.removeEventListener("visibilitychange", syncPlayback);
+        motionQuery.removeEventListener("change", syncPlayback);
+        video.removeEventListener("playing", revealFrame);
+        video.removeEventListener("loadeddata", revealFrame);
+        video.removeEventListener("error", onError);
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        video.remove();
+        hide();
+        URL.revokeObjectURL(videoUrl);
+      },
+    };
+  };
+
   const config = normalizeConfig(rawConfig);
+  let videoController = null;
   let profile = {
     ...defaultProfile,
     aspect: config.initialAspect ?? defaultProfile.aspect,
@@ -277,6 +362,9 @@
 
   const clearSkinDom = () => {
     const root = document.documentElement;
+    videoController?.dispose();
+    videoController = null;
+    root?.removeAttribute?.("data-dream-video-ready");
     root?.classList.remove(...ROOT_CLASSES);
     for (const property of ROOT_PROPERTIES) root?.style.removeProperty(property);
     document.querySelectorAll(".dream-home").forEach((node) => node.classList.remove("dream-home"));
@@ -312,7 +400,10 @@
     for (const value of ["ambient", "banner", "off"]) {
       root.classList.toggle(`dream-task-${value}`, taskMode === value);
     }
-    root.style.setProperty("--dream-art", `url("${artUrl}")`);
+    root.classList.toggle("dream-wallpaper", config.wallpaper);
+    root.style.setProperty("--dream-mask-opacity", String(config.maskOpacity));
+    const videoStatus = videoController?.status();
+    root.style.setProperty("--dream-art", videoStatus?.decoded && !videoStatus.failed && !videoStatus.suspended ? "none" : `url("${artUrl}")`);
     root.style.setProperty("--dream-art-position", `${Math.round(focusX * 100)}% ${Math.round(focusY * 100)}%`);
     root.style.setProperty("--dream-focus-x", String(focusX));
     root.style.setProperty("--dream-focus-y", String(focusY));
@@ -404,6 +495,15 @@
   const timer = setInterval(ensure, 5000);
   window[STATE_KEY] = {
     ensure, cleanup, observer, timer, scheduler, artUrl, profile, config, installToken, version: "1.2.0",
+    videoKey: rawConfig.videoKey,
+    setVideo(file) {
+      if (window[STATE_KEY]?.installToken !== installToken || !rawConfig.video || !file || file.size > 256 * 1024 * 1024) return false;
+      videoController?.dispose();
+      videoController = installVideo(file);
+      return true;
+    },
+    videoStatus: () => rawConfig.video ? videoController?.status() ?? { ready: false, suspended: false } : null,
+    disposeVideo: () => { videoController?.dispose(); videoController = null; },
   };
   ensure();
   analyzeArt().then((result) => {

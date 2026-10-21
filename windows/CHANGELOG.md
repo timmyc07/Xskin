@@ -1,5 +1,13 @@
 # Windows Changelog
 
+## Xskin Windows 1.0.0 — 2026-10-21
+
+- Add a Flutter desktop panel with a native file picker, image/MP4 previews, muted playback, mask controls, saved themes, pause, launch and restore.
+- Keep imports pending until Apply; persist pending drafts and mask settings. Verify Apply and roll back the previous image/video theme and pause state on failure.
+- Preserve original MP4 bytes up to 256 MiB and transfer local files over CDP without embedding video bytes in JavaScript. Restore video after reload; suspend for hidden documents or reduced motion.
+- Keep the native Codex layout under one continuous wallpaper and mask. Existing adaptive image themes remain usable in the retained tray.
+- Add Flutter widget/engine-bridge regression tests, a Windows release build script and GitHub Actions packaging.
+
 ## 1.2.0 — 2026-07-17
 
 ### 新增

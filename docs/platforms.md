@@ -44,11 +44,11 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 | 一键恢复 | ✅ | ✅ |
 | 实机 verify / 截图 | ✅ | ✅ |
 | 用户选图定制 | ✅ | ✅（系统托盘「更换背景图」） |
-| 原生背景工作室（圖片 / MP4 匯入、預覽、套用） | ✅（1.4.0，獨立 macOS .app） | ❌ |
+| 背景工作室（圖片 / MP4 匯入、預覽、套用） | ✅（SwiftUI macOS .app） | ✅（Flutter Windows .exe） |
 | 本地主题保存 / 切换 | ✅（菜单栏） | ✅（系统托盘） |
 | 官方签名校验 | ✅ | Store 签名类型 + 包身份 |
 | 客户部署提示词 | ✅ | ❌（可用 Mac 文案改写） |
-| 打客户 ZIP | ✅ `build-client-release.sh` | 手动压缩 `windows/` |
+| 打客户 ZIP | ✅ `build-client-release.sh` | ✅ `scripts/build-release.ps1` |
 
 ## 自适应图像主题契约
 
@@ -97,8 +97,12 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 
 ## macOS video fork
 
-`1.2.1-video.2` supports MP4 backgrounds up to 256 MiB through the bundled Skill and menu picker. Video plays silently in a loop and suspends for hidden documents or reduced motion. The static image is retained for loading and failure fallback. Windows remains image-only.
+`1.2.1-video.2` supports MP4 backgrounds up to 256 MiB through the bundled Skill and menu picker. Video plays silently in a loop and suspends for hidden documents or reduced motion. The static image is retained for loading and failure fallback. Windows also supports MP4 through the Flutter panel and validated local CDP file handoff.
 
 ## macOS automatic startup (video edition)
 
 `dream-skin-macos.sh autostart enable` installs a per-user LaunchAgent that watches ordinary official Codex launches and applies the saved theme. The new process is gracefully reopened once; already-open windows and explicit debug launches are skipped. A fresh-process identity gate and a 30-second handoff limit prevent disruptive restart loops. Quitting Codex leaves it closed. `autostart disable`, Pause, and Restore remove the service. The signed application is unchanged.
+
+## Windows Flutter panel
+
+`windows/panel/` contains the Flutter Windows app. The release bundles the Flutter runner, media_kit libraries and the existing PowerShell/Node engine. `xskin-command.ps1` is its structured UTF-8 bridge. Pending drafts live under `%LOCALAPPDATA%\CodexDreamSkin\imports` and are selected by `studio.json`; Apply uses the operation lock and a recoverable previous-theme snapshot. Video files are copied without re-encoding and are limited to 256 MiB. The full-window mask defaults to 62%. See [Windows guide](../windows/README.md).

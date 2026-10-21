@@ -140,6 +140,9 @@ function Install-DreamSkinRuntimeEngine {
     'scripts\theme-windows.ps1',
     'scripts\tray-dream-skin.ps1',
     'scripts\verify-dream-skin.ps1'
+    'scripts\video-file.mjs',
+    'scripts\xskin-theme.ps1',
+    'scripts\xskin-command.ps1'
   )
   foreach ($relative in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot $relative) -PathType Leaf)) {

@@ -16,6 +16,8 @@ Import, preview, and apply from one focused, native macOS app.
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
+**Windows:** a Flutter desktop panel with image/MP4 preview and background controls is available in [`windows/`](windows/README.md). Build the Windows ZIP or download the **Xskin-Windows** artifact from the Windows Flutter workflow on the Windows branch. The macOS download above remains the macOS release.
+
 </div>
 
 ![Xskin native macOS application](docs/images/xskin.png)
@@ -92,7 +94,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Installation | Standalone app; an optional Codex plugin launches the same app. See the [user guide](docs/background-panel.md). |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- This native app release targets macOS. No Windows native app or Intel Mac prebuilt binary is provided.
+- The v1.5.1 download targets macOS arm64. The separate [Windows Flutter app](windows/README.md) has its own build and requirements; no Intel Mac prebuilt binary is provided.
 - Automatic startup prepares a separate managed entry at `~/Applications/Codex (Xskin).app` and connects it to the Dock; the official app bundle remains unchanged. Opening the original official `.app` path directly leaves it running without an automatic background. Use the managed Dock entry for background-enabled launches.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
