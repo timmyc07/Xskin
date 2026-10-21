@@ -46,7 +46,7 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 | 用户选图定制 | ✅ | ✅（系统托盘「更换背景图」） |
 | 背景工作室（圖片 / MP4 匯入、預覽、套用） | ✅（SwiftUI macOS .app） | ✅（Flutter Windows .exe） |
 | 四語介面 / 拖放 / 獨立全版遮罩 | ✅ | ✅（1.5.1） |
-| 面板關閉後從專用入口自動套用 | ✅（Dock 入口） | ✅（Codex (Xskin) 桌面 / 開始捷徑） |
+| 面板關閉後從專用入口自動套用 | ✅（Dock 入口） | ✅（Codex (Xskin) 桌面 / 開始捷徑，可釘選工作列） |
 | 本地主题保存 / 切换 | ✅（菜单栏） | ✅（系统托盘） |
 | 官方签名校验 | ✅ | Store 签名类型 + 包身份 |
 | 客户部署提示词 | ✅ | ❌（可用 Mac 文案改写） |
@@ -107,4 +107,4 @@ The current Mac implementation configures a direct-launch Dock entry. It launche
 
 ## Windows Flutter panel
 
-`windows/panel/` contains the Flutter Windows app. Version 1.5.1 bundles Flutter, media_kit, Node.js and the managed engine. `xskin-command.ps1` uses temporary UTF-8 request files; MP4 imports copy the original without waiting for a screenshot. Pending drafts, language and mask preferences are persisted; Apply uses the operation lock and a recoverable previous-theme snapshot. The Mac renderer and exact theme/mask/advancing-video verification replace the retired Windows selectors. The full-window mask defaults to 62%. See [Windows guide](../windows/README.md) and [parity mapping](../windows/references/macos-parity.md).
+`windows/panel/` contains the Flutter Windows app. Version 1.5.2 bundles Flutter, media_kit, Node.js and the managed engine. `xskin-command.ps1` uses temporary UTF-8 request files; MP4 imports copy the original without waiting for a screenshot. Pending drafts, language and mask preferences are persisted; Apply uses the operation lock and a recoverable previous-theme snapshot. The Mac renderer and exact theme/mask/advancing-video verification replace the retired Windows selectors. The full-window mask defaults to 62%. See [Windows guide](../windows/README.md) and [parity mapping](../windows/references/macos-parity.md).

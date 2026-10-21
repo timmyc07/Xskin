@@ -1,4 +1,6 @@
-# Xskin for Windows 1.5.1 (Flutter)
+# Xskin for Windows 1.5.2 (Flutter)
+
+**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.2/Xskin-1.5.2-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.2)
 
 Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
@@ -16,6 +18,7 @@ The right side shows the active background, language, automatic apply and whole-
 
 - **Overlay opacity:** 0–100%, default 62%. Release the slider to persist and update the current background. This does not import another copy or reopen the preview player. Keyboard changes are debounced.
 - **Apply on Codex launch:** creates managed **Codex (Xskin)** entries on Desktop and Start. Open Codex through those entries to apply the saved background while the Xskin panel stays closed. This is the Windows equivalent of the Mac direct-launch Dock entry. Original Microsoft Store/taskbar entries are unchanged. An already-open ordinary Codex window is left running; use manual Apply to authorize its first restart.
+- **Taskbar:** right-click the Desktop **Codex (Xskin)** shortcut → **Show more options** → **Pin to taskbar**. After confirming it launches correctly, unpin the original Codex icon. Pin this shortcut rather than the running official-app window; the shortcut retains the managed engine arguments and official Codex icon.
 - **Saved backgrounds:** contains launch, pause/resume, save, selection and restore controls. Selecting a saved theme prepares a draft for Apply.
 - **Pause / Restore:** disable the managed automatic-launch entries. Restore closes the managed debugging session and reopens ordinary Codex after the restart prompt.
 
@@ -55,6 +58,12 @@ flutter test
 flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.1-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**.
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.2-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.5.2` release tag.
+
+## Performance
+
+Ordinary streamed message content no longer triggers a full-document route scan. Shell/home changes, page activation, resize and periodic repair still refresh the background. Preview starts paused, hidden previews release the player, and hidden Codex windows / Reduce Motion pause video. Original video bytes, resolution and frame rate are preserved.
+
+The local 100-update benchmark reduced route scans from 104 to 1 while a 4K video continued playing. Overall CPU timing was similar during this short run; this is a reduction in unnecessary background-maintenance work, not a total CPU/GPU guarantee. See [measurements and reproduction](references/performance.md).
 
 See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.

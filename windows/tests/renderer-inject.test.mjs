@@ -439,12 +439,26 @@ defaults.root.classList.add = (...names) => {
 defaults.window.__CODEX_DREAM_SKIN_STATE__.ensure({ route: false, layout: false });
 assert.equal(skinClassWrites, 0, "An unchanged root class must not write a mutation that schedules another root pass.");
 const rootPassesBeforeMutations = defaultMetrics.rootPasses;
-for (let index = 0; index < 50; index += 1) defaults.observers[0].callback([]);
+const structuralMutation = [{
+  type: "childList", addedNodes: [{nodeType: 1, matches: () => true}], removedNodes: [],
+}];
+const contentMutation = [{
+  type: "childList", addedNodes: [{nodeType: 1, matches: () => false, querySelector: () => null}, {nodeType: 3}], removedNodes: [],
+}];
+for (let index = 0; index < 100; index += 1) defaults.observers[0].callback(contentMutation);
+assert.equal(defaults.timers.size, 0, "Streaming content must not schedule full-document route scans.");
+for (let index = 0; index < 50; index += 1) defaults.observers[0].callback(structuralMutation);
 assert.equal(defaults.timers.size, 1, "Mutation bursts should coalesce into one scheduled ensure.");
 defaults.flushTimers(64);
 assert.equal(defaultMetrics.rootPasses, rootPassesBeforeMutations, "Subtree mutations must not recompute root theme tokens.");
 assert.equal(defaultMetrics.routePasses, 2);
 assert.equal(defaultMetrics.layoutReads, 1, "Subtree mutations must not force shell layout reads.");
+defaults.observers[0].callback([{type: "childList", addedNodes: [], removedNodes: [{nodeType: 1, matches: () => false, querySelector: () => ({})}]}]);
+assert.equal(defaults.timers.size, 1, "Removing a subtree containing home markers must refresh the route.");
+defaults.flushTimers(64);
+defaults.observers[0].callback([{type: "attributes"}]);
+assert.equal(defaults.timers.size, 1, "Activating an existing page must refresh the route.");
+defaults.flushTimers(64);
 assert.equal(defaults.resizeObservers.length, 1);
 assert.ok(defaults.resizeObservers[0].target);
 defaults.shellBox.left = 196;

@@ -95,7 +95,8 @@ jobs:
           test -n "$expected"
           test "$common" = "$expected"
           test "$macos_injector" = "$expected"
-          test "$windows_injector" = "$expected"
+          windows_expected="$(tr -d '\r\n' < windows/VERSION)"
+          test "$windows_injector" = "$windows_expected"
 
       - name: Run portable Node.js regressions
         shell: bash

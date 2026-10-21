@@ -797,7 +797,16 @@
       scheduler.timeout = setTimeout(flushScheduledEnsure, 64);
     }
   };
-  const observer = new MutationObserver(() => scheduleEnsure({ route: true }));
+  const routeMarkers = '[data-app-shell-active-page], main[data-app-shell-main-surface], [role="main"], ' +
+    '[data-testid="home-icon"], [data-feature="game-source"], [class~="group/home-suggestions"], [class*="_homeUtilityBar_"], ' +
+    `#${CHROME_ID}`;
+  const observer = new MutationObserver((records) => {
+    // Message streaming changes content, not the shell or home-route markers.
+    const routeChanged = records.some((record) => record.type === "attributes" ||
+      [...record.addedNodes, ...record.removedNodes].some((node) => node.nodeType === 1 &&
+        (node.matches(routeMarkers) || node.querySelector(routeMarkers))));
+    if (routeChanged) scheduleEnsure({ route: true });
+  });
   rootObserver = new MutationObserver(() => {
     if (samplingNativeShell) return;
     scheduleEnsure({ root: true, route: true });
@@ -857,6 +866,8 @@
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
+    attributes: true,
+    attributeFilter: ["data-app-shell-active-page"],
   });
   rootObserver.observe(document.documentElement, {
     attributes: true,

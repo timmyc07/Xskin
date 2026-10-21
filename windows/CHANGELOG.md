@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## Xskin Windows 1.5.2 — 2026-10-21
+
+- Avoid scanning the entire Codex document for ordinary streamed message content. Refresh theme routing only when shell/home markers change, including existing-page activation; keep periodic repair and resize handling.
+- Publish the Windows x64 Flutter portable ZIP with bundled Node.js, a SHA-256 checksum and a separate Windows release tag. macOS keeps its existing release.
+
 ## Xskin Windows 1.5.1 — 2026-10-21
 
 - Allow launcher reapplication when Windows still enumerates an exited injector, while rejecting running or unrelated processes.

@@ -34,7 +34,7 @@ const run = async (action, request = {}) => {
 };
 try {
   const initial = await run("state");
-  assert.equal(initial.code, 0);
+  assert.equal(initial.code, 0, initial.error);
   assert.equal(initial.state.pending, false);
   assert.ok(initial.state.saved.length > 0);
   assert.equal(typeof initial.state.saved[0].directory, 'string');
@@ -43,7 +43,7 @@ try {
   const source = path.join(temporary, "中文 $& picture.jpg");
   await fs.copyFile(path.join(root, "assets/dream-reference.jpg"), source);
   const imported = await run("import", { path: source });
-  assert.equal(imported.code, 0);
+  assert.equal(imported.code, 0, imported.error);
   assert.equal(imported.state.pending, true);
   assert.equal(imported.state.name, "中文 $& picture");
   assert.equal(await fs.readFile(path.join(stateRoot, "active-theme/theme.json"), "utf8"), originalMetadata);
@@ -61,7 +61,7 @@ try {
   const longSource = path.join(temporary, "a".repeat(130) + ".jpg");
   await fs.copyFile(source, longSource);
   const longName = await run("import", { path: longSource });
-  assert.equal(longName.code, 0);
+  assert.equal(longName.code, 0, longName.error);
   assert.equal(longName.state.name.length, 80);
   assert.equal(paused.state.paused, true);
   assert.equal((await run("pause")).state.paused, false);

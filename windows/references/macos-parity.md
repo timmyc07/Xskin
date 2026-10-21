@@ -1,4 +1,4 @@
-# macOS 1.5.1 → Windows 1.5.1
+# macOS 1.5.1 → Windows 1.5.2
 
 | Mac source / behavior | Windows implementation | Validation |
 | --- | --- | --- |
@@ -9,7 +9,7 @@
 | `sips` common image normalization and limits | Windows Imaging Component, 4096px JPEG quality 90, 50 MiB / 16384px / 50MP source and 16 MiB output limits | JPEG and TIFF conversion, source size rejection, WebP fixture on this machine; HEIF/WebP use Windows codecs |
 | Independent global mask / rollback | `Set-XskinMask`, atomic metadata-only update; no media copies or player reopen | Forced failure restores exact previous metadata and preserves pending selection |
 | Direct-launch Dock entry / panel may stay closed | Owned Desktop + Start **Codex (Xskin)** shortcuts pointing at managed engine; no replacement of Store/taskbar entries | Enable/disable and ownership tests; disable preserves unrelated shortcuts |
-| `assets/renderer-inject.js`, `assets/dream-skin.css` | Same renderer and stylesheet copied without a legacy Windows selector layer | Mac renderer regression scenarios run against Windows assets, including hidden first frame, adaptive layout, cleanup and video lifecycle |
+| `assets/renderer-inject.js`, `assets/dream-skin.css` | Mac renderer and stylesheet with Windows mutation filtering; no legacy Windows selector layer | Mac renderer regression scenarios plus content/structural/page-activation checks; see [performance](performance.md) |
 | Current shell target detection | Current `data-app-shell-active-page`, `data-app-shell-main-surface`, composer and sidebar markers | Early-generation tests; replaces the obsolete `main.main-surface` probe that caused the reported verification failure |
 | Exact-theme, mask and advancing-video verification | Mac verifier integrated with Windows loopback/process/package/Browser-ID checks | Rejects a frozen playhead and a previous theme; actual 4K playback, decoded-frame progress, home/task views and reload verified |
 | Standalone runtime | Bundled Node.js plus license; managed `assets/scripts` engine | Release smoke test with no Node in PATH |
