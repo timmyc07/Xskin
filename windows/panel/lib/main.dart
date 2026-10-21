@@ -10,6 +10,8 @@ import 'package:path/path.dart' as path;
 
 import 'engine.dart';
 
+const _version = String.fromEnvironment('XSKIN_VERSION', defaultValue: 'dev');
+
 void main(List<String> arguments) {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -507,9 +509,10 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
                   onPressed: () => showLicensePage(
                     context: context,
                     applicationName: 'Xskin',
+                    applicationVersion: _version,
                   ),
                   child: const Text(
-                    'WINDOWS / FLUTTER',
+                    'WINDOWS / FLUTTER · $_version',
                     style: TextStyle(
                       fontSize: 11,
                       color: Color(0xff75824c),

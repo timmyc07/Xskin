@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $repository = Split-Path -Parent $root
 $panel = Join-Path $root 'panel'
+$version = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim()
 if (-not $SkipTests) {
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'tests\run-tests.ps1')
   if ($LASTEXITCODE -ne 0) { throw 'Windows engine tests failed.' }
@@ -19,10 +20,9 @@ try {
     & $Flutter test --no-pub
     if ($LASTEXITCODE -ne 0) { throw 'Flutter tests failed.' }
   }
-  & $Flutter build windows --release --no-pub
+  & $Flutter build windows --release --no-pub "--dart-define=XSKIN_VERSION=$version"
   if ($LASTEXITCODE -ne 0) { throw 'Flutter Windows build failed.' }
 } finally { Pop-Location }
-$version = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim()
 $release = Join-Path $repository 'build\windows'
 New-Item -ItemType Directory -Force -Path $release | Out-Null
 $package = Join-Path $release ('Xskin-' + $version + '-flutter-' + [guid]::NewGuid().ToString('N').Substring(0,8))

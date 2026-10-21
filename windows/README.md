@@ -62,7 +62,7 @@ From the repository root, build a tested release:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1
 ```
 
-Output: `build/windows/Xskin-1.0.1-windows-x64.zip` and its SHA-256 file. GitHub Actions runs the same build and uploads the ZIP as **Xskin-Windows**. The full Flutter runner, native media libraries and theme engine are included; Flutter and Visual Studio are not required to run a packaged app.
+Output: `build/windows/Xskin-1.0.2-windows-x64.zip` and its SHA-256 file. GitHub Actions runs the same build and uploads the ZIP as **Xskin-Windows**. The panel displays the packaged version in its top-right corner. The full Flutter runner, native media libraries and theme engine are included; Flutter and Visual Studio are not required to run a packaged app.
 
 ## State and verification
 

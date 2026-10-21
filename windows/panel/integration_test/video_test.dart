@@ -1,6 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -8,11 +8,24 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path/path.dart' as path;
 import 'package:xskin/engine.dart';
+import 'package:xskin/main.dart';
+
+class TestFileSelector extends FileSelectorPlatform {
+  TestFileSelector(this.source);
+  final String source;
+
+  @override
+  Future<XFile?> openFile({
+    List<XTypeGroup>? acceptedTypeGroups,
+    String? initialDirectory,
+    String? confirmButtonText,
+  }) async => XFile(source);
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
-  testWidgets('Windows decodes MP4, captures a poster and starts paused', (
+  testWidgets('Panel imports MP4, enables Apply and plays a muted preview', (
     tester,
   ) async {
     const source = String.fromEnvironment('TEST_VIDEO');
@@ -21,25 +34,12 @@ void main() {
       isTrue,
       reason: 'Supply --dart-define=TEST_VIDEO=<local MP4>',
     );
-    final player = Player();
-    final controller = VideoController(player);
     final temporary = await Directory.systemTemp.createTemp(
       'xskin-video-test-',
     );
+    final selector = FileSelectorPlatform.instance;
+    FileSelectorPlatform.instance = TestFileSelector(source);
     try {
-      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-      await player.setVolume(0);
-      await player.open(Media(Uri.file(source).toString()), play: false);
-      if ((player.state.width ?? 0) == 0) {
-        await player.stream.width
-            .firstWhere((width) => (width ?? 0) > 0)
-            .timeout(const Duration(seconds: 15));
-      }
-      final poster = await player.screenshot(format: 'image/png');
-      expect(poster, isNotNull);
-      expect(poster!.length, greaterThan(100));
-      expect(player.state.playing, isFalse);
-      expect(player.state.volume, 0);
       final scripts = await Directory(
         path.join(temporary.path, 'scripts'),
       ).create();
@@ -52,43 +52,63 @@ void main() {
         '-StateRoot ${quote(stateRoot)}\n',
       );
       final engine = XskinEngine(temporary.path);
-      final before = await engine.command('state');
-      final originalTheme = await File(
+      await tester.pumpWidget(XskinApp(engine: engine));
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 30),
+      );
+      final activeTheme = File(
         path.join(stateRoot, 'active-theme', 'theme.json'),
-      ).readAsString();
-      final imported = await engine
-          .command('import', {
-            'path': source,
-            'posterPng': base64Encode(poster),
-          })
-          .timeout(const Duration(seconds: 30));
+      );
+      final originalTheme = await activeTheme.readAsString();
+      final timer = Stopwatch()..start();
+      await tester.tap(find.text('Import media'));
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 30),
+      );
+      timer.stop();
+      debugPrint(
+        'Panel video import completed in ${timer.elapsedMilliseconds} ms.',
+      );
+      expect(
+        find.text(
+          'Import ready. Your current Codex background has not changed.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Apply to Codex'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      final imported = await engine.command('state');
       expect(imported.pending, isTrue);
-      expect(imported.videoPath, isNotNull);
       expect(
         await File(imported.videoPath!).readAsBytes(),
         await File(source).readAsBytes(),
       );
-      expect(await File(imported.imagePath).readAsBytes(), poster);
-      expect(await File(before.imagePath).exists(), isTrue);
-      expect(
-        await File(
-          path.join(stateRoot, 'active-theme', 'theme.json'),
-        ).readAsString(),
-        originalTheme,
-      );
-      expect((await engine.command('state')).videoPath, imported.videoPath);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Video(controller: controller, controls: NoVideoControls),
-        ),
-      );
-      await player.play();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      expect(player.state.playing, isTrue);
-      await player.pause();
+      expect(await File(imported.imagePath).length(), greaterThan(100));
+      expect(await activeTheme.readAsString(), originalTheme);
+      final player = tester.widget<Video>(find.byType(Video)).controller.player;
+      expect(player.state.width, greaterThan(0));
       expect(player.state.playing, isFalse);
+      expect(player.state.volume, 0);
+      await tester.tap(find.text('Play preview'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(player.state.playing, isTrue);
+      await tester.tap(find.text('Pause preview'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(player.state.playing, isFalse);
+      expect(tester.takeException(), isNull);
     } finally {
-      await player.dispose();
+      await tester.pumpWidget(const SizedBox());
+      FileSelectorPlatform.instance = selector;
       await temporary.delete(recursive: true);
     }
   });

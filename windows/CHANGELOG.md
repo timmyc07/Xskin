@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## Xskin Windows 1.0.2 — 2026-10-21
+
+- Display the packaged version in the panel and license page so a stale shortcut is immediately recognizable.
+- Exercise the real panel import handler and verify that successful MP4 import enables Apply and supports muted preview playback.
+
 ## Xskin Windows 1.0.1 — 2026-10-21
 
 - Fix video import remaining busy when a large poster stalls in the Dart/PowerShell stdin pipe. Transfer requests through validated temporary UTF-8 files and remove them after completion or failure.
