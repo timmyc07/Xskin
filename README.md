@@ -72,7 +72,14 @@ On Windows, right-click **Codex (Xskin)** → **Show more options** → **Pin to
 
 Windows 1.5.2 avoids rescanning the whole page for ordinary message updates. In a controlled 100-update test, route scans fell from **104 to 1** while the original **3840×2160** video kept playing. This measures background-maintenance work, not a 99% reduction in total CPU or GPU use. See the [benchmark and limits](windows/references/performance.md).
 
-An **unreleased** streaming-integrity change reduced theme-load CPU time and peak memory in local measurements. GPU savings have not been established, so the published Windows download remains **1.5.2**. The [resource report](windows/references/performance.md) separates load-time results from continuous playback.
+The **`main` source** now streams full MP4 integrity checks through a 1 MiB buffer and reuses the video digest. The original video bytes, 4K resolution and frame rate are preserved. Three fresh-process runs of 30 theme loads produced these medians:
+
+| Theme-load measurement | Windows 1.5.2 release | `main` source | Reduction |
+| --- | ---: | ---: | ---: |
+| Process CPU time | 1,344 ms | 843 ms | 37.3% |
+| Peak process memory (RSS) | 267.27 MiB | 146.73 MiB | 45.1% |
+
+These are **load-time** improvements. Lower GPU use and sustained playback memory have not been established. The packaged Windows download remains **1.5.2**; [build from `main`](windows/README.md#build-and-test) to use the source changes before the next release. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
 
 ## Supported media
 

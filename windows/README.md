@@ -66,4 +66,8 @@ Ordinary streamed message content no longer triggers a full-document route scan.
 
 The local 100-update benchmark reduced route scans from 104 to 1 while a 4K video continued playing. Overall CPU timing was similar during this short run; this is a reduction in unnecessary background-maintenance work, not a total CPU/GPU guarantee. See [measurements and reproduction](references/performance.md).
 
+The **`main` source** also streams complete MP4 integrity checks through a 1 MiB buffer and hashes video content once. In three fresh-process runs of 30 theme loads, median process CPU time fell from **1,344 to 843 ms (37.3%)**, and peak process RSS fell from **267.27 to 146.73 MiB (45.1%)**. These are load-time results; lower GPU use or sustained playback memory has not been established. Original 4K media and frame rate are preserved.
+
+The downloadable **1.5.2 ZIP does not include this source change**. Follow [Build and test](#build-and-test) to build `main` before the next packaged release.
+
 See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.
