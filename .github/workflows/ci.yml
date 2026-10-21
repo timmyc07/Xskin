@@ -101,10 +101,25 @@ jobs:
       - name: Run portable Node.js regressions
         shell: bash
         run: |
-          node --test macos/tests/*.test.mjs
+          for file in macos/tests/*.test.mjs; do
+            if [[ "$file" != "macos/tests/background-studio.test.mjs" ]]; then
+              node --test "$file"
+            fi
+          done
           node --test windows/tests/*.test.mjs
           node macos/scripts/injector.mjs --check-payload >/dev/null
           node windows/scripts/injector.mjs --check-payload >/dev/null
+
+  macos-studio-tests:
+    name: macOS studio backend
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run native studio regression suite
+        run: node --test macos/tests/background-studio.test.mjs
 
   windows-tests:
     name: Windows (${{ matrix.name }})

@@ -47,7 +47,8 @@ try {
   $shortcutFolder = Join-Path $temporary 'shortcuts'
   New-Item -ItemType Directory -Path $shortcutFolder | Out-Null
   function Get-XskinLaunchShortcutPaths { return @((Join-Path $shortcutFolder 'desktop.lnk'), (Join-Path $shortcutFolder 'start.lnk')) }
-  $codexExecutable = Join-Path $temporary 'Codex 測試\ChatGPT.exe'
+  # Match the registered Store package layout; WSH reads icons through the system code page.
+  $codexExecutable = Join-Path $temporary 'OpenAI.Codex_fixture\app\ChatGPT.exe'
   New-Item -ItemType Directory -Path (Split-Path -Parent $codexExecutable) | Out-Null
   Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -Destination $codexExecutable
   function Get-DreamSkinCodexInstall { return [pscustomobject]@{Executable=$codexExecutable} }
