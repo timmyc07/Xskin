@@ -118,6 +118,7 @@ function Set-XskinAutostart {
   $startup = Get-XskinAutostart -StateRoot $StateRoot
   if ($Enabled) {
     if ($startup.Foreign.Count -gt 0) { throw "Refusing to change an unrelated shortcut: $($startup.Foreign[0])" }
+    $codex = Get-DreamSkinCodexInstall
     $engine = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
     $shell = New-Object -ComObject WScript.Shell
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -126,6 +127,7 @@ function Set-XskinAutostart {
       $link.TargetPath = $powershell
       $link.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($engine.Start)`""
       $link.WorkingDirectory = $engine.Root
+      $link.IconLocation = "$($codex.Executable),0"
       $link.Description = 'Xskin automatic Codex background launcher'
       $link.WindowStyle = 7
       $link.Save()

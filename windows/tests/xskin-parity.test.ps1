@@ -47,11 +47,18 @@ try {
   $shortcutFolder = Join-Path $temporary 'shortcuts'
   New-Item -ItemType Directory -Path $shortcutFolder | Out-Null
   function Get-XskinLaunchShortcutPaths { return @((Join-Path $shortcutFolder 'desktop.lnk'), (Join-Path $shortcutFolder 'start.lnk')) }
+  $codexExecutable = Join-Path $temporary 'Codex 測試\ChatGPT.exe'
+  function Get-DreamSkinCodexInstall { return [pscustomobject]@{Executable=$codexExecutable} }
   Set-XskinAutostart -Enabled $true -SkillRoot $root -StateRoot $stateRoot
   $startup = Get-XskinAutostart -StateRoot $stateRoot
   if (-not $startup.Enabled -or -not $startup.Loaded) { throw 'The direct-launch entry was not installed.' }
   $foreign = (Get-XskinLaunchShortcutPaths)[0]
   $shell = New-Object -ComObject WScript.Shell
+  foreach ($shortcut in $startup.Owned) {
+    $createdLink = $shell.CreateShortcut($shortcut)
+    if ($createdLink.IconLocation -ine "$codexExecutable,0") { throw 'The launch shortcut does not use the registered Codex app icon.' }
+    if ($createdLink.Arguments -notmatch '-File' -or $createdLink.TargetPath -notlike '*\powershell.exe') { throw 'Setting the icon changed the background launcher.' }
+  }
   $link = $shell.CreateShortcut($foreign)
   $link.Description = 'unrelated'
   $link.Save()

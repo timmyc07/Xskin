@@ -2,6 +2,7 @@
 
 ## Xskin Windows 1.5.1 — 2026-10-21
 
+- Use the registered Codex application's icon for Desktop/Start automatic-background shortcuts, while retaining the managed background launcher.
 - Port the macOS 1.5.1 renderer, stylesheet, current Codex shell selectors, adaptive layout, video lifecycle, and exact theme/mask/playback verification. Retire the old Windows renderer selectors that prevented Apply from finding Codex.
 - Match the Mac panel's dark preview/source/preferences flow, pending/applied state, image dimensions, paused original-quality video preview, drag-and-drop, four persisted interface languages, and independent debounced whole-window mask updates.
 - Import MP4 directly without waiting for a screenshot or PNG conversion. Normalize common image formats through Windows Imaging Component to JPEG, up to 4096px, with the same 50 MiB source and 50MP limits. HEIC/HEIF and WebP use the installed Windows codecs.
