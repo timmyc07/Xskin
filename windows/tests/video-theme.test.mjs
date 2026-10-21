@@ -40,7 +40,7 @@ try {
   } };
   await attachVideoToSession(session, loaded.videoSource);
   assert.deepEqual(calls.map(x => x.method), ["Runtime.evaluate", "DOM.setFileInputFiles", "Runtime.callFunctionOn", "Runtime.releaseObject"]);
-  assert.deepEqual(calls[1].params.files, [video]);
+  assert.deepEqual(calls[1].params.files, [await fs.realpath(video)]);
   const failingCalls = [];
   await assert.rejects(attachVideoToSession({ send: async (method) => {
     failingCalls.push(method);

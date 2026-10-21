@@ -21,11 +21,7 @@ void main() {
     final player = Player();
     final controller = VideoController(player);
     try {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Video(controller: controller, controls: NoVideoControls),
-        ),
-      );
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       await player.setVolume(0);
       await player.open(Media(Uri.file(source).toString()), play: false);
       if ((player.state.width ?? 0) == 0) {
@@ -38,6 +34,11 @@ void main() {
       expect(poster!.length, greaterThan(100));
       expect(player.state.playing, isFalse);
       expect(player.state.volume, 0);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Video(controller: controller, controls: NoVideoControls),
+        ),
+      );
       await player.play();
       await Future<void>.delayed(const Duration(milliseconds: 500));
       expect(player.state.playing, isTrue);
