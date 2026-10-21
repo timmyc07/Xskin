@@ -4,7 +4,7 @@
 
 Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
-**Unreleased source changes:** embedded ChatGPT/Work supports the original video, transparent sidebar and the same whole-window mask. Native container visibility controls playback; a hidden preloaded Work page does not block Apply, and the covered Codex player pauses while Work is visible. Dot floating composer/activity cards use the selected poster with the same mask; the rest of the desktop stays transparent and no extra video decoder is started for those cards. The 1.5.3 ZIP above does not include these changes. Sustained GPU/memory improvements remain unproven; see the [measurement report](references/performance.md).
+**Unreleased source changes:** embedded ChatGPT/Work supports the original video, transparent sidebar and the same whole-window mask. Native container visibility controls playback; a hidden preloaded Work page does not block Apply, and the covered Codex player pauses while Work is visible. Dot floating composer/activity cards share one original-quality video player, clipped to their rounded bounds with the same mask. The desktop outside those cards remains transparent. Playback pauses when no cards are visible; loading, errors and Reduce Motion retain the existing poster fallback. A 60-second real playback test recorded 3840×2160, 29.994 fps and zero added dropped frames. The 1.5.3 ZIP above does not include these changes. Sustained GPU/memory improvements remain unproven; see the [measurement report](references/performance.md).
 
 ## Run
 

@@ -5,6 +5,7 @@
   const HOST_VISIBILITY_EVENT = "codex-dream-skin-host-visibility";
   const DISABLED_KEY = "__CODEX_DREAM_SKIN_DISABLED__";
   const STYLE_ID = "codex-dream-skin-style";
+  const DOT_CARDS = '[data-avatar-overlay-native-surface-id="composer"], [data-avatar-overlay-native-surface-id^="activity-"]';
   const CHROME_ID = "codex-dream-skin-chrome";
   const SHELL_ATTR = "data-dream-shell";
   const ART_ATTRS = [
@@ -157,9 +158,63 @@
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let disposed = false;
     let failed = false;
+    let dotVisible = false;
+    let dotFrame = null;
+    let observedCards = [];
+    const dotObserver = SURFACE === "dot" ? new MutationObserver(() => syncDotLayout()) : null;
+    const dotResize = SURFACE === "dot" ? new ResizeObserver(() => syncDotLayout()) : null;
+    const syncDotLayout = () => {
+      if (disposed || SURFACE !== "dot") return;
+      dotObserver.disconnect();
+      const cards = [...document.querySelectorAll(DOT_CARDS)];
+      if (cards.length !== observedCards.length || cards.some((card,index) => card !== observedCards[index])) {
+        dotResize.disconnect();
+        for (const card of cards) dotResize.observe(card);
+        observedCards = cards;
+      }
+      const rects = cards.filter(card => card.checkVisibility({visibilityProperty:true,opacityProperty:true}))
+        .map(card => ({card, box:card.getBoundingClientRect(), style:getComputedStyle(card)}))
+        .filter(({card,box}) => card.offsetWidth > 0 && card.offsetHeight > 0 && box.width > 0 && box.height > 0 && box.right > 0 && box.bottom > 0 &&
+          box.left < innerWidth && box.top < innerHeight);
+      for (const card of cards) {
+        for (let node = card; node; node = node.parentElement) {
+          dotObserver.observe(node, {attributes:true,attributeFilter:["style","class","hidden"]});
+        }
+      }
+      const left = rects.length ? Math.min(...rects.map(({box}) => box.left)) : 0;
+      const top = rects.length ? Math.min(...rects.map(({box}) => box.top)) : 0;
+      const width = rects.length ? Math.max(...rects.map(({box}) => box.right)) - left : 1;
+      const height = rects.length ? Math.max(...rects.map(({box}) => box.bottom)) - top : 1;
+      const path = rects.map(({card,box,style}) => {
+        const x = box.left - left, y = box.top - top, w = box.width, h = box.height;
+        const radii = ["borderTopLeftRadius","borderTopRightRadius","borderBottomRightRadius","borderBottomLeftRadius"]
+          .map(name => {
+            const [rx,ry=rx] = style[name].split(/\s+/);
+            return [rx,ry].map((value,axis) => value.endsWith("%") ? parseFloat(value)*[w,h][axis]/100 :
+              (parseFloat(value)||0)*[w/card.offsetWidth,h/card.offsetHeight][axis]);
+          });
+        const scale = Math.min(1,w/(radii[0][0]+radii[1][0]),w/(radii[3][0]+radii[2][0]),
+          h/(radii[0][1]+radii[3][1]),h/(radii[1][1]+radii[2][1]));
+        const [[tlX,tlY],[trX,trY],[brX,brY],[blX,blY]] = radii.map(radius => radius.map(value => value*scale));
+        return `M${x+tlX} ${y}H${x+w-trX}A${trX} ${trY} 0 0 1 ${x+w} ${y+trY}` +
+          `V${y+h-brY}A${brX} ${brY} 0 0 1 ${x+w-brX} ${y+h}H${x+blX}` +
+          `A${blX} ${blY} 0 0 1 ${x} ${y+h-blY}V${y+tlY}A${tlX} ${tlY} 0 0 1 ${x+tlX} ${y}Z`;
+      }).join(" ") || "M0 0Z";
+      for (const [name,value] of Object.entries({inset:"auto",left:`${left}px`,top:`${top}px`,
+        width:`${width}px`,height:`${height}px`,"clip-path":`path("${path}")`})) {
+        setStyleProperty(video,name,value);
+      }
+      const wasVisible = dotVisible;
+      dotVisible = rects.length > 0;
+      if (wasVisible !== dotVisible) syncPlayback();
+      if (dotFrame === null && document.getAnimations().some(animation => animation.playState === "running" &&
+        cards.some(card => animation.effect?.target?.contains(card)))) {
+        dotFrame = requestAnimationFrame(() => { dotFrame = null; syncDotLayout(); });
+      }
+    };
     const hostHidden = () => SURFACE === "work" && window[HOST_VISIBLE_KEY] === false;
     const suspended = () => document.hidden || motionQuery.matches || workVisible ||
-      (SURFACE === "work" && window[HOST_VISIBLE_KEY] !== true);
+      (SURFACE === "work" && window[HOST_VISIBLE_KEY] !== true) || (SURFACE === "dot" && !dotVisible);
     const hide = () => {
       document.documentElement.removeAttribute("data-dream-video-ready");
       document.documentElement.style.setProperty("--dream-skin-art", `url("${artUrl}")`);
@@ -198,6 +253,11 @@
     motionQuery.addEventListener("change", syncPlayback);
     (document.body || document.documentElement).appendChild(video);
     video.src = videoUrl;
+    if (SURFACE === "dot") {
+      document.addEventListener("transitionrun", syncDotLayout);
+      document.addEventListener("animationstart", syncDotLayout);
+      syncDotLayout();
+    }
     syncPlayback();
     return {
       status: () => ({
@@ -205,12 +265,19 @@
         decoded: !failed && video.readyState >= 2,
         suspended: !failed && Boolean(suspended()),
         hostHidden: hostHidden(),
+        cardsVisible: SURFACE === "dot" ? dotVisible : undefined,
         failed, paused: video.paused, currentTime: video.currentTime,
         width: video.videoWidth, height: video.videoHeight,
       }),
       syncPlayback,
+      syncLayout: syncDotLayout,
       dispose: () => {
         disposed = true;
+        dotObserver?.disconnect();
+        dotResize?.disconnect();
+        if (dotFrame !== null) cancelAnimationFrame(dotFrame);
+        document.removeEventListener("transitionrun", syncDotLayout);
+        document.removeEventListener("animationstart", syncDotLayout);
         document.removeEventListener("visibilitychange", syncPlayback);
         window.removeEventListener(HOST_VISIBILITY_EVENT, syncPlayback);
         motionQuery.removeEventListener("change", syncPlayback);
@@ -805,6 +872,7 @@
     const root = document.documentElement;
     if (!root) return;
     syncWorkViews();
+    videoController?.syncLayout();
     metrics.ensureCalls += 1;
     const shell = rootPass ? applyRootState(root) : null;
     if (route) syncRouteState(shell, { layout });
@@ -914,7 +982,7 @@
     surface: SURFACE,
     videoKey: THEME.videoKey,
     wallpaper: WALLPAPER,
-    videoStatus: THEME.video && SURFACE !== "dot" ? () => videoController?.status() ?? {
+    videoStatus: THEME.video ? () => videoController?.status() ?? {
       ready: false, suspended: false, failed: false, paused: true, currentTime: 0,
     } : undefined,
     disposeVideo: () => videoController?.dispose(),
@@ -923,7 +991,6 @@
       if (!THEME.video || file?.name !== THEME.video || file.size !== THEME.videoBytes) {
         throw new Error("Video file does not match the selected theme");
       }
-      if (SURFACE === "dot") return true;
       videoController?.dispose();
       videoController = installVideo(file);
       return true;

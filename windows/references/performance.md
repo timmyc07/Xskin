@@ -17,7 +17,15 @@ Each round used 30 seconds of warm-up followed by 60 seconds of counters in the 
 
 All four samples recorded zero additional dropped frames. GPU allocation is reported separately and is not evidence of lower private RAM. Ongoing conversation updates and decoder clock/warm-up variation remain limits; these results do not support a GPU or steady-memory savings percentage. The downloadable Windows release remains 1.5.3.
 
-The separate unreleased Work/Dot fix avoids a new double-playback cost: live verification showed the original Work video advancing at about 30 fps with no added dropped frames, the covered Codex player paused, and Codex resuming when Work was hidden. This checks the playback lifecycle, not a measured improvement over 1.5.3's GPU/RAM use. Dot floating cards use a poster, not a second video player. The sampler now also reports per-process private commit/working set and dedicated/shared GPU allocations for further investigation.
+The separate unreleased Work fix avoids a new double-playback cost: live verification showed the original Work video advancing at about 30 fps with no added dropped frames, the covered Codex player paused, and Codex resuming when Work was hidden. This checks the playback lifecycle, not a measured improvement over 1.5.3's GPU/RAM use. The poster experiment above excluded other background surfaces. The sampler now also reports per-process private commit/working set and dedicated/shared GPU allocations for further investigation.
+
+### Dot card video playback
+
+Dot now uses one original video element for all visible composer/activity cards, with a rounded clip following their current bounds. There is no transcoding, frame-rate cap, canvas video copy or per-card decoder. The desktop stays transparent; existing loading/error/Reduce Motion poster fallback remains. No visible cards pauses playback. This adds a video player compared with poster-only cards and is not a CPU/GPU/private-memory savings claim.
+
+On the same Windows/Codex/GPU setup, a live 792×1440/DPR 1 Dot overlay displayed two cards with the original 26,595,461-byte AV1 file and a 62% mask. A 60.0114-second interval decoded 1,800 frames at **3840×2160**, playback rate **1**, average **29.994 fps**, with **zero additional dropped frames**. The selected source digest, blob URL, viewport and single background-player count matched at both ends.
+
+Two screenshots one second apart showed changed RGB samples inside both cards (20/140 composer samples and 178/744 activity samples). All five sampled desktop points had alpha 0. Browser verification also checked the clipping path against each visible card and points outside their bounds. These are real playback/pixel checks; they do not establish reduced whole-app resource use or cover every GPU/codec combination. Private media and screenshots remain local.
 
 ## Windows 1.5.3: bounded video integrity checks
 

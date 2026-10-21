@@ -4,7 +4,8 @@
 
 - Recognize the official app's embedded `https://chatgpt.com` Work webview and Dot avatar control surfaces, while excluding unrelated webviews, empty detached windows and foreign origins. Keep the registered-app/browser identity and loopback checks.
 - Apply the original video and one full-window mask to Work, including its sidebar. Follow the native embedder's actual visibility: preloaded hidden Work pages may report `document.hidden === false` and defer decoding. Verify them as explicitly suspended, resume on display, and pause the covered Codex video instead of decoding both backgrounds continuously.
-- Apply the selected poster and mask only to Dot composer/activity cards. Keep the mascot's surrounding desktop transparent and avoid an additional 4K decoder in the floating overlay. Reload, pause and removal clean up the host visibility hooks.
+- Play the original video in Dot composer/activity cards using one shared player, clipped to their rounded bounds. Follow card movement, animation and size changes; pause when all cards are hidden. Keep the surrounding desktop transparent and retain poster fallback for loading, errors and Reduce Motion. Reload, pause and removal clean up observers and animation callbacks.
+- Verify live Dot playback for 60 seconds: original 3840×2160, playback rate 1, 1,800 frames, 29.994 fps and zero added dropped frames. Both visible cards changed pixels while sampled desktop pixels stayed fully transparent. Dot animation adds one player; this is playback validation, not a GPU/private-memory savings claim.
 - Add GPU dedicated/shared allocation and per-process private-memory reporting to the live sampler. Four interleaved 60-second playback measurements failed to establish a GPU/private-memory improvement from releasing the poster; discard that experiment. No new Windows release or sustained-resource reduction is claimed.
 
 ## Xskin Windows 1.5.3 — 2026-10-21

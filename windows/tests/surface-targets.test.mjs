@@ -44,14 +44,17 @@ for (const invalid of [
   {...target, webSocketDebuggerUrl:'ws://127.0.0.1:9335/devtools/page/different'},
 ]) assert.equal(isValidCdpTarget(invalid, 9335), false);
 const theme = {id:'fixture', video:'original.mp4', videoKey:'original-key', maskOpacity:0.62};
-for (const opacity of [0.62, 0.3]) {
+for (const [opacity,decoded,clipped] of [[0.62,true,true],[0.3,true,true],[0.62,false,true],[0.62,true,false]]) {
+  let calls = 0;
   const session = {async evaluate(expression) {
     assert.doesNotThrow(() => new vm.Script(expression), 'The browser verification expression must parse.');
-    return {pass:true, surface:'dot', themeId:theme.id, videoKey:theme.videoKey, video:null,
-      wallpaperLayout:false, dotCards:[{poster:true,opacity}]};
+    return {pass:true, surface:'dot', themeId:theme.id, videoKey:theme.videoKey,
+      video:{decoded,currentTime:++calls/10,suspended:false}, dotClipVerified:clipped,
+      wallpaperLayout:false, dotCards:[{video:true,poster:false,opacity}]};
   }};
-  const result = await waitForVerifiedSession(session, 250, theme, true);
-  assert.equal(result.pass, opacity === 0.62, 'Dot cards must verify their real mask without starting a video decoder.');
+  const result = await waitForVerifiedSession(session, 600, theme, true);
+  assert.equal(result.pass, opacity === 0.62 && decoded && clipped,
+    'Dot video requires real decoded progress, the selected mask and clipping to every visible card.');
 }
 console.log('PASS: Codex, embedded Work and Dot are detected; auxiliary and foreign surfaces stay untouched.');
 

@@ -697,17 +697,37 @@ async function verifySession(session) {
       sidebarClear: clearSurface(document.querySelector(sidebarSelector)),
       headerClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] header.app-header-tint')),
     };
-    const dotCards = surface === 'dot' ? [...document.querySelectorAll(
+    const dotNodes = surface === 'dot' ? [...document.querySelectorAll(
       '[data-avatar-overlay-native-surface-id="composer"], [data-avatar-overlay-native-surface-id^="activity-"]'
-    )].filter(node => box(node)?.visible).map(node => {
+    )].filter(node => node.checkVisibility({visibilityProperty:true,opacityProperty:true}) && box(node)?.visible &&
+      node.getBoundingClientRect().right > 0 && node.getBoundingClientRect().bottom > 0 &&
+      node.getBoundingClientRect().left < innerWidth && node.getBoundingClientRect().top < innerHeight) : [];
+    const clip = videoElement ? /^path\\("(.*)"\\)$/.exec(getComputedStyle(videoElement).clipPath) : null;
+    const clipContext = clip ? document.createElement('canvas').getContext('2d') : null;
+    const clipPath = clip ? new Path2D(clip[1]) : null;
+    const videoBounds = videoElement?.getBoundingClientRect();
+    const dotClipVerified = surface === 'dot' && Boolean(clipContext) && dotNodes.every(node => {
+      const r = node.getBoundingClientRect();
+      return clipContext.isPointInPath(clipPath,r.left+r.width/2-videoBounds.left,r.top+r.height/2-videoBounds.top);
+    }) && Array.from({length:81},(_,index) => ({
+      x:videoBounds.left+(index%9+0.5)*videoBounds.width/9,
+      y:videoBounds.top+(Math.floor(index/9)+0.5)*videoBounds.height/9,
+    })).every(point => dotNodes.some(node => {
+      const r = node.getBoundingClientRect();
+      return point.x >= r.left && point.x <= r.right && point.y >= r.top && point.y <= r.bottom;
+    }) || !clipContext.isPointInPath(clipPath,point.x-videoBounds.left,point.y-videoBounds.top));
+    const dotCards = dotNodes.map(node => {
       const background = getComputedStyle(node).backgroundImage;
       const alpha = /rgba?\\(0,\\s*0,\\s*0(?:,\\s*([\\d.]+))?\\)/.exec(background);
       return { poster: background.includes('blob:') && background.includes('linear-gradient'),
+        video: dotClipVerified && document.documentElement.getAttribute('data-dream-video-ready') === 'true' &&
+          !background.includes('blob:') && getComputedStyle(node).backgroundColor === 'rgba(0, 0, 0, 0)',
         opacity: alpha ? Number(alpha[1] ?? 1) : null };
-    }) : [];
+    });
     const result = {
       surface,
       dotCards,
+      dotClipVerified,
       installed: document.documentElement.classList.contains('codex-dream-skin'),
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
       themeId: window.__CODEX_DREAM_SKIN_STATE__?.themeId ?? null,
@@ -743,7 +763,8 @@ async function verifySession(session) {
     const basePass = result.installed && result.version === ${JSON.stringify(SKIN_VERSION)} &&
       result.stylePresent && !result.documentOverflow.x && (surface === 'dot'
         ? clearSurface(document.body) && maskStyle.content === 'none' &&
-          dotCards.length > 0 && dotCards.every(card => card.poster)
+          (dotCards.length > 0 ? dotCards.every(card => card.video || card.poster) :
+            dotClipVerified && result.video?.cardsVisible === false && result.video.suspended)
         : result.chromePresent && result.chromePointerEvents === 'none' &&
           Boolean(result.shell?.visible) && (surface === 'work' || Boolean(result.sidebar?.visible)));
     // Project selector markup varies across Codex builds — soft requirement.
@@ -773,11 +794,12 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
     lastResult = await verifySession(session);
     // A previous, healthy background can remain visible while the next injector starts.
     lastResult.themeMatches = lastResult.themeId === expectedTheme.id
-      && Boolean(lastResult.video) === Boolean(expectedTheme.video && lastResult.surface !== 'dot')
+      && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
-    if (prepareFirstFrame && expectedTheme.video && lastResult.surface !== 'dot' &&
-      !(lastResult.surface === 'work' && lastResult.video?.hostHidden === true)) {
+    if (prepareFirstFrame && expectedTheme.video &&
+      !(lastResult.surface === 'work' && lastResult.video?.hostHidden === true) &&
+      !(lastResult.surface === 'dot' && lastResult.video?.cardsVisible === false && lastResult.dotCards.length === 0)) {
       lastResult.pass &&= lastResult.video?.decoded === true;
     }
     if (lastResult.wallpaperLayout) {
@@ -785,6 +807,9 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       lastResult.pass &&= lastResult.maskMatches;
     }
     if (lastResult.surface === 'dot') {
+      if (expectedTheme.video && lastResult.dotCards.length > 0) {
+        lastResult.pass &&= lastResult.dotClipVerified && lastResult.dotCards.every(card => card.video);
+      }
       lastResult.maskMatches = lastResult.dotCards.every(card =>
         card.opacity !== null && Math.abs(card.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005);
       lastResult.pass &&= lastResult.maskMatches;

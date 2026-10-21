@@ -206,6 +206,18 @@ function createFixture(theme, {
     getAttribute(name) { return bodyAttributes.get(name) ?? null; },
     setAttribute(name, value) { bodyAttributes.set(name, String(value)); },
   };
+  const dotCards = [{left:480,top:560,width:320,height:56}, {left:680,top:740,width:120,height:40}]
+    .map(bounds => ({
+      bounds, visible:true, parentElement:body,
+      get offsetWidth() { return bounds.width; },
+      get offsetHeight() { return bounds.height; },
+      checkVisibility() { return this.visible; },
+      getBoundingClientRect() { return {...bounds,x:bounds.left,y:bounds.top,
+        right:bounds.left+bounds.width,bottom:bounds.top+bounds.height}; },
+      contains(node) { return node === this; },
+      dotStyle:{borderTopLeftRadius:"9999px",borderTopRightRadius:"9999px",
+        borderBottomRightRadius:"9999px",borderBottomLeftRadius:"9999px"},
+    }));
   const shellBox = { left: 280, top: 36, width: 1000, height: 764 };
   const shellMain = {
     parentElement: body,
@@ -297,11 +309,13 @@ function createFixture(theme, {
       return null;
     },
     querySelectorAll(selector) {
+      if (selector.includes('[data-avatar-overlay-native-surface-id="composer"]')) return surface === 'dot' ? dotCards : [];
       if (selector === '.dream-skin-work-surface') {
         return [activePage, shellMain].filter(node => node.classList.contains('dream-skin-work-surface'));
       }
       return [];
     },
+    getAnimations() { return []; },
   };
   const mediaQuery = {
     matches: false,
@@ -348,9 +362,10 @@ function createFixture(theme, {
       constructor(callback) {
         this.callback = callback;
         this.target = null;
+        this.observeCalls = 0;
         resizeObservers.push(this);
       }
-      observe(target) { this.target = target; }
+      observe(target) { this.target = target; this.observeCalls++; }
       disconnect() { this.target = null; }
     },
     URL: class extends URL {
@@ -360,7 +375,8 @@ function createFixture(theme, {
     Blob,
     Uint8Array,
     atob,
-    getComputedStyle() {
+    getComputedStyle(node) {
+      if (node?.dotStyle) return node.dotStyle;
       const skinShell = root.classList.contains("codex-dream-skin")
         ? (attributes.get("data-dream-shell") || "dark") : fixtureShell;
       return {
@@ -400,6 +416,7 @@ function createFixture(theme, {
     context,
     document,
     documentListeners,
+    dotCards,
     motionQuery,
     motionListeners,
     flushTimers,
@@ -728,14 +745,64 @@ for (const surface of ['work', 'dot']) {
     assert.equal(state.videoStatus().height, 2160);
     assert.ok(fixture.shellMain.classList.contains('dream-skin-work-surface'));
   } else {
-    assert.equal(state.videoStatus, undefined, 'Dot control cards must not start an extra 4K decoder.');
-    assert.equal(fixture.nodes.has('codex-dream-skin-video'), false);
+    assert.equal(state.videoStatus().width, 3840);
+    assert.equal(state.videoStatus().height, 2160);
+    assert.equal(fixture.nodes.has('codex-dream-skin-video'), true);
     assert.equal(fixture.attributes.has('data-dream-wallpaper'), false, 'The floating desktop must stay transparent.');
+    const video = fixture.nodes.get('codex-dream-skin-video');
+    assert.equal(video.style.values.get('left'), '480px');
+    assert.equal(video.style.values.get('top'), '560px');
+    assert.equal(video.style.values.get('width'), '320px');
+    assert.equal(video.style.values.get('height'), '220px');
+    assert.equal((video.style.values.get('clip-path').match(/M/g)||[]).length,2,'One player must cover both clipped cards.');
+    assert.ok(!video.style.values.get('clip-path').includes('NaN'));
+    const observes = fixture.resizeObservers[1].observeCalls;
+    state.ensure();
+    assert.equal(fixture.resizeObservers[1].observeCalls, observes,'Unchanged cards must not restart ResizeObserver notifications.');
+    fixture.dotCards[0].bounds.left = 460;
+    fixture.dotCards[0].bounds.width = 340;
+    fixture.observers[2].callback();
+    assert.equal(video.style.values.get('left'),'460px');
+    assert.equal(video.style.values.get('width'),'340px');
+    fixture.dotCards.forEach(card => {card.visible=false;});
+    state.ensure();
+    assert.equal(video.paused,true);
+    assert.equal(video.style.values.get('clip-path'),'path("M0 0Z")');
+    fixture.dotCards[0].visible=true;
+    state.ensure();
+    assert.equal(video.paused,false);
+    video.dispatchEvent('error');
+    assert.equal(state.videoStatus().failed,true);
+    assert.equal(fixture.attributes.has('data-dream-video-ready'),false);
+    assert.ok(fixture.rootStyle.values.get('--dream-skin-art').includes('blob:'));
   }
   state.cleanup();
   assert.equal(fixture.attributes.has('data-dream-surface'), false);
   assert.equal(fixture.shellMain.classList.contains('dream-skin-work-surface'), false);
+  assert.equal(fixture.nodes.has('codex-dream-skin-video'),false);
+  assert.equal(fixture.documentListeners.has('transitionrun'),false);
 }
+
+const animatedDot = createFixture({id:"animated-dot",video:"background.mp4",videoKey:"original",videoBytes:1}, {surface:"dot"});
+const dotFrames = new Map();
+let dotFrameId = 0;
+animatedDot.context.requestAnimationFrame = callback => {dotFrames.set(++dotFrameId,callback);return dotFrameId;};
+animatedDot.context.cancelAnimationFrame = id => dotFrames.delete(id);
+vm.runInNewContext(animatedDot.payload, animatedDot.context);
+const animatedState = animatedDot.window.__CODEX_DREAM_SKIN_STATE__;
+animatedState.setVideo({name:"background.mp4",size:1});
+animatedDot.dotCards[0].dotStyle.borderTopLeftRadius = "40% 20%";
+animatedDot.document.getAnimations = () => [{playState:"running",effect:{target:animatedDot.dotCards[0]}}];
+animatedDot.documentListeners.get("animationstart")();
+assert.equal(dotFrames.size,1);
+animatedDot.dotCards[0].bounds.left = 450;
+const [frameId,frameCallback] = dotFrames.entries().next().value;
+dotFrames.delete(frameId);frameCallback();
+assert.equal(animatedDot.nodes.get("codex-dream-skin-video").style.values.get("left"),"450px");
+assert.ok(!animatedDot.nodes.get("codex-dream-skin-video").style.values.get("clip-path").includes("NaN"));
+assert.equal(dotFrames.size,1,"A moving card must keep its clip aligned through the animation.");
+animatedState.cleanup();
+assert.equal(dotFrames.size,0,"Removal must cancel the clipping animation callback.");
 
 const workFixture = createFixture({id:"hosted-work",video:"background.mp4",videoKey:"original",videoBytes:1}, {surface:"work"});
 workFixture.window.__CODEX_DREAM_SKIN_HOST_VISIBLE__ = false;

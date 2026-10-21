@@ -233,14 +233,17 @@ html.codex-dream-skin[data-dream-surface="work"] #stage-slideover-sidebar {
   background: transparent !important;
 }
 
-/* Dot's native overlay covers the desktop; only its control cards get a poster. */
+/* Keep the desktop transparent; the single Dot video is clipped to its cards. */
 html.codex-dream-skin[data-dream-surface="dot"],
 html.codex-dream-skin[data-dream-surface="dot"] body {
   background: transparent !important;
+  isolation: isolate;
 }
 
 html.codex-dream-skin[data-dream-surface="dot"] [data-avatar-overlay-native-surface-id="composer"],
 html.codex-dream-skin[data-dream-surface="dot"] [data-avatar-overlay-native-surface-id^="activity-"] {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
   background-image: linear-gradient(rgb(0 0 0 / var(--dream-skin-mask-opacity, .62)),
     rgb(0 0 0 / var(--dream-skin-mask-opacity, .62))), var(--dream-skin-art) !important;
   background-size: cover !important;
