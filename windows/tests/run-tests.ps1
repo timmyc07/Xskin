@@ -84,6 +84,73 @@ try {
     Remove-DreamSkinRuntimeTree -Path $runtimeBackup.FullName -StateRoot $runtimeStateRoot
   }
 
+  $fixtureInjector = Join-Path $runtimeSourceRoot 'scripts\injector.mjs'
+  $originalInjector = [IO.File]::ReadAllBytes($fixtureInjector)
+  $fixtureStatePath = Join-Path $runtimeStateRoot 'state.json'
+  $fixtureDaemon = $null
+  try {
+    [IO.File]::WriteAllText($fixtureInjector, 'setInterval(() => {}, 1000);')
+    $engine = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot
+    $fixtureNode = Get-DreamSkinNodeRuntime
+    $fixtureScript = Join-Path $engine.Scripts 'injector.mjs'
+    $fixtureBrowser = '01234567-89ab-cdef-0123-456789abcdef'
+    $fixtureDaemon = Start-Process -FilePath $fixtureNode.Path -ArgumentList (ConvertTo-DreamSkinArgumentLine -Arguments @(
+      $fixtureScript, '--watch', '--port', '9335', '--browser-id', $fixtureBrowser)) `
+      -WorkingDirectory $engine.Root -WindowStyle Hidden -PassThru
+    Start-Sleep -Milliseconds 200
+    $fixtureState = [pscustomobject]@{
+      schemaVersion = 2; platform = 'windows'; injectorPid = $fixtureDaemon.Id
+      injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $fixtureDaemon.Id
+      injectorPath = $fixtureScript; nodePath = $fixtureNode.Path; port = 9335; browserId = $fixtureBrowser
+    }
+    Write-DreamSkinState -Path $fixtureStatePath -State $fixtureState
+    [IO.File]::WriteAllText((Join-Path $runtimeStateRoot 'paused'), 'paused')
+    [IO.File]::WriteAllText((Join-Path $runtimeStateRoot 'studio.json'), '{"language":"ja"}')
+    $fixtureStartedAt = $fixtureState.injectorStartedAt
+    $fixtureState.injectorStartedAt = '2000-01-01T00:00:00.0000000Z'
+    Write-DreamSkinState -Path $fixtureStatePath -State $fixtureState
+    $wrongIdentityRejected = $false
+    try { $null = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot } catch {
+      $wrongIdentityRejected = $_.Exception.Message -like '*identity does not match*'
+    }
+    if (-not $wrongIdentityRejected -or $fixtureDaemon.HasExited) { throw 'Runtime update stopped an unverified process.' }
+    $fixtureState.injectorStartedAt = $fixtureStartedAt
+    Write-DreamSkinState -Path $fixtureStatePath -State $fixtureState
+    $engine = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot
+    $resumedState = Read-DreamSkinState -Path $fixtureStatePath
+    if ($resumedState.injectorPid -eq $fixtureDaemon.Id -or -not $fixtureDaemon.WaitForExit(5000) -or
+      -not (Get-Process -Id $resumedState.injectorPid -ErrorAction SilentlyContinue)) {
+      throw 'Runtime update did not replace and resume the watcher holding the engine working directory.'
+    }
+
+    [IO.File]::AppendAllText($fixtureInjector, ' // staged update')
+    function Move-Item {
+      [CmdletBinding()]
+      param([string]$LiteralPath, [string]$Destination)
+      if ([IO.Path]::GetFileName($LiteralPath) -like '.engine-staging-*') { throw 'forced engine swap failure' }
+      Microsoft.PowerShell.Management\Move-Item @PSBoundParameters
+    }
+    try {
+      $rollbackRejected = $false
+      try { $null = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot } catch {
+        $rollbackRejected = $_.Exception.Message -eq 'forced engine swap failure'
+      }
+      $rolledBackState = Read-DreamSkinState -Path $fixtureStatePath
+      if (-not $rollbackRejected -or $rolledBackState.injectorPid -eq $resumedState.injectorPid -or
+        -not (Get-Process -Id $rolledBackState.injectorPid -ErrorAction SilentlyContinue) -or
+        (Read-DreamSkinUtf8File -Path $fixtureScript) -cne 'setInterval(() => {}, 1000);' -or
+        (Read-DreamSkinUtf8File -Path (Join-Path $runtimeStateRoot 'paused')) -cne 'paused' -or
+        (Read-DreamSkinUtf8File -Path (Join-Path $runtimeStateRoot 'studio.json')) -cne '{"language":"ja"}') {
+        throw 'Failed runtime replacement did not resume its previous watcher and preserve pause/preferences.'
+      }
+    } finally { Remove-Item Function:\Move-Item }
+  } finally {
+    $null = Stop-DreamSkinRecordedInjector -State (Read-DreamSkinState -Path $fixtureStatePath)
+    if ($null -ne $fixtureDaemon -and -not $fixtureDaemon.HasExited) { Stop-Process -InputObject $fixtureDaemon -Force }
+    [IO.File]::WriteAllBytes($fixtureInjector, $originalInjector)
+    Remove-Item -LiteralPath $fixtureStatePath -Force -ErrorAction SilentlyContinue
+  }
+
   $invalidRuntimeRoot = Join-Path $temporaryRoot 'invalid-runtime-source'
   New-Item -ItemType Directory -Path $invalidRuntimeRoot | Out-Null
   foreach ($directoryName in @('assets', 'scripts')) {

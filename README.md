@@ -8,12 +8,12 @@ Bring your favorite images and original 4K videos into Codex.<br>
 Import, preview, and apply from native macOS and Flutter Windows apps.
 
 [![Version](https://img.shields.io/badge/version-1.5.1-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)
-[![Windows](https://img.shields.io/badge/Windows-1.5.2-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.2)
+[![Windows](https://img.shields.io/badge/Windows-1.5.3-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.3)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.2/Xskin-1.5.2-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.3/Xskin-1.5.3-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
@@ -72,14 +72,14 @@ On Windows, right-click **Codex (Xskin)** → **Show more options** → **Pin to
 
 Windows 1.5.2 avoids rescanning the whole page for ordinary message updates. In a controlled 100-update test, route scans fell from **104 to 1** while the original **3840×2160** video kept playing. This measures background-maintenance work, not a 99% reduction in total CPU or GPU use. See the [benchmark and limits](windows/references/performance.md).
 
-The **`main` source** now streams full MP4 integrity checks through a 1 MiB buffer and reuses the video digest. The original video bytes, 4K resolution and frame rate are preserved. Three fresh-process runs of 30 theme loads produced these medians:
+**Windows 1.5.3** streams full MP4 integrity checks through a 1 MiB buffer and reuses the video digest. The original video bytes, 4K resolution and frame rate are preserved. Three fresh-process runs of 30 theme loads produced these medians:
 
-| Theme-load measurement | Windows 1.5.2 release | `main` source | Reduction |
+| Theme-load measurement | Windows 1.5.2 | Windows 1.5.3 | Reduction |
 | --- | ---: | ---: | ---: |
 | Process CPU time | 1,344 ms | 843 ms | 37.3% |
 | Peak process memory (RSS) | 267.27 MiB | 146.73 MiB | 45.1% |
 
-These are **load-time** improvements. Lower GPU use and sustained playback memory have not been established. The packaged Windows download remains **1.5.2**; [build from `main`](windows/README.md#build-and-test) to use the source changes before the next release. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
+These are **load-time** improvements included in the **1.5.3 Windows ZIP**. Lower GPU use and sustained playback memory have not been established. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
 
 ## Supported media
 
@@ -109,7 +109,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Installation | Extract the complete Windows ZIP, or move Xskin.app to Applications on macOS |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- Releases are platform-specific: **windows-v1.5.2** for Windows x64 and **v1.5.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
+- Releases are platform-specific: **windows-v1.5.3** for Windows x64 and **v1.5.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
 - Automatic startup prepares a separate managed entry at `~/Applications/Codex (Xskin).app` and connects it to the Dock; the official app bundle remains unchanged. Opening the original official `.app` path directly leaves it running without an automatic background. Use the managed Dock entry for background-enabled launches.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
@@ -148,4 +148,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.2) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)
+**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.3) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)

@@ -1,8 +1,8 @@
 # Windows performance — 2026-10-21
 
-## Main source: bounded video integrity checks (not yet packaged)
+## Windows 1.5.3: bounded video integrity checks
 
-The `main` source streams the complete MP4 through a **1 MiB buffer**, calculates SHA-256 once, and fingerprints the theme with that digest. The released 1.5.2 implementation allocates the complete video and hashes its bytes twice. Filename, canonical-path, regular-file, container, 256 MiB limit and before/after file-change checks remain enforced. The 30-second full-content audit is retained. Playback, media bytes, resolution, frame rate, mask and renderer are unchanged.
+Windows 1.5.3 streams the complete MP4 through a **1 MiB buffer**, calculates SHA-256 once, and fingerprints the theme with that digest. The released 1.5.2 implementation allocates the complete video and hashes its bytes twice. Filename, canonical-path, regular-file, container, 256 MiB limit and before/after file-change checks remain enforced. The 30-second full-content audit is retained. Playback, media bytes, resolution, frame rate, mask and renderer are unchanged.
 
 Three fresh Node processes per revision each loaded the same active 26,595,461-byte 3840×2160 MP4 theme 30 times. The table reports medians. It measures repeated **theme loading**, including payload creation; it is not a steady-playback CPU or RAM percentage.
 
@@ -33,7 +33,7 @@ One final playback pair, after 35 seconds of warm-up per revision, recorded the 
 
 Playback remained 3840×2160 at playback rate 1, with no additional dropped frames in either sample. These counters **do not demonstrate lower GPU use or sustained private memory**, even though the separate load benchmark shows a clear CPU/peak-RSS improvement. Tested on Windows 11 with Store Codex 26.1016.6573.0, NVIDIA RTX 5070 and AMD Radeon graphics.
 
-GPU experiments with opacity, a brightness filter and alternate stacking were discarded because repeated measurements did not establish a reliable reduction. A native color-scheme sampling experiment also failed to establish a meaningful reduction and was removed. **No sustained CPU/GPU/private-memory improvement is claimed from those experiments. The measured load-time optimization is included in `main`; the packaged Windows release remains 1.5.2.**
+GPU experiments with opacity, a brightness filter and alternate stacking were discarded because repeated measurements did not establish a reliable reduction. A native color-scheme sampling experiment also failed to establish a meaningful reduction and was removed. **No sustained CPU/GPU/private-memory improvement is claimed from those experiments. Windows 1.5.3 ships the measured load-time optimization with the original renderer and playback quality.**
 
 To reproduce from an ordinary user terminal, keep the same Codex route, viewport and original video visible. Allow 35 seconds to warm up, then run each revision separately with the same video starting point:
 

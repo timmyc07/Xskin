@@ -196,6 +196,7 @@ try {
       (ConvertTo-DreamSkinProcessArgument -Value $themePaths.Active), '--pause-file',
       (ConvertTo-DreamSkinProcessArgument -Value $themePaths.PauseFile))
     $daemon = Start-Process -FilePath $node.Path -ArgumentList $injectorArgs -WindowStyle Hidden -PassThru `
+      -WorkingDirectory $StateRoot `
       -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
     Start-Sleep -Milliseconds 500
     if ($daemon.HasExited) { throw "The injector exited during startup. See $StderrPath" }

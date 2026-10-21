@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -79,33 +80,55 @@ class XskinEngine {
         ],
         mode: ProcessStartMode.normal,
       );
-      final output = process.stdout.transform(utf8.decoder).join();
-      final errors = process.stderr
+      final response = Completer<String>();
+      final errors = StringBuffer();
+      final output = process.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              if (line.startsWith('XSKIN_RESULT:') && !response.isCompleted) {
+                response.complete(line.substring('XSKIN_RESULT:'.length));
+              }
+            },
+            onDone: () {
+              if (!response.isCompleted) response.complete('');
+            },
+            onError: (Object error) {
+              errors.write(error);
+              if (!response.isCompleted) response.complete('');
+            },
+          );
+      final errorOutput = process.stderr
           .transform(const Utf8Decoder(allowMalformed: true))
-          .join();
-      await process.stdin.close();
-      final code = await process.exitCode;
-      final stdout = await output;
-      final stderr = await errors;
-      final resultLines = const LineSplitter()
-          .convert(stdout)
-          .where((line) => line.startsWith('XSKIN_RESULT:'));
-      if (resultLines.isEmpty) {
-        throw StateError(
-          stderr.trim().isEmpty
-              ? 'The background engine exited without a result (code $code).'
-              : stderr.trim(),
+          .listen(errors.write, onError: (Object error) => errors.write(error));
+      try {
+        await process.stdin.close();
+        final code = await process.exitCode;
+        // A background watcher can inherit the pipe after its launcher exits.
+        final json = await response.future.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => '',
         );
+        if (json.isEmpty) {
+          final stderr = errors.toString().trim();
+          throw StateError(
+            stderr.isEmpty
+                ? 'The background engine exited without a result (code $code).'
+                : stderr,
+          );
+        }
+        final result = jsonDecode(json) as Map<String, dynamic>;
+        if (code != 0 || result['ok'] != true) {
+          throw StateError(
+            result['error'] as String? ?? 'The background operation failed.',
+          );
+        }
+        return PanelState.fromJson(result['state'] as Map<String, dynamic>);
+      } finally {
+        await output.cancel();
+        await errorOutput.cancel();
       }
-      final result =
-          jsonDecode(resultLines.last.substring('XSKIN_RESULT:'.length))
-              as Map<String, dynamic>;
-      if (code != 0 || result['ok'] != true) {
-        throw StateError(
-          result['error'] as String? ?? 'The background operation failed.',
-        );
-      }
-      return PanelState.fromJson(result['state'] as Map<String, dynamic>);
     } finally {
       if (await requestFile.exists()) await requestFile.delete();
       await temporary.delete();

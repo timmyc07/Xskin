@@ -1,6 +1,6 @@
-# Xskin for Windows 1.5.2 (Flutter)
+# Xskin for Windows 1.5.3 (Flutter)
 
-**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.2/Xskin-1.5.2-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.2)
+**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.3/Xskin-1.5.3-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.3)
 
 Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
@@ -58,7 +58,7 @@ flutter test
 flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.2-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.5.2` release tag.
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.3-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.5.3` release tag.
 
 ## Performance
 
@@ -66,8 +66,8 @@ Ordinary streamed message content no longer triggers a full-document route scan.
 
 The local 100-update benchmark reduced route scans from 104 to 1 while a 4K video continued playing. Overall CPU timing was similar during this short run; this is a reduction in unnecessary background-maintenance work, not a total CPU/GPU guarantee. See [measurements and reproduction](references/performance.md).
 
-The **`main` source** also streams complete MP4 integrity checks through a 1 MiB buffer and hashes video content once. In three fresh-process runs of 30 theme loads, median process CPU time fell from **1,344 to 843 ms (37.3%)**, and peak process RSS fell from **267.27 to 146.73 MiB (45.1%)**. These are load-time results; lower GPU use or sustained playback memory has not been established. Original 4K media and frame rate are preserved.
+**Windows 1.5.3** also streams complete MP4 integrity checks through a 1 MiB buffer and hashes video content once. In three fresh-process runs of 30 theme loads, median process CPU time fell from **1,344 to 843 ms (37.3%)**, and peak process RSS fell from **267.27 to 146.73 MiB (45.1%)**. These are load-time results; lower GPU use or sustained playback memory has not been established. Original 4K media and frame rate are preserved.
 
-The downloadable **1.5.2 ZIP does not include this source change**. Follow [Build and test](#build-and-test) to build `main` before the next packaged release.
+The downloadable **1.5.3 ZIP includes this optimization**. Extract it to a new folder and open `xskin.exe`; saved backgrounds and preferences remain in the managed store. Apply the saved background or use the new panel's launch action to update the managed engine. The update safely replaces and resumes the verified background watcher; existing **Codex (Xskin)** shortcuts keep working.
 
 See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.

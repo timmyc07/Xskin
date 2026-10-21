@@ -163,6 +163,7 @@ function Install-DreamSkinRuntimeEngine {
   $stagingRoot = Join-Path $fullStateRoot ".engine-staging-$token"
   $backupRoot = Join-Path $fullStateRoot ".engine-backup-$token"
   Ensure-DreamSkinManagedDirectory -Path $stagingRoot -Root $fullStateRoot
+  $resumeState = $null
 
   try {
     foreach ($directoryName in @('assets', 'scripts')) {
@@ -201,6 +202,14 @@ function Install-DreamSkinRuntimeEngine {
     $hasBackup = $false
     if (Test-Path -LiteralPath $engine.Root) {
       Assert-DreamSkinRuntimeTree -Path $engine.Root
+      $previousState = Read-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json')
+      if ($null -ne $previousState -and $previousState.injectorPid -and $previousState.injectorPath -and
+        (Test-DreamSkinPathEqual -Left $previousState.injectorPath -Right (Join-Path $engine.Scripts 'injector.mjs')) -and
+        (Get-Process -Id $previousState.injectorPid -ErrorAction SilentlyContinue)) {
+        # A running watcher's working directory prevents the engine directory swap on Windows.
+        $null = Stop-DreamSkinRecordedInjector -State $previousState
+        $resumeState = $previousState
+      }
       Move-Item -LiteralPath $engine.Root -Destination $backupRoot -ErrorAction Stop
       $hasBackup = $true
     }
@@ -236,6 +245,28 @@ function Install-DreamSkinRuntimeEngine {
         } catch {
           # Cleanup must never mask the runtime installation result.
         }
+      }
+    }
+    if ($null -ne $resumeState) {
+      $daemon = $null
+      try {
+        $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
+          $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
+          '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
+          '--pause-file', (Join-Path $fullStateRoot 'paused'))
+        $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
+          -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
+          -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
+          -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
+        Start-Sleep -Milliseconds 500
+        if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
+        $resumeState.injectorPid = $daemon.Id
+        $resumeState.injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
+        if (-not $resumeState.injectorStartedAt) { throw 'The resumed watcher identity could not be recorded.' }
+        Write-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json') -State $resumeState
+      } catch {
+        if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
+        throw
       }
     }
   }
@@ -754,7 +785,8 @@ function Stop-DreamSkinRecordedInjector {
     $injectorMatches = $injectorMatches -and [regex]::IsMatch($commandLine, $browserPattern)
   }
   $startedAt = Get-DreamSkinProcessStartedAt -ProcessId $processId
-  $startMatches = -not $State.injectorStartedAt -or $startedAt -eq "$($State.injectorStartedAt)"
+  $startMatches = -not $State.injectorStartedAt -or
+    ($startedAt -and [datetimeoffset]$startedAt -eq [datetimeoffset]$State.injectorStartedAt)
   $identityMatches = [bool]($isNodeExecutable -and $nodeMatches -and $injectorMatches -and $startMatches)
 
   if (-not $identityMatches) {

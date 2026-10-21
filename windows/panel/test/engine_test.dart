@@ -21,6 +21,10 @@ if ($Action -eq 'fail') {
   [Console]::Out.WriteLine('XSKIN_RESULT:{"ok":false,"error":"Expected failure"}')
   exit 1
 }
+if ($Action -eq 'watch') {
+  $watcher = Start-Process -FilePath powershell.exe -ArgumentList '-NoProfile -Command "Start-Sleep -Seconds 120 # XskinBridgeWatcher"' -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $PSScriptRoot 'watcher.log') -RedirectStandardError (Join-Path $PSScriptRoot 'watcher-error.log')
+  [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'watcher-pid.txt'), "$($watcher.Id)")
+}
 $state = @{name=$request.name; imagePath=$RequestPath; videoPath=$null; bytes=1048576;
   maskOpacity=0.62; pending=$true; paused=$false; saved=@(); activeName='active';
   applied=$false; autostart=$false; autostartLoaded=$false; language='en'}
@@ -39,6 +43,10 @@ $state = @{name=$request.name; imagePath=$RequestPath; videoPath=$null; bytes=10
       expect(state.pending, isTrue);
       expect(await File(state.imagePath).exists(), isFalse);
       expect(await Directory(path.dirname(state.imagePath)).exists(), isFalse);
+      final watching = await engine
+          .command('watch', request)
+          .timeout(const Duration(seconds: 10));
+      expect(watching.name, request['name']);
       await expectLater(
         engine.command('fail', request).timeout(const Duration(seconds: 30)),
         throwsA(
@@ -55,6 +63,16 @@ $state = @{name=$request.name; imagePath=$RequestPath; videoPath=$null; bytes=10
       expect(await File(failedRequest).exists(), isFalse);
       expect(await Directory(path.dirname(failedRequest)).exists(), isFalse);
     } finally {
+      final watcherFile = File(path.join(scripts.path, 'watcher-pid.txt'));
+      if (await watcherFile.exists()) {
+        final watcherPid = int.parse(await watcherFile.readAsString());
+        await Process.run('powershell.exe', [
+          '-NoProfile',
+          '-Command',
+          '\$p = Get-CimInstance Win32_Process -Filter "ProcessId = $watcherPid"; '
+              'if (\$p.CommandLine -like "*XskinBridgeWatcher*") { Stop-Process -Id $watcherPid -Force }',
+        ]);
+      }
       await fixture.delete(recursive: true);
     }
   }, skip: !Platform.isWindows);

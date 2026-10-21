@@ -1,9 +1,12 @@
 # Windows Changelog
 
-## Unreleased
+## Xskin Windows 1.5.3 — 2026-10-21
 
 - Stream MP4 integrity checks through a 1 MiB buffer and reuse the content digest when fingerprinting a theme. Keep the complete-file audit, file-change guards and original media untouched.
-- Add separate benchmarks for theme-load CPU/peak memory and live Windows CPU/GPU/private memory. This work has not established a sustained GPU improvement and is not a new Windows release.
+- In three fresh-process runs of 30 theme loads, reduce median process CPU time by 37.3% and peak RSS by 45.1%. Preserve the original media, resolution and frame rate; these results apply to loading, not continuous playback.
+- Add separate benchmarks for theme-load CPU/peak memory and live Windows CPU/GPU/private memory. Sustained GPU and private-memory improvements have not been established.
+- Safely stop and resume the verified background watcher when replacing the managed engine, including rollback. Preserve paused state, saved media and preferences; keep the watcher working directory outside the engine so future upgrades remain possible.
+- Complete panel commands when their explicit result arrives, even if the background watcher keeps inherited output pipes open. Keep launcher exit-status and error checks.
 
 ## Xskin Windows 1.5.2 — 2026-10-21
 
