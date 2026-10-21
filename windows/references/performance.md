@@ -1,6 +1,6 @@
 # Windows performance — 2026-10-22
 
-## Unreleased playback investigation: no established resource reduction
+## Playback investigation: no established resource reduction
 
 A poster-lifetime prototype removed the video element's duplicate poster loader, released the unused poster URL after decoding and retained only the compressed image for fallback. A short initial sample suggested lower GPU composition activity, but the longer interleaved comparison below did not reproduce it. **The prototype was discarded; it is not part of the source change or a Windows release.**
 
@@ -15,9 +15,9 @@ Each round used 30 seconds of warm-up followed by 60 seconds of counters in the 
 | GPU dedicated allocation | 564.57 MiB | 568.03 MiB | 570.86 MiB | 563.49 MiB |
 | Average decoded FPS | 30.014 | 29.989 | 29.993 | 29.983 |
 
-All four samples recorded zero additional dropped frames. GPU allocation is reported separately and is not evidence of lower private RAM. Ongoing conversation updates and decoder clock/warm-up variation remain limits; these results do not support a GPU or steady-memory savings percentage. The downloadable Windows release remains 1.5.3.
+All four samples recorded zero additional dropped frames. GPU allocation is reported separately and is not evidence of lower private RAM. Ongoing conversation updates and decoder clock/warm-up variation remain limits; these results do not support a GPU or steady-memory savings percentage. Windows 1.5.4 retains the measured 1.5.3 loading optimization and adds the Dot/Work playback fixes; it does not claim sustained resource savings.
 
-The separate unreleased Work fix avoids a new double-playback cost: live verification showed the original Work video advancing at about 30 fps with no added dropped frames, the covered Codex player paused, and Codex resuming when Work was hidden. This checks the playback lifecycle, not a measured improvement over 1.5.3's GPU/RAM use. The poster experiment above excluded other background surfaces. The sampler now also reports per-process private commit/working set and dedicated/shared GPU allocations for further investigation.
+The Windows 1.5.4 Work fix avoids a new double-playback cost: live verification showed the original Work video advancing at about 30 fps with no added dropped frames, the covered Codex player paused, and Codex resuming when Work was hidden. This checks the playback lifecycle, not a measured improvement over 1.5.3's GPU/RAM use. The poster experiment above excluded other background surfaces. The sampler now also reports per-process private commit/working set and dedicated/shared GPU allocations for further investigation.
 
 ### Dot card video playback
 
@@ -26,6 +26,12 @@ Dot now uses one original video element for all visible composer/activity cards,
 On the same Windows/Codex/GPU setup, a live 792×1440/DPR 1 Dot overlay displayed two cards with the original 26,595,461-byte AV1 file and a 62% mask. A 60.0114-second interval decoded 1,800 frames at **3840×2160**, playback rate **1**, average **29.994 fps**, with **zero additional dropped frames**. The selected source digest, blob URL, viewport and single background-player count matched at both ends.
 
 Two screenshots one second apart showed changed RGB samples inside both cards (20/140 composer samples and 178/744 activity samples). All five sampled desktop points had alpha 0. Browser verification also checked the clipping path against each visible card and points outside their bounds. These are real playback/pixel checks; they do not establish reduced whole-app resource use or cover every GPU/codec combination. Private media and screenshots remain local.
+
+### Main-window Your dot conversation
+
+Windows 1.5.4 also clears the four nested messaging-root/thread-pane backgrounds in the main-window **Your dot** route. Message rows are excluded from generic article panels, retaining native bubbles without an extra row background, border, shadow or blur. The existing full-window video is reused; this route does not add another player.
+
+A final 60-second live test decoded 1,799 frames at **3840×2160**, playback rate **1**, approximately **29.981 fps**, with **zero additional dropped frames**. All 20 inspected rows were clear outside the native bubbles, and the four formerly opaque containers were transparent. Separate negative checks proved that making any one of those four containers opaque fails verification. Home/task routes, managed-engine upgrade and pinned-shortcut reapplication passed with the panel closed.
 
 ## Windows 1.5.3: bounded video integrity checks
 
