@@ -1,5 +1,13 @@
 # Windows Changelog
 
+## Xskin Windows 1.5.1 — 2026-10-21
+
+- Port the macOS 1.5.1 renderer, stylesheet, current Codex shell selectors, adaptive layout, video lifecycle, and exact theme/mask/playback verification. Retire the old Windows renderer selectors that prevented Apply from finding Codex.
+- Match the Mac panel's dark preview/source/preferences flow, pending/applied state, image dimensions, paused original-quality video preview, drag-and-drop, four persisted interface languages, and independent debounced whole-window mask updates.
+- Import MP4 directly without waiting for a screenshot or PNG conversion. Normalize common image formats through Windows Imaging Component to JPEG, up to 4096px, with the same 50 MiB source and 50MP limits. HEIC/HEIF and WebP use the installed Windows codecs.
+- Add the Windows equivalent of the Mac direct-launch entry: managed Desktop/Start shortcuts named Codex (Xskin), with ownership checks and automatic apply while the panel is closed. Pause/Restore disable these entries; original Codex shortcuts and binaries remain intact.
+- Bundle Node.js and its license, use a managed engine for Apply, preserve settings across imports, and clean completed/replaced drafts. Test the real 4K pending video in the full Flutter import/playback flow.
+
 ## Xskin Windows 1.0.2 — 2026-10-21
 
 - Display the packaged version in the panel and license page so a stale shortcut is immediately recognizable.

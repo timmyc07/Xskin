@@ -63,7 +63,8 @@ void main() {
       );
       final originalTheme = await activeTheme.readAsString();
       final timer = Stopwatch()..start();
-      await tester.tap(find.text('Import media'));
+      await tester.ensureVisible(find.text('Choose file'));
+      await tester.tap(find.text('Choose file'));
       await tester.pumpAndSettle(
         const Duration(milliseconds: 100),
         EnginePhase.sendSemanticsUpdate,
@@ -74,15 +75,13 @@ void main() {
         'Panel video import completed in ${timer.elapsedMilliseconds} ms.',
       );
       expect(
-        find.text(
-          'Import ready. Your current Codex background has not changed.',
-        ),
+        find.text('Media is ready. Check the preview, then apply.'),
         findsOneWidget,
       );
       expect(
         tester
             .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Apply to Codex'),
+              find.byKey(const ValueKey('apply-background')),
             )
             .onPressed,
         isNotNull,

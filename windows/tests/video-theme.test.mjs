@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MAX_VIDEO_BYTES, readVideo, validateVideoName } from "../scripts/video-file.mjs";
-import { attachVideoToSession, loadPayload } from "../scripts/injector.mjs";
+import { attachVideoToSession, loadPayload, waitForVerifiedSession } from "../scripts/injector.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "xskin-video-"));
@@ -13,11 +13,13 @@ try {
   const video = path.join(temporary, "background.mp4");
   await fs.writeFile(video, mp4);
   assert.deepEqual(await readVideo(video), mp4);
+  assert.deepEqual(await readVideo(video, { headerOnly: true }), mp4);
   for (const name of ["../a.mp4", "a/b.mp4", "a\\b.mp4", "C:movie.mp4", "a.mp4:stream.mp4", "a\n.mp4", "a.webm"]) {
     assert.throws(() => validateVideoName(name));
   }
   await fs.writeFile(path.join(temporary, "bad.mp4"), "not an MP4 container");
   await assert.rejects(readVideo(path.join(temporary, "bad.mp4")), /MP4/);
+  await assert.rejects(readVideo(path.join(temporary, "bad.mp4"), { headerOnly: true }), /MP4/);
   const oversized = path.join(temporary, "big.mp4");
   await fs.writeFile(oversized, mp4);
   await fs.truncate(oversized, MAX_VIDEO_BYTES + 1);
@@ -61,6 +63,15 @@ try {
     await fs.writeFile(metadata, JSON.stringify({ ...theme, maskOpacity }));
     assert.equal((await loadPayload(temporary)).theme.maskOpacity, maskOpacity);
   }
+  const expected = { id: 'current', video: 'background.mp4', videoKey: 'fixture' };
+  const identity = { themeId: expected.id, videoKey: expected.videoKey };
+  const frozen = await waitForVerifiedSession({ evaluate: async () => ({ ...identity, pass: true, video: { ready: true, currentTime: 0 } }) }, 250, expected);
+  assert.equal(frozen.pass, false, 'A decoded but frozen video must not pass verification.');
+  let time = 0;
+  const playing = await waitForVerifiedSession({ evaluate: async () => ({ ...identity, pass: true, video: { ready: true, currentTime: time++ } }) }, 1200, expected);
+  assert.equal(playing.pass, true);
+  const stale = await waitForVerifiedSession({ evaluate: async () => ({ ...identity, themeId: 'previous', pass: true, video: { ready: true, suspended: true } }) }, 250, expected);
+  assert.equal(stale.pass, false, 'A previous theme must not pass verification for a new Apply.');
   await fs.writeFile(metadata, JSON.stringify({ ...theme, video: "../background.mp4" }));
   await assert.rejects(loadPayload(temporary), /MP4 filename/);
 } finally {

@@ -45,6 +45,8 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 | 实机 verify / 截图 | ✅ | ✅ |
 | 用户选图定制 | ✅ | ✅（系统托盘「更换背景图」） |
 | 背景工作室（圖片 / MP4 匯入、預覽、套用） | ✅（SwiftUI macOS .app） | ✅（Flutter Windows .exe） |
+| 四語介面 / 拖放 / 獨立全版遮罩 | ✅ | ✅（1.5.1） |
+| 面板關閉後從專用入口自動套用 | ✅（Dock 入口） | ✅（Codex (Xskin) 桌面 / 開始捷徑） |
 | 本地主题保存 / 切换 | ✅（菜单栏） | ✅（系统托盘） |
 | 官方签名校验 | ✅ | Store 签名类型 + 包身份 |
 | 客户部署提示词 | ✅ | ❌（可用 Mac 文案改写） |
@@ -77,7 +79,7 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 
 - macOS 的选图脚本会把这些字段写入主题库，可通过 `--appearance`、`--focus-x`、`--focus-y`、`--safe-area`、`--task-mode` 设置。
 - Windows 安装会把运行所需的 `assets/` 与 `scripts/` 原子复制到 `%LOCALAPPDATA%\CodexDreamSkin\engine`，所有快捷方式均指向该受管副本，因此安装后可移动或删除源码目录。安装还会初始化 `active-theme`、`themes` 与 `images`，并把「桥本有菜」同时设为首次默认和可切换的已保存主题。系统托盘支持更换背景、保存当前主题、从「已保存主题」切换、暂停和恢复；图片与 `theme.json` 保存在主题仓库中，不写进 Codex 的 `config.toml`。安装会保留用户已有的 `appearanceTheme`；仅在识别到旧版精确托管的浅色三元组时按备份迁移。
-- Windows 渲染器仍支持在注入前用 `window.__CODEX_DREAM_SKIN_CONFIG__` 提供内存级可选覆盖（形状同上，颜色覆盖使用 `palette.accent`），但普通用户应优先使用持久化主题仓库与托盘。
+- Windows 1.5.1 使用與 macOS 相同的 renderer、CSS、自訂文案及 `colors` 主題欄位；一般操作透過 Flutter 面板保存，不需要記憶體級覆寫。
 
 ## 预设与图片类型
 
@@ -85,7 +87,7 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 - 该 preset pack 中只有 `background.jpg`（`2560 × 1440`、16:9、纯背景）和 `theme.json` 会被播种；它由用户提供的 `1672 × 941` 源 PNG 标准化导出，不代表增加了源图细节。Byte-identical 源图归档在 `docs/images/presets/romantic-rose-source.png`，不会随 preset 播种；`romantic-rose-light.jpg` 与 `romantic-rose-dark.jpg` 是 `2308 × 1572` Retina 浅/暗真实首页截图，未发送输入仅在截图时用临时本地样式遮蔽，只作效果预览，绝不能当背景导入。
 - `preset-midnight-aurora` 等五套是程序化生成的抽象示例，与用户提供的 AI 生成「桥本有菜」精选图来源不同。精选图不代表 OpenAI/Codex 官方视觉或背书，公开再分发前需确认人物与素材权利。
 - Windows 自带与 macOS byte-identical 的 `windows/assets/dream-reference.jpg` 纯背景，并在首次初始化时播种「桥本有菜」；可直接从「已保存主题 → 桥本有菜」切换。README 实机截图仍只作预览，绝不能作为背景导入。
-- Windows 导入和 macOS 快速加载入口会拒绝空文件或超过 16 MB 的输入；macOS 主定制入口可接收最高 50 MB 的源图，但转换后的主题文件必须不超过 16 MB。两端 payload 构建还会拒绝任一边超过 16384px 或总像素超过 50MP 的声明尺寸；Windows 在复制导入图前复用 Node 元数据解析器执行同一限制。Windows 注入器用图片与主题内容的 SHA-256 修订值识别热更新，并在构建首帧 payload 前同步读取图片比例。
+- Flutter / SwiftUI 工作室接收最高 50 MiB 圖片來源，轉換後主題圖必須 ≤16 MiB、最長邊 ≤4096px；來源拒絕任一邊超過 16384px 或總像素超過 50MP。Windows 使用系統 WIC 圖片解碼器（HEIF/WebP 需對應 Windows codec）；舊托盤快速載入入口仍保留 16 MiB 限制。兩端以圖片與主題 SHA-256 修訂值識別熱更新，並在構建首幀前取得圖片比例。
 - 自定义生图优先使用 `2560 × 1440`（16:9）：左侧约 50%～58% 保持低信息、低对比，主体放在右侧约 58%～88%。输出必须是连续铺满画布的纯背景，禁止窗口、侧栏、卡片、输入框、文字、Logo 和水印。
 - 可直接复制的无人物、右侧成年人物与参考图编辑模板见 `docs/reference-background-prompt-guide.md`；公共默认提示词不指定真人或名人。
 
@@ -101,8 +103,8 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 
 ## macOS automatic startup (video edition)
 
-`dream-skin-macos.sh autostart enable` installs a per-user LaunchAgent that watches ordinary official Codex launches and applies the saved theme. The new process is gracefully reopened once; already-open windows and explicit debug launches are skipped. A fresh-process identity gate and a 30-second handoff limit prevent disruptive restart loops. Quitting Codex leaves it closed. `autostart disable`, Pause, and Restore remove the service. The signed application is unchanged.
+The current Mac implementation configures a direct-launch Dock entry. It launches the official app with the background connection in one launch and leaves an already-open ordinary Codex instance running. Windows provides the equivalent **Codex (Xskin)** Desktop/Start entry. The panel need not remain open; original application binaries and signatures remain unchanged.
 
 ## Windows Flutter panel
 
-`windows/panel/` contains the Flutter Windows app. The release bundles the Flutter runner, media_kit libraries and the existing PowerShell/Node engine. `xskin-command.ps1` is its structured UTF-8 bridge. Pending drafts live under `%LOCALAPPDATA%\CodexDreamSkin\imports` and are selected by `studio.json`; Apply uses the operation lock and a recoverable previous-theme snapshot. Video files are copied without re-encoding and are limited to 256 MiB. The full-window mask defaults to 62%. See [Windows guide](../windows/README.md).
+`windows/panel/` contains the Flutter Windows app. Version 1.5.1 bundles Flutter, media_kit, Node.js and the managed engine. `xskin-command.ps1` uses temporary UTF-8 request files; MP4 imports copy the original without waiting for a screenshot. Pending drafts, language and mask preferences are persisted; Apply uses the operation lock and a recoverable previous-theme snapshot. The Mac renderer and exact theme/mask/advancing-video verification replace the retired Windows selectors. The full-window mask defaults to 62%. See [Windows guide](../windows/README.md) and [parity mapping](../windows/references/macos-parity.md).

@@ -8,7 +8,7 @@ import { readVideo, validateVideoName } from "./video-file.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.2.0";
+const SKIN_VERSION = "1.5.1";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -23,6 +23,7 @@ function parseArgs(argv) {
     timeoutMs: 30000,
     screenshot: null,
     reload: false,
+    prepareFirstFrame: false,
     browserId: null,
     themeDir: path.join(root, "assets"),
     pauseFile: null,
@@ -40,6 +41,7 @@ function parseArgs(argv) {
     else if (arg === "--pause-file") options.pauseFile = path.resolve(argv[++i]);
     else if (arg === "--screenshot") options.screenshot = path.resolve(argv[++i]);
     else if (arg === "--reload") options.reload = true;
+    else if (arg === "--prepare-first-frame") options.prepareFirstFrame = true;
     else if (arg === "--self-test") options.mode = "self-test";
     else if (arg === "--check-payload") options.mode = "check-payload";
     else throw new Error(`Unknown argument: ${arg}`);
@@ -90,7 +92,7 @@ function isValidCdpPageTarget(item, port) {
   }
 }
 
-class CdpSession {
+export class CdpSession {
   constructor(target, port) {
     this.target = target;
     this.ws = new WebSocket(validatedDebuggerUrl(target, port));
@@ -283,12 +285,11 @@ const THEME_CHOICES = {
 };
 
 function normalizedUnit(value, name) {
-  if (value === null || value === undefined || value === "") return null;
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 0 || number > 1) {
-    throw new Error(`${name} must be null or a number between 0 and 1`);
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${name} must be a number between 0 and 1`);
   }
-  return number;
+  return value;
 }
 
 function normalizedChoice(value, name, choices, fallback) {
@@ -332,15 +333,23 @@ async function loadTheme(themeDir) {
     throw new Error("Theme image cannot escape through a link or junction");
   }
   const art = raw.art && typeof raw.art === "object" && !Array.isArray(raw.art) ? raw.art : {};
-  const palette = raw.palette && typeof raw.palette === "object" && !Array.isArray(raw.palette)
-    ? raw.palette : {};
+  const colors = raw.colors && typeof raw.colors === "object" && !Array.isArray(raw.colors) ? raw.colors : null;
+  const defaults = { background: '#071116', panel: '#0b1a20', panelAlt: '#10272c', accent: '#7cff46',
+    accentAlt: '#b8ff3d', secondary: '#36d7e8', highlight: '#642a8c', text: '#e9fff1', muted: '#9ebdb3', line: 'rgba(124, 255, 70, .28)' };
   if (raw.maskOpacity !== undefined && (typeof raw.maskOpacity !== "number" ||
     !Number.isFinite(raw.maskOpacity) || raw.maskOpacity < 0 || raw.maskOpacity > 1)) {
     throw new Error("maskOpacity must be a number between 0 and 1");
   }
   const theme = {
+    schemaVersion: 1,
     id: normalizedText(raw.id, "id", "custom", 80),
     name: normalizedText(raw.name, "name", "Codex Dream Skin", 120),
+    brandSubtitle: normalizedText(raw.brandSubtitle, 'brandSubtitle', 'CODEX DREAM SKIN', 80),
+    tagline: normalizedText(raw.tagline, 'tagline', 'Make something wonderful.', 160),
+    projectPrefix: normalizedText(raw.projectPrefix, 'projectPrefix', '选择项目 · ', 80),
+    projectLabel: normalizedText(raw.projectLabel, 'projectLabel', '◉  选择项目', 80),
+    statusText: normalizedText(raw.statusText, 'statusText', 'DREAM SKIN ONLINE', 80),
+    quote: normalizedText(raw.quote, 'quote', 'MAKE SOMETHING WONDERFUL', 80),
     image,
     layout: normalizedChoice(raw.layout, "layout", new Set(["adaptive", "wallpaper"]), "adaptive"),
     maskOpacity: normalizedUnit(raw.maskOpacity, "maskOpacity") ?? 0.62,
@@ -351,15 +360,13 @@ async function loadTheme(themeDir) {
       safeArea: normalizedChoice(art.safeArea, "art.safeArea", THEME_CHOICES.safeArea, "auto"),
       taskMode: normalizedChoice(art.taskMode, "art.taskMode", THEME_CHOICES.taskMode, "auto"),
     },
-    palette: {},
+    colorMode: colors ? 'explicit' : 'auto',
+    explicitColorKeys: colors ? Object.keys(defaults).filter(key => Object.hasOwn(colors, key)) : [],
+    colors: Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => {
+      const value = typeof colors?.[key] === 'string' ? colors[key].trim() : '';
+      return [key, /^(?:#[0-9a-f]{6}|rgba?\([0-9., %]+\))$/i.test(value) ? value : fallback];
+    })),
   };
-  if (typeof palette.accent === "string" && palette.accent.trim()) {
-    const accent = palette.accent.trim();
-    if (!/^(?:#[\da-f]{3,8}|(?:rgb|hsl|oklch|oklab)\([^;{}]{1,96}\))$/i.test(accent)) {
-      throw new Error("palette.accent is not a supported CSS color");
-    }
-    theme.palette.accent = accent;
-  }
   const [themeStat, imageStat] = await Promise.all([fs.stat(themePath), fs.stat(realImagePath)]);
   if (!imageStat.isFile()) throw new Error("Theme image is not a file");
   if (imageStat.size < 1) throw new Error("Theme image cannot be empty");
@@ -416,10 +423,14 @@ export async function loadPayload(themeDir = path.join(root, "assets"), candidat
   const mime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
     : extension === ".webp" ? "image/webp" : "image/png";
   const artDataUrl = `data:${mime};base64,${loadedTheme.imageBytes.toString("base64")}`;
+  loadedTheme.theme.artKey = createHash("sha256").update(loadedTheme.imageBytes).digest("hex").slice(0, 20);
+  const styleRevision = createHash("sha256").update(css).digest("hex").slice(0, 20);
   const payload = template
-    .replace("__DREAM_CSS_JSON__", () => JSON.stringify(css))
-    .replace("__DREAM_ART_JSON__", () => JSON.stringify(artDataUrl))
-    .replace("__DREAM_THEME_JSON__", () => JSON.stringify(loadedTheme.theme));
+    .replace("__DREAM_SKIN_CSS_JSON__", () => JSON.stringify(css))
+    .replace("__DREAM_SKIN_ART_JSON__", () => JSON.stringify(artDataUrl))
+    .replace("__DREAM_SKIN_THEME_JSON__", () => JSON.stringify(loadedTheme.theme))
+    .replace("__DREAM_SKIN_VERSION_JSON__", () => JSON.stringify(SKIN_VERSION))
+    .replace("__DREAM_SKIN_STYLE_REVISION_JSON__", () => JSON.stringify(styleRevision));
   const { imageBytes: _imageBytes, ...themeState } = loadedTheme;
   return { ...themeState, payload };
 }
@@ -446,14 +457,16 @@ async function readThemeSourceStamp(loadedTheme) {
 async function probeSession(session) {
   return session.evaluate(`(() => {
     const markers = {
-      shell: Boolean(document.querySelector('main.main-surface')),
+      shell: Boolean(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
       sidebar: Boolean(document.querySelector('aside.app-shell-left-panel')),
-      composer: Boolean(document.querySelector('.composer-surface-chrome')),
+      composer: Boolean(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]')),
       main: Boolean(document.querySelector('[role="main"]')),
     };
     return {
+      title: document.title,
+      href: location.href,
       markers,
-      codex: location.protocol === 'app:' && markers.shell && markers.sidebar && (markers.composer || markers.main),
+      codex: markers.shell && markers.sidebar,
     };
   })()`);
 }
@@ -562,7 +575,7 @@ export function earlyPayloadFor(payload, revision) {
       if (window[generationKey] !== generation) { stop(); return true; }
       const root = document.documentElement;
       if (!root || !document.body) return false;
-      const shell = document.querySelector('main.main-surface');
+      const shell = document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
       const sidebar = document.querySelector('aside.app-shell-left-panel');
       if (!shell || !sidebar) return false;
       stop();
@@ -596,20 +609,8 @@ async function removeFromSession(session) {
     window.__CODEX_DREAM_SKIN_DISABLED__ = true;
     const state = window.__CODEX_DREAM_SKIN_STATE__;
     if (state?.cleanup) return state.cleanup();
-    document.documentElement?.classList.remove(
-      'codex-dream-skin', 'dream-theme-light', 'dream-theme-dark',
-      'dream-art-wide', 'dream-art-standard', 'dream-focus-left',
-      'dream-focus-center', 'dream-focus-right', 'dream-safe-left',
-      'dream-safe-center', 'dream-safe-right', 'dream-safe-none',
-      'dream-task-ambient', 'dream-task-banner', 'dream-task-off'
-    );
-    for (const property of [
-      '--dream-art', '--dream-art-position', '--dream-focus-x', '--dream-focus-y',
-      '--dream-accent', '--dream-accent-ink', '--dream-image-luma'
-    ]) document.documentElement?.style.removeProperty(property);
-    document.querySelectorAll('.dream-home').forEach((node) => node.classList.remove('dream-home'));
-    document.querySelectorAll('.dream-task').forEach((node) => node.classList.remove('dream-task'));
-    document.querySelectorAll('.dream-home-shell').forEach((node) => node.classList.remove('dream-home-shell'));
+    document.documentElement?.classList.remove('codex-dream-skin');
+    document.documentElement?.style.removeProperty('--dream-skin-art');
     document.getElementById('codex-dream-skin-style')?.remove();
     document.getElementById('codex-dream-skin-chrome')?.remove();
     delete window.__CODEX_DREAM_SKIN_STATE__;
@@ -620,10 +621,6 @@ async function removeFromSession(session) {
 async function verifyRemovedSession(session) {
   return session.evaluate(`(() =>
     !document.documentElement.classList.contains('codex-dream-skin') &&
-    !document.documentElement.style.getPropertyValue('--dream-art') &&
-    !document.querySelector('.dream-home') &&
-    !document.querySelector('.dream-task') &&
-    !document.querySelector('.dream-home-shell') &&
     !document.getElementById('codex-dream-skin-style') &&
     !document.getElementById('codex-dream-skin-chrome') &&
     !window.__CODEX_DREAM_SKIN_STATE__
@@ -635,55 +632,127 @@ async function verifySession(session) {
     const box = (node) => {
       if (!node) return null;
       const r = node.getBoundingClientRect();
-      return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
+      const style = getComputedStyle(node);
+      return {
+        x: Math.round(r.x), y: Math.round(r.y),
+        width: Math.round(r.width), height: Math.round(r.height),
+        visible: r.width > 0 && r.height > 0 && style.display !== 'none' && style.visibility !== 'hidden',
+      };
     };
-    const home = document.querySelector('.dream-home');
-    const suggestions = home?.querySelector('.group\\\\/home-suggestions') ?? null;
-    const cards = suggestions ? [...suggestions.querySelectorAll('button')].map(box) : [];
+    const page = document.querySelector('[data-app-shell-active-page="true"]');
+    const homeIndicator = page?.querySelector('[data-testid="home-icon"]');
+    const homeSignal = homeIndicator ?? page?.querySelector('[data-feature="game-source"]') ??
+      page?.querySelector('[class~="group/home-suggestions"]');
+    const homeRoute = homeSignal?.closest('[role="main"]') ?? null;
+    const home = page?.querySelector('[role="main"].dream-skin-home, [role="main"].dream-skin-video-home');
+    const suggestions = home?.querySelector('[class~="group/home-suggestions"]') ?? null;
+    const cardBoxes = suggestions ? [...suggestions.querySelectorAll('button')].map(box) : [];
+    const visibleCards = cardBoxes.filter((item) => item?.visible);
+    const hero = box(home?.firstElementChild?.firstElementChild?.firstElementChild);
+    const projectButton = box(home?.querySelector('[class~="group/project-selector"] > button'));
+    const shell = box(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]'));
+    const composer = box(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]'));
+    const sidebar = box(document.querySelector('aside.app-shell-left-panel'));
+    const chrome = document.getElementById('codex-dream-skin-chrome');
+    const videoElement = document.getElementById('codex-dream-skin-video');
+    const maskStyle = getComputedStyle(document.body, '::before');
+    const maskAlpha = /^rgba?\\(0,\\s*0,\\s*0(?:,\\s*([\\d.]+))?\\)$/.exec(maskStyle.backgroundColor);
+    const clearSurface = (node) => !node || (
+      ['rgba(0, 0, 0, 0)', 'transparent'].includes(getComputedStyle(node).backgroundColor) &&
+      getComputedStyle(node).backgroundImage === 'none'
+    );
+    const wallpaperMask = {
+      opacity: maskAlpha ? Number(maskAlpha[1] ?? 1) : null,
+      uniform: maskStyle.backgroundImage === 'none',
+      fullViewport: maskStyle.position === 'fixed' &&
+        ['top', 'right', 'bottom', 'left'].every(edge => maskStyle[edge] === '0px'),
+      pointerEvents: maskStyle.pointerEvents,
+      mainClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
+      sidebarClear: clearSurface(document.querySelector('aside.app-shell-left-panel')),
+      headerClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] header.app-header-tint')),
+    };
     const result = {
       installed: document.documentElement.classList.contains('codex-dream-skin'),
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
-      expectedVersion: ${JSON.stringify(SKIN_VERSION)},
+      themeId: window.__CODEX_DREAM_SKIN_STATE__?.themeId ?? null,
+      videoKey: window.__CODEX_DREAM_SKIN_STATE__?.videoKey ?? null,
       stylePresent: Boolean(document.getElementById('codex-dream-skin-style')),
-      chromePresent: Boolean(document.getElementById('codex-dream-skin-chrome')),
-      chromePointerEvents: getComputedStyle(document.getElementById('codex-dream-skin-chrome') || document.body).pointerEvents,
       video: window.__CODEX_DREAM_SKIN_STATE__?.videoStatus?.() ?? null,
+      wallpaperLayout: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.wallpaper),
+      wallpaperMask,
+      startupFrames: {
+        maskReadyAt: window.__CODEX_DREAM_SKIN_STATE__?.metrics?.maskReadyAt ?? null,
+        videoFrameReadyAt: window.__CODEX_DREAM_SKIN_STATE__?.metrics?.videoFrameReadyAt ?? null,
+        documentHidden: document.hidden,
+      },
+      videoBox: box(videoElement),
+      videoPointerEvents: videoElement ? getComputedStyle(videoElement).pointerEvents : null,
+      chromePresent: Boolean(chrome),
+      chromePointerEvents: getComputedStyle(chrome || document.body).pointerEvents,
+      homeRoute: Boolean(homeRoute),
       homePresent: Boolean(home),
-      suggestionsPresent: Boolean(suggestions),
-      hero: box(home?.firstElementChild?.firstElementChild?.firstElementChild),
-      cards,
-      composer: box(document.querySelector('.composer-surface-chrome')),
-      sidebar: box(document.querySelector('aside.app-shell-left-panel')),
+      hero,
+      cards: cardBoxes,
+      visibleCardCount: visibleCards.length,
+      projectButton,
+      shell,
+      composer,
+      sidebar,
       viewport: { width: innerWidth, height: innerHeight },
       documentOverflow: {
         x: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         y: document.documentElement.scrollHeight > document.documentElement.clientHeight,
       },
     };
-    result.pass = (!result.video || result.video.ready || result.video.suspended) && result.installed && result.version === result.expectedVersion &&
-      result.stylePresent && result.chromePresent &&
-      result.chromePointerEvents === 'none' && Boolean(result.composer) && Boolean(result.sidebar) &&
-      (!result.homePresent || (Boolean(result.hero) &&
-        (!result.suggestionsPresent || (result.cards.length >= 2 && result.cards.length <= 4))));
+    const basePass = result.installed && result.version === ${JSON.stringify(SKIN_VERSION)} &&
+      result.stylePresent && result.chromePresent && result.chromePointerEvents === 'none' &&
+      Boolean(result.shell?.visible) && Boolean(result.sidebar?.visible) && !result.documentOverflow.x;
+    // Project selector markup varies across Codex builds — soft requirement.
+    const homePass = !result.homeRoute || (
+      result.homePresent && (result.video || result.wallpaperLayout ? result.composer?.visible :
+        result.hero?.visible && result.hero.width >= 280 && result.hero.height >= 120)
+    );
+    const maskPass = !result.wallpaperLayout || (
+      wallpaperMask.opacity !== null && wallpaperMask.uniform && wallpaperMask.fullViewport &&
+      wallpaperMask.pointerEvents === 'none' && wallpaperMask.mainClear && wallpaperMask.sidebarClear && wallpaperMask.headerClear
+    );
+    result.pass = Boolean(basePass && homePass && maskPass && (!result.video || result.video.suspended || (result.video.ready && result.videoBox?.visible && result.videoPointerEvents === 'none')));
+    result.softNotes = {
+      projectButtonOptional: !result.projectButton?.visible,
+      composerOptionalOnNonTaskRoutes: !result.composer?.visible,
+      suggestionCardsOptional: result.homeRoute && result.visibleCardCount === 0,
+    };
     return result;
   })()`);
 }
 
-async function waitForVerifiedSession(session, timeoutMs) {
+export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, prepareFirstFrame = false) {
   const deadline = Date.now() + timeoutMs;
   let lastResult;
-  let lastError;
+  let previousVideoTime = null;
   while (Date.now() < deadline) {
-    try {
-      lastResult = await verifySession(session);
-      lastError = null;
-      if (lastResult.pass) return lastResult;
-    } catch (error) {
-      lastError = error;
+    lastResult = await verifySession(session);
+    // A previous, healthy background can remain visible while the next injector starts.
+    lastResult.themeMatches = lastResult.themeId === expectedTheme.id
+      && Boolean(lastResult.video) === Boolean(expectedTheme.video)
+      && lastResult.videoKey === (expectedTheme.videoKey ?? null);
+    lastResult.pass &&= lastResult.themeMatches;
+    if (prepareFirstFrame && expectedTheme.video) {
+      lastResult.pass &&= lastResult.video?.decoded === true;
     }
+    if (lastResult.wallpaperLayout) {
+      lastResult.maskMatches = Math.abs(lastResult.wallpaperMask.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005;
+      lastResult.pass &&= lastResult.maskMatches;
+    }
+    if (lastResult.video && !lastResult.video.suspended) {
+      lastResult.video.progressing = previousVideoTime !== null
+        && Math.abs(lastResult.video.currentTime - previousVideoTime) > 0.001;
+      previousVideoTime = lastResult.video.currentTime;
+      lastResult.pass &&= lastResult.video.progressing;
+    }
+    if (lastResult.pass) return lastResult;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  if (!lastResult && lastError) throw lastError;
   return lastResult;
 }
 
@@ -709,7 +778,7 @@ async function capture(session, outputPath) {
 
 async function runOneShot(options) {
   const connected = await connectCodexTargets(options.port, options.timeoutMs, options.browserId);
-  const loadedPayload = (options.mode === "once" || options.reload)
+  const loadedPayload = options.mode !== "remove"
     ? await loadPayload(options.themeDir) : null;
   const results = [];
   let screenshotCaptured = false;
@@ -729,7 +798,7 @@ async function runOneShot(options) {
         const verified = options.mode === "remove"
           ? await verifyRemovedSession(session)
           : (options.reload || options.mode === "once" || options.mode === "verify")
-            ? await waitForVerifiedSession(session, options.timeoutMs)
+            ? await waitForVerifiedSession(session, options.timeoutMs, loadedPayload.theme, options.prepareFirstFrame)
             : await verifySession(session);
         results.push({ targetId: target.id, markers: probe.markers, result: verified });
         if (options.screenshot && !screenshotCaptured) {
@@ -1037,7 +1106,7 @@ if (path.resolve(process.argv[1] || "") === path.resolve(scriptPath)) {
   console.log(JSON.stringify({ pass: true, version: SKIN_VERSION, test: "loopback-cdp-validation" }));
   } else if (options.mode === "check-payload") {
     const loaded = await loadPayload(options.themeDir);
-    const unresolved = ["__DREAM_CSS_JSON__", "__DREAM_ART_JSON__", "__DREAM_THEME_JSON__"]
+    const unresolved = ["__DREAM_SKIN_CSS_JSON__", "__DREAM_SKIN_ART_JSON__", "__DREAM_SKIN_THEME_JSON__", "__DREAM_SKIN_VERSION_JSON__", "__DREAM_SKIN_STYLE_REVISION_JSON__"]
       .some((placeholder) => loaded.payload.includes(placeholder));
     if (unresolved) {
       throw new Error("Payload placeholders were not fully replaced");

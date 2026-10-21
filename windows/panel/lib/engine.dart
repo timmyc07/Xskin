@@ -12,6 +12,11 @@ class PanelState {
       maskOpacity = (json['maskOpacity'] as num).toDouble(),
       pending = json['pending'] as bool,
       paused = json['paused'] as bool,
+      activeName = json['activeName'] as String,
+      applied = json['applied'] as bool,
+      autostart = json['autostart'] as bool,
+      autostartLoaded = json['autostartLoaded'] as bool,
+      language = json['language'] as String,
       saved = List<Map<String, dynamic>>.from(json['saved'] as List);
 
   final String name;
@@ -21,6 +26,11 @@ class PanelState {
   final double maskOpacity;
   final bool pending;
   final bool paused;
+  final String activeName;
+  final bool applied;
+  final bool autostart;
+  final bool autostartLoaded;
+  final String language;
   final List<Map<String, dynamic>> saved;
 }
 

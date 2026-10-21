@@ -5,8 +5,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName Microsoft.VisualBasic
-. (Join-Path $PSScriptRoot 'common-windows.ps1')
-. (Join-Path $PSScriptRoot 'theme-windows.ps1')
+. (Join-Path $PSScriptRoot 'xskin-theme.ps1')
 
 Assert-DreamSkinPort -Port $Port
 $SkillRoot = Split-Path -Parent $PSScriptRoot
@@ -87,6 +86,7 @@ try {
     $pauseText = if ($paused) { '继续显示皮肤' } else { '暂停皮肤' }
     $nextPaused = -not $paused
     $pauseAction = {
+      if ($nextPaused) { Set-XskinAutostart -Enabled $false -SkillRoot $SkillRoot -StateRoot $StateRoot }
       Set-DreamSkinPaused -Paused $nextPaused -StateRoot $StateRoot | Out-Null
     }.GetNewClosure()
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text $pauseText -Action $pauseAction

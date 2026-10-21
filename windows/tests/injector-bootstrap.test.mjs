@@ -20,7 +20,7 @@ function createFixture() {
       documentElement: {},
       body: {},
       querySelector(selector) {
-        if (selector === "main.main-surface") return markers.shell ? {} : null;
+        if (selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return markers.shell ? {} : null;
         if (selector === "aside.app-shell-left-panel") return markers.sidebar ? {} : null;
         return null;
       },

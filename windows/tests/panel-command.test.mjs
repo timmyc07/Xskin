@@ -36,6 +36,9 @@ try {
   const initial = await run("state");
   assert.equal(initial.code, 0);
   assert.equal(initial.state.pending, false);
+  assert.ok(initial.state.saved.length > 0);
+  assert.equal(typeof initial.state.saved[0].directory, 'string');
+  assert.equal(typeof initial.state.saved[0].name, 'string');
   const originalMetadata = await fs.readFile(path.join(stateRoot, "active-theme/theme.json"), "utf8");
   const source = path.join(temporary, "中文 $& picture.jpg");
   await fs.copyFile(path.join(root, "assets/dream-reference.jpg"), source);
@@ -66,5 +69,23 @@ try {
   assert.equal(escaped.code, 1);
   assert.match(escaped.error, /saved theme/);
   assert.equal(await fs.readFile(path.join(stateRoot, "active-theme/theme.json"), "utf8"), originalMetadata);
+  const preferences = await run("preferences", { language: "zh-Hant" });
+  assert.equal(preferences.state.language, "zh-Hant");
+  const invalidLanguage = await run("preferences", { language: "unknown" });
+  assert.equal(invalidLanguage.code, 1);
+  const mask = await run("mask", { maskOpacity: 0.27 });
+  assert.equal(mask.state.maskOpacity, 0.27);
+  assert.equal(mask.state.pending, true);
+  assert.equal(mask.state.language, "zh-Hant");
+  const movie = path.join(temporary, "original.mp4");
+  const movieBytes = Buffer.from("000000186674797069736f6d0000020069736f6d6d703431", "hex");
+  await fs.writeFile(movie, movieBytes);
+  const importedMovie = await run("import", { path: movie });
+  assert.equal(importedMovie.code, 0);
+  assert.equal(importedMovie.state.pending, true);
+  assert.equal(importedMovie.state.language, "zh-Hant");
+  assert.equal(importedMovie.state.maskOpacity, 0.27);
+  assert.deepEqual(await fs.readFile(importedMovie.state.videoPath), movieBytes);
+  assert.ok(importedMovie.state.imagePath, "A video uses the active image fallback without waiting for a poster screenshot.");
 } finally { await fs.rm(temporary, { recursive: true, force: true }); }
 console.log("PASS: Flutter bridge UTF-8 round-trip, preview isolation, mask validation, pause and path boundaries.");

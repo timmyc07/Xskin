@@ -38,6 +38,12 @@ Copy-Item -Path (Join-Path $crt '*.dll') -Destination $package
 foreach ($name in @('scripts','assets','README.md','README.en.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','VERSION','Install Xskin.cmd')) {
   Copy-Item -LiteralPath (Join-Path $root $name) -Destination $package -Recurse
 }
+. (Join-Path $root 'scripts\common-windows.ps1')
+$nodeRuntime = Get-DreamSkinNodeRuntime
+$nodeLicense = Join-Path (Split-Path -Parent $nodeRuntime.Path) 'LICENSE'
+if (-not (Test-Path -LiteralPath $nodeLicense)) { throw 'The Node.js distribution license is required for packaging.' }
+Copy-Item -LiteralPath $nodeRuntime.Path -Destination (Join-Path $package 'scripts\node.exe')
+Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $package 'Node-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $repository 'macos\LICENSE'), (Join-Path $repository 'macos\NOTICE.md') -Destination $package
 $zip = Join-Path $release "Xskin-$version-windows-x64.zip"
 Compress-Archive -Path $package -DestinationPath $zip -Force

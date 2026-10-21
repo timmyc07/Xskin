@@ -4,6 +4,8 @@ The Flutter application source and its theme engine retain the repository's MIT 
 
 - Flutter / Dart: https://github.com/flutter/flutter and https://github.com/dart-lang/sdk
 - file_selector: https://github.com/flutter/packages/tree/main/packages/file_selector
+- desktop_drop: https://github.com/MixinNetwork/flutter-plugins/tree/master/packages/desktop_drop
+- Node.js: https://github.com/nodejs/node ; the bundled distribution license is included as `Node-LICENSE.txt`.
 - media_kit: https://github.com/media-kit/media-kit (MIT wrapper packages)
 - libmpv Windows binary supplied by media_kit_libs_windows_video 1.0.11: https://github.com/media-kit/libmpv-win32-video-build/releases/tag/2023-09-24
 - libmpv build project: https://github.com/media-kit/libmpv-win32-video-build ; mpv source: https://github.com/mpv-player/mpv ; FFmpeg source: https://git.ffmpeg.org/ffmpeg.git

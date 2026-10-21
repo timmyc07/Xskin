@@ -88,8 +88,7 @@ try {
     if (-not $restartAuthorized -and $PromptRestart) {
       $restartAuthorized = Confirm-DreamSkinRestart -Message 'Codex must restart once to enable Dream Skin. Unsaved input may be lost. Restart now?'
       if (-not $restartAuthorized) {
-        Write-Host 'Dream Skin launch was cancelled; Codex was not changed.'
-        exit 0
+        throw 'Dream Skin launch was cancelled; Codex was not changed.'
       }
     }
     if (-not $restartAuthorized) {
@@ -227,7 +226,8 @@ try {
 
     $verify = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
       $Injector, '--verify', '--port', "$Port",
-      '--browser-id', $cdpIdentity.BrowserId, '--timeout-ms', '30000')
+      '--theme-dir', $themePaths.Active,
+      '--browser-id', $cdpIdentity.BrowserId, '--timeout-ms', '30000', '--prepare-first-frame')
     Write-DreamSkinUtf8FileAtomically -Path $VerifyPath -Content (($verify.Output -join "`r`n") + "`r`n")
     if ($verify.ExitCode -ne 0) { throw "Dream Skin verification failed. See $VerifyPath" }
   } catch {

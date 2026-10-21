@@ -40,6 +40,8 @@ try {
 
   $arguments = @($injector, '--verify', '--port', "$Port", '--browser-id', $cdpIdentity.BrowserId,
     '--timeout-ms', '30000')
+  $themeDir = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin\active-theme'
+  $arguments += @('--theme-dir', $themeDir)
   if ($ScreenshotPath) { $arguments += @('--screenshot', $ScreenshotPath) }
   & $node.Path @arguments
   $verifyExitCode = $LASTEXITCODE

@@ -1,51 +1,50 @@
-# Xskin for Windows (Flutter)
+# Xskin for Windows 1.5.1 (Flutter)
 
-Native Windows desktop panel built with Flutter. Import a local image or MP4, preview it, adjust the full-window mask and apply it to the official Codex desktop app. WindowsApps, app.asar, authentication and account configuration remain intact.
+Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
 ## Run
 
-1. Install the official Microsoft Store `OpenAI.Codex` app and Node.js 22 or newer (`node.exe` on PATH).
-2. Extract the **complete** Windows ZIP to a folder you will keep. Open `xskin.exe` there; keep its DLLs, `data`, `scripts` and `assets` beside it.
-3. Choose **Import media**, inspect the preview, then **Apply to Codex**. Importing alone does not change the active background. Video previews start paused.
-4. The first Apply asks before restarting Codex if it is already open without the background connection. Save any unfinished input before accepting. Cancel leaves the previous theme in place.
+1. Install the official Microsoft Store `OpenAI.Codex` app.
+2. Extract the **complete** Windows ZIP and open `xskin.exe`. Keep its DLLs, `data`, `scripts` and `assets` beside it. Node.js is bundled; no separate Node or Flutter installation is needed.
+3. Choose **Choose file**, or drop one image/MP4 into the panel. Imported copies stay pending; the current background remains unchanged.
+4. Check the preview, resolution and size, then press **Apply this background**. Video previews start paused; the Codex background plays silently in a loop at the original quality and frame rate.
+5. If Codex is already running without a background connection, the first Apply asks to restart it once. Save unfinished input before accepting. Cancel or failed verification preserves the previous theme.
 
-The panel invokes its PowerShell backend with a process-local execution policy. No system execution-policy change, administrator access or ownership change is needed to run the app. The app is unsigned; distribute it only from trusted builds of this repository.
+The right side shows the active background, language, automatic apply and whole-window overlay. English, Traditional Chinese, Simplified Chinese and Japanese are available. The version is visible at the top right. Errors remain available under **Details**.
 
-## Controls
+## Preferences and saved backgrounds
 
-- **Mask depth:** 0–100%, default 62%. Preview changes while dragging. Releasing the slider applies changes when viewing the current background; an imported draft waits for Apply.
-- **Play preview / Pause preview:** muted local playback. Leaving the panel pauses its preview. Codex background video also pauses when hidden or when Reduce Motion is enabled, with a still-image fallback.
-- **Launch with background:** starts Codex with the saved background connection. It asks before restarting an already-open unmanaged session.
-- **Pause / Resume background:** hides or resumes the injected background without deleting the theme.
-- **Save current background / Saved backgrounds:** preserve an applied theme and load a saved theme into preview before Apply.
-- **Restore Codex appearance:** confirms closing the managed debug session and reopens official Codex normally.
+- **Overlay opacity:** 0–100%, default 62%. Release the slider to persist and update the current background. This does not import another copy or reopen the preview player. Keyboard changes are debounced.
+- **Apply on Codex launch:** creates managed **Codex (Xskin)** entries on Desktop and Start. Open Codex through those entries to apply the saved background while the Xskin panel stays closed. This is the Windows equivalent of the Mac direct-launch Dock entry. Original Microsoft Store/taskbar entries are unchanged. An already-open ordinary Codex window is left running; use manual Apply to authorize its first restart.
+- **Saved backgrounds:** contains launch, pause/resume, save, selection and restore controls. Selecting a saved theme prepares a draft for Apply.
+- **Pause / Restore:** disable the managed automatic-launch entries. Restore closes the managed debugging session and reopens ordinary Codex after the restart prompt.
 
-Pending imports and the last applied mask survive panel restarts. All processing and playback stay local. There is no account, API key or `.env` requirement.
+Imports, the overlay and language survive panel restarts. All media processing stays local; there is no account, API key or `.env` requirement.
 
-## Media limits
+## Media
 
-| Type | Formats | Limits |
+| Type | Formats | Handling |
 | --- | --- | --- |
-| Image | JPG, PNG, WebP | 16 MiB; 16384px per side; 50MP |
-| Video | MP4; H.264 recommended | 256 MiB; original file copied without re-encoding, including 4K |
+| Image | PNG, JPEG, WebP, HEIC/HEIF, TIFF | Sources ≤50 MiB, ≤16384px per side and ≤50MP; converted locally to JPEG, quality 90, longest side ≤4096px and output ≤16 MiB. |
+| Video | MP4, H.264 recommended | ≤256 MiB; original file copied without transcoding, including 4K. Import uses a still fallback while the preview prepares independently. |
 
-The Flutter preview uses media_kit/libmpv. Actual Codex playback uses its Chromium decoder, so codec availability can differ. Applying verifies playback and restores the previous theme if verification fails. Imported source files remain unchanged. Imported drafts and saved themes consume local disk space.
+Image conversion uses Windows Imaging Component. HEIF/HEIC and WebP require their Windows image codecs; missing codecs produce a conversion error and preserve the current theme. The Flutter preview uses media_kit/libmpv; Codex uses Chromium. Apply verifies the **selected theme, mask, decoded video and progressing playhead**, rather than accepting a previous background or a frozen frame. Hidden windows and Reduce Motion suspend video; still artwork remains available on decode failure.
 
-## Optional shortcuts
+## Managed engine and verification
 
-After fully exiting Codex, run `Install Xskin.cmd` to install a separate managed engine at `%LOCALAPPDATA%\CodexDreamSkin\engine` and create **Codex Dream Skin** launch and restore shortcuts. Use the launch shortcut for future background-enabled Codex sessions. The Flutter panel itself is portable: keep the extracted application folder.
-
-The retained system tray also supports saved image/video themes. To restore saved appearance keys or remove the engine's shortcuts, run:
+Apply installs a self-contained engine under `%LOCALAPPDATA%\CodexDreamSkin\engine`. Media, drafts, settings and logs stay under `%LOCALAPPDATA%\CodexDreamSkin`. Metadata uses strict UTF-8, atomic writes, checked managed paths and recoverable transactions. Normal Apply does not rewrite `config.toml`.
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\restore-dream-skin.ps1 -RestoreBaseTheme -PromptRestart -Uninstall
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-dream-skin.ps1 -ScreenshotPath "$env:TEMP\xskin.png"
 ```
 
-Use `-RestoreBaseTheme` only after installation has created a recoverable appearance backup. Normal panel Apply does not rewrite `config.toml`.
+CDP remains loopback-only and verifies the registered Store package, process ownership and Browser ID. The official app, WindowsApps permissions and system execution policy are unchanged. The panel is unsigned; use trusted builds and trusted local software while the debugging connection is active.
+
+The retained installer/tray can still manage legacy appearance-key backups. For that optional setup, close Codex and run `Install Xskin.cmd`. Full appearance-key restoration is available through `scripts\restore-dream-skin.ps1 -RestoreBaseTheme -PromptRestart -Uninstall` when an appearance backup exists.
 
 ## Build and test
 
-Requires Flutter stable 3.47.7, Visual Studio 2022 with Desktop development with C++, a Windows SDK, and Node.js 22+. Flutter's plugin build requires directory-link support (Developer Mode or an appropriate developer terminal). These are build requirements, not end-user requirements.
+Source builds require Flutter stable 3.47.7, Visual Studio 2022 Desktop development with C++, a Windows SDK, and Node.js 22+. Flutter plugin builds require directory-link support. These are developer requirements, not packaged-app requirements.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\tests\run-tests.ps1
@@ -53,25 +52,9 @@ cd windows\panel
 flutter pub get
 flutter analyze
 flutter test
-flutter run -d windows -- --engine-root=D:\path\to\Xskin\windows
+flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-From the repository root, build a tested release:
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.1-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1
-```
-
-Output: `build/windows/Xskin-1.0.2-windows-x64.zip` and its SHA-256 file. GitHub Actions runs the same build and uploads the ZIP as **Xskin-Windows**. The panel displays the packaged version in its top-right corner. The full Flutter runner, native media libraries and theme engine are included; Flutter and Visual Studio are not required to run a packaged app.
-
-## State and verification
-
-State stays under `%LOCALAPPDATA%\CodexDreamSkin`: `active-theme`, `imports`, `themes`, `images`, `studio.json`, `state.json` and injector logs. Imported copies and themes use checked managed paths, atomic UTF-8 metadata writes and recoverable apply transactions.
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-dream-skin.ps1 -ScreenshotPath "$env:TEMP\xskin.png"
-```
-
-CDP stays loopback-only and checks the official Store package, process ownership and session Browser ID. The connection has no same-user authentication: run trusted local software while active. Codex updates can change selectors or launch behavior; use Restore if an update breaks appearance.
-
-The panel is a Windows implementation, not a port of the SwiftUI macOS executable. This version uses English UI text. No automatic replacement of the official taskbar shortcut is performed.
+See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.

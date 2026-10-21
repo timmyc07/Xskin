@@ -1,16 +1,22 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path/path.dart' as path;
 
 import 'engine.dart';
+import 'localization.dart';
 
 const _version = String.fromEnvironment('XSKIN_VERSION', defaultValue: 'dev');
+const _surface = Color(0xff191c1a);
+const _muted = Color(0xffa1a8a1);
+const _accent = Color(0xffdceda0);
 
 void main(List<String> arguments) {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,34 +33,62 @@ void main(List<String> arguments) {
   );
 }
 
-class XskinApp extends StatelessWidget {
+class XskinApp extends StatefulWidget {
   const XskinApp({super.key, required this.engine});
   final XskinEngine engine;
+  @override
+  State<XskinApp> createState() => _XskinAppState();
+}
+
+class _XskinAppState extends State<XskinApp> {
+  Locale _locale = const Locale('en');
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Xskin',
     debugShowCheckedModeBanner: false,
+    locale: _locale,
+    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    supportedLocales: const [
+      Locale('en'),
+      Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+      Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+      Locale('ja'),
+    ],
     theme: ThemeData(
       useMaterial3: true,
+      brightness: Brightness.dark,
       fontFamily: 'Segoe UI',
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff75824c)),
-      scaffoldBackgroundColor: const Color(0xfff5f5f0),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
+      colorScheme: const ColorScheme.dark(
+        primary: _accent,
+        surface: _surface,
+        onSurface: Color(0xffeff1eb),
       ),
+      scaffoldBackgroundColor: const Color(0xff111312),
+      textTheme: const TextTheme(bodyMedium: TextStyle(fontSize: 12)),
     ),
-    home: XskinPanel(engine: engine),
+    home: XskinPanel(
+      engine: widget.engine,
+      onLanguageChanged: (language) {
+        final parts = language.split('-');
+        setState(
+          () => _locale = Locale.fromSubtags(
+            languageCode: parts.first,
+            scriptCode: parts.length > 1 ? parts[1] : null,
+          ),
+        );
+      },
+    ),
   );
 }
 
 class XskinPanel extends StatefulWidget {
-  const XskinPanel({super.key, required this.engine});
+  const XskinPanel({
+    super.key,
+    required this.engine,
+    required this.onLanguageChanged,
+  });
   final XskinEngine engine;
+  final ValueChanged<String> onLanguageChanged;
   @override
   State<XskinPanel> createState() => _XskinPanelState();
 }
@@ -64,192 +98,354 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
   Player? _player;
   VideoController? _video;
   bool _busy = true;
+  bool _previewBusy = false;
+  bool _previewReady = false;
+  bool _importFailed = false;
+  bool _dragging = false;
+  bool _editingMask = false;
+  bool _maskEdited = false;
+  Timer? _maskTimer;
+  String? _previewPath;
+  int _generation = 0;
+  int _width = 0, _height = 0;
   double _mask = .62;
-  String _status = 'Loading your workspace...';
+  String _language = 'en';
+  String _status = 'operationLoading';
+  String? _details;
+
+  String text(String key) => localizedText(key, _language);
+  bool get _canApply =>
+      !_busy &&
+      !_importFailed &&
+      !_previewBusy &&
+      !_maskEdited &&
+      _previewReady &&
+      _state?.pending == true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _run(() async => _show(await widget.engine.command('state')));
+    _run(
+      'operationLoading',
+      () async => _show(await widget.engine.command('state')),
+    );
   }
 
   @override
+  Future<ui.AppExitResponse> didRequestAppExit() async => _busy || _maskEdited
+      ? ui.AppExitResponse.cancel
+      : ui.AppExitResponse.exit;
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _player?.pause();
+    if (state == AppLifecycleState.resumed) {
+      if (_state != null && _previewPath == null) {
+        unawaited(_preparePreview(_state!));
+      }
+    } else {
+      _player?.pause();
+      if (state == AppLifecycleState.hidden && _state?.videoPath != null) {
+        _generation++;
+        _previewPath = null;
+        _releasePlayer();
+        if (mounted) {
+          setState(() {
+            _previewReady = false;
+            _previewBusy = false;
+          });
+        }
+      }
+    }
+  }
+
+  void _releasePlayer() {
+    final player = _player;
+    _player = null;
+    _video = null;
+    if (player != null) unawaited(player.dispose());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _player?.dispose();
+    _maskTimer?.cancel();
+    _generation++;
+    _releasePlayer();
     super.dispose();
   }
 
-  Future<void> _show(PanelState state) async {
+  void _show(PanelState state) {
     if (!mounted) return;
     setState(() {
       _state = state;
-      _mask = state.maskOpacity;
+      if (!_maskEdited) _mask = state.maskOpacity;
+      _language = state.language;
+      _status = state.pending
+          ? 'statusReady'
+          : state.applied
+          ? 'statusApplied'
+          : 'statusChoose';
     });
-    if (state.videoPath != null) {
-      await _openVideo(state.videoPath!);
-    } else {
-      await _player?.stop();
-    }
-    if (mounted) {
-      setState(
-        () => _status = state.pending
-            ? 'Import ready. Your current Codex background has not changed.'
-            : 'Ready. Your media stays on this computer.',
-      );
+    widget.onLanguageChanged(state.language);
+    unawaited(_preparePreview(state));
+  }
+
+  Future<void> _preparePreview(PanelState state) async {
+    final file = state.videoPath ?? state.imagePath;
+    if (_previewPath == file) return;
+    _previewPath = file;
+    final generation = ++_generation;
+    _releasePlayer();
+    setState(() {
+      _previewBusy = true;
+      _previewReady = false;
+      _width = _height = 0;
+    });
+    try {
+      if (state.videoPath != null) {
+        final player = Player();
+        final controller = VideoController(player);
+        setState(() {
+          _player = player;
+          _video = controller;
+        });
+        await (() async {
+          await player.setVolume(0);
+          await player.setPlaylistMode(PlaylistMode.single);
+          await player.open(Media(Uri.file(file).toString()), play: false);
+          if ((player.state.width ?? 0) == 0) {
+            await player.stream.width.firstWhere((v) => (v ?? 0) > 0);
+          }
+          if ((player.state.height ?? 0) == 0) {
+            await player.stream.height.firstWhere((v) => (v ?? 0) > 0);
+          }
+          await controller.waitUntilFirstFrameRendered;
+        })().timeout(const Duration(seconds: 20));
+        if (!mounted || generation != _generation) return;
+        _width = player.state.width!;
+        _height = player.state.height!;
+      } else {
+        final codec = await ui.instantiateImageCodec(
+          await File(file).readAsBytes(),
+        );
+        try {
+          final image = (await codec.getNextFrame()).image;
+          try {
+            if (!mounted || generation != _generation) return;
+            _width = image.width;
+            _height = image.height;
+          } finally {
+            image.dispose();
+          }
+        } finally {
+          codec.dispose();
+        }
+      }
+      if (mounted && generation == _generation) {
+        setState(() => _previewReady = true);
+      }
+    } catch (error) {
+      if (mounted && generation == _generation) {
+        _releasePlayer();
+        setState(() {
+          _status = state.videoPath == null ? 'imageDecode' : 'videoDecode';
+          _details = error.toString();
+        });
+      }
+    } finally {
+      if (mounted && generation == _generation) {
+        setState(() => _previewBusy = false);
+      }
     }
   }
 
-  Future<void> _openVideo(String file) async {
-    if (_player == null) {
-      _player = Player();
-      _video = VideoController(_player!);
-      if (mounted) setState(() {});
-      await _player!.setVolume(0);
-      await _player!.setPlaylistMode(PlaylistMode.single);
-    }
-    await _player!.open(Media(Uri.file(file).toString()), play: false);
-  }
-
-  Future<void> _run(Future<void> Function() operation) async {
-    if (mounted) setState(() => _busy = true);
+  Future<void> _run(String status, Future<void> Function() operation) async {
+    if (!mounted) return;
+    setState(() {
+      _busy = true;
+      _status = status;
+      _details = null;
+    });
     try {
       await operation();
     } catch (error) {
       if (mounted) {
-        setState(() => _status = error.toString());
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.toString()),
-            duration: const Duration(seconds: 8),
-          ),
-        );
+        setState(() {
+          _status = 'operationFailed';
+          _details = error is StateError
+              ? error.message.toString()
+              : error.toString();
+        });
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        if (_maskEdited && !_editingMask) unawaited(_saveMask());
+      }
     }
   }
 
-  Future<void> _import() async {
+  Future<void> _chooseFile() async {
+    _player?.pause();
     final file = await openFile(
       acceptedTypeGroups: const [
         XTypeGroup(
-          label: 'Images and MP4 video',
-          extensions: ['jpg', 'jpeg', 'png', 'webp', 'mp4'],
+          label: 'Images / MP4',
+          extensions: [
+            'jpg',
+            'jpeg',
+            'png',
+            'webp',
+            'heic',
+            'heif',
+            'tif',
+            'tiff',
+            'mp4',
+          ],
         ),
       ],
     );
-    if (file == null) return;
-    await _run(() async {
-      if (mounted) setState(() => _status = 'Validating media...');
-      await widget.engine.command('validate', {'path': file.path});
-      final request = <String, dynamic>{'path': file.path};
-      if (path.extension(file.path).toLowerCase() == '.mp4') {
-        if (mounted) setState(() => _status = 'Preparing a still preview...');
-        await _openVideo(file.path);
-        final player = _player!;
-        if ((player.state.width ?? 0) == 0) {
-          await player.stream.width
-              .firstWhere((width) => (width ?? 0) > 0)
-              .timeout(const Duration(seconds: 15));
-        }
-        final frame = await player.screenshot(format: 'image/png');
-        if (frame == null) {
-          throw StateError('Could not decode this video. Choose an H.264 MP4.');
-        }
-        final width = player.state.width ?? 0;
-        final height = player.state.height ?? 0;
-        if (width < 1 ||
-            height < 1 ||
-            width > 16384 ||
-            height > 16384 ||
-            width * height > 50000000) {
-          throw StateError('Unsupported video dimensions.');
-        }
-        final codec = await ui.instantiateImageCodec(
-          frame,
-          targetWidth: width > 1920 ? 1920 : width,
-        );
-        final poster = (await codec.getNextFrame()).image;
-        try {
-          final bytes = await poster.toByteData(format: ui.ImageByteFormat.png);
-          if (bytes == null) {
-            throw StateError('Could not prepare the video poster.');
-          }
-          request['posterPng'] = base64Encode(
-            bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
-          );
-        } finally {
-          poster.dispose();
-          codec.dispose();
-        }
-      }
-      if (mounted) setState(() => _status = 'Saving media and preview...');
-      await _show(await widget.engine.command('import', request));
+    if (file != null) await _importFile(file.path);
+  }
+
+  Future<void> _importFile(String file) async {
+    if (_busy) return;
+    setState(() {
+      _previewReady = false;
+      _importFailed = true;
+    });
+    await _run('operationImporting', () async {
+      await _player?.stop();
+      final state = await widget.engine.command('import', {'path': file});
+      _importFailed = false;
+      _show(state);
     });
   }
 
-  Future<void> _apply() => _run(() async {
-    setState(
-      () => _status =
-          'Applying... Check the restart prompt if Codex is already open.',
-    );
-    await _show(
-      await widget.engine.command('apply', {
-        'maskOpacity': _mask,
-        'imagePath': _state!.imagePath,
-      }),
-    );
-    if (mounted) setState(() => _status = 'Background applied and verified.');
+  Future<void> _apply() => _run('operationApplying', () async {
+    final hadVideo = _player != null;
+    await _player?.stop();
+    try {
+      _show(
+        await widget.engine.command('apply', {
+          'maskOpacity': _mask,
+          'imagePath': _state!.imagePath,
+        }),
+      );
+    } catch (_) {
+      if (hadVideo && mounted) {
+        _previewPath = null;
+        unawaited(_preparePreview(_state!));
+      }
+      rethrow;
+    }
+    if (mounted) setState(() => _status = 'applied');
   });
 
-  Future<void> _action(String action) => _run(() async {
-    await _show(await widget.engine.command(action));
-    if (mounted) setState(() => _status = 'Done.');
-  });
+  Future<void> _saveMask() async {
+    _maskTimer?.cancel();
+    if (_busy || _editingMask || _state == null) return;
+    _maskEdited = false;
+    if ((_mask - _state!.maskOpacity).abs() < .0001) return;
+    await _run('operationMask', () async {
+      try {
+        _show(await widget.engine.command('mask', {'maskOpacity': _mask}));
+      } catch (_) {
+        if (mounted) setState(() => _mask = _state!.maskOpacity);
+        rethrow;
+      }
+      if (mounted) setState(() => _status = 'maskUpdated');
+    });
+  }
+
+  Future<void> _action(
+    String action, [
+    Map<String, dynamic> request = const {},
+  ]) => _run(
+    action == 'autostart' ? 'operationAutostart' : 'operationApplying',
+    () async {
+      if (action == 'select') await _player?.stop();
+      final state = await widget.engine.command(action, request);
+      if (action == 'select') _importFailed = false;
+      _show(state);
+      if (mounted && action == 'autostart') {
+        setState(
+          () => _status = request['enabled'] == true
+              ? 'autostartEnabled'
+              : 'autostartDisabled',
+        );
+      }
+    },
+  );
 
   Future<void> _save() async {
-    final name = TextEditingController(text: _state?.name ?? 'My background');
+    final name = TextEditingController(text: _state?.name ?? '');
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Save current background'),
+        title: Text(text('saveCurrent')),
         content: TextField(
           controller: name,
           autofocus: true,
           maxLength: 80,
-          decoration: const InputDecoration(labelText: 'Theme name'),
+          decoration: InputDecoration(labelText: text('themeName')),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(text('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, name.text.trim()),
-            child: const Text('Save'),
+            child: Text(text('save')),
           ),
         ],
       ),
     );
     name.dispose();
-    if (result == null || result.isEmpty) return;
-    await _run(
-      () async => _show(await widget.engine.command('save', {'name': result})),
-    );
+    if (result != null && result.isNotEmpty) {
+      await _action('save', {'name': result});
+    }
   }
+
+  Widget _heading(String number, String label) => Row(
+    children: [
+      Text(number, style: const TextStyle(fontSize: 10, color: _muted)),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          text(label),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+      ),
+    ],
+  );
 
   Widget _preview() {
     final state = _state;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          children: [
+            Expanded(child: _heading('01', 'preview')),
+            if (state != null)
+              Chip(
+                label: Text(
+                  text(
+                    state.pending
+                        ? 'pending'
+                        : state.applied
+                        ? 'appliedBadge'
+                        : 'savedBadge',
+                  ),
+                  style: const TextStyle(fontSize: 10),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
         AspectRatio(
           aspectRatio: 16 / 9,
           child: ClipRRect(
@@ -257,322 +453,506 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                const ColoredBox(color: Color(0xff11150f)),
+                const ColoredBox(color: Colors.black),
                 if (state != null)
                   Image.file(
                     File(state.imagePath),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Center(
-                      child: Icon(
-                        Icons.broken_image_outlined,
-                        color: Colors.white,
-                      ),
-                    ),
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) =>
+                        const Center(child: Icon(Icons.broken_image_outlined)),
                   ),
-                if (state?.videoPath != null && _video != null)
+                if (_video != null)
                   Video(
                     controller: _video!,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     controls: NoVideoControls,
                   ),
-                IgnorePointer(
-                  child: ColoredBox(
-                    color: Colors.black.withValues(alpha: _mask),
-                  ),
-                ),
-                Positioned(
-                  top: 18,
-                  left: 18,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      child: Text(
-                        'PREVIEW',
-                        style: TextStyle(
-                          fontSize: 11,
-                          letterSpacing: 1.4,
-                          color: Colors.white,
-                        ),
-                      ),
+                if (state != null)
+                  IgnorePointer(
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: _mask),
                     ),
                   ),
-                ),
+                if (_previewBusy)
+                  const Center(child: CircularProgressIndicator()),
+                if (state == null || (!_previewBusy && !_previewReady))
+                  Center(
+                    child: Text(
+                      text(
+                        state == null ? 'previewHint' : 'previewUnavailable',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    state?.name ?? 'Choose your scene',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+        const SizedBox(height: 16),
+        if (state != null)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      state.videoPath == null
+                          ? Icons.image_outlined
+                          : Icons.movie_outlined,
+                      size: 16,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    state == null
-                        ? 'JPG / PNG / WebP / MP4'
-                        : '${state.videoPath == null ? 'Image' : 'Original MP4'}  /  ${(state.bytes / 1048576).toStringAsFixed(1)} MiB',
-                    style: const TextStyle(
-                      color: Color(0xff6b7064),
-                      fontSize: 12,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(state.name, overflow: TextOverflow.ellipsis),
                     ),
-                  ),
-                ],
+                    Text(
+                      text('localMedia'),
+                      style: const TextStyle(fontSize: 10, color: _muted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    _fact(
+                      'mediaType',
+                      text(
+                        state.videoPath == null
+                            ? 'image'
+                            : _width >= 3840 && _height >= 2160
+                            ? 'original4K'
+                            : 'mp4Video',
+                      ),
+                    ),
+                    _fact(
+                      'resolution',
+                      _width > 0 ? '$_width × $_height' : text('reading'),
+                    ),
+                    _fact(
+                      'fileSize',
+                      '${(state.bytes / 1048576).toStringAsFixed(1)} MiB',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        if (state?.videoPath != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            text('videoHint'),
+            style: const TextStyle(fontSize: 11, color: _muted),
+          ),
+          if (_player != null)
+            StreamBuilder<bool>(
+              stream: _player!.stream.playing,
+              initialData: false,
+              builder: (context, value) => TextButton.icon(
+                key: const ValueKey('preview-playback'),
+                onPressed: _busy || !_previewReady
+                    ? null
+                    : () => _player!.playOrPause(),
+                icon: Icon(value.data! ? Icons.pause : Icons.play_arrow),
+                label: Text(text(value.data! ? 'pausePreview' : 'playPreview')),
               ),
             ),
-            if (state?.videoPath != null && _player != null)
-              StreamBuilder<bool>(
-                stream: _player!.stream.playing,
-                initialData: false,
-                builder: (context, snapshot) => TextButton.icon(
-                  onPressed: _busy ? null : () => _player!.playOrPause(),
-                  icon: Icon(snapshot.data! ? Icons.pause : Icons.play_arrow),
-                  label: Text(
-                    snapshot.data! ? 'Pause preview' : 'Play preview',
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'Local media. Original video quality. A workspace that feels like you.',
-          style: TextStyle(color: Color(0xff6b7064), height: 1.6),
-        ),
+        ],
+        if (_details != null)
+          ExpansionTile(
+            title: Text(
+              text('details'),
+              style: const TextStyle(color: Colors.orange),
+            ),
+            children: [SelectableText(_details!)],
+          ),
       ],
     );
   }
 
+  Widget _fact(String label, String value) => Expanded(
+    child: Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            text(label),
+            style: const TextStyle(color: _muted, fontSize: 10),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _controls() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const Text(
-        'Make room for\nyour scene.',
-        style: TextStyle(
-          fontSize: 27,
-          fontWeight: FontWeight.w600,
-          height: 1.15,
-        ),
-      ),
+      _heading('02', 'source'),
       const SizedBox(height: 16),
-      const Text(
-        'Import your favorite media, check the preview, then bring it into Codex.',
-        style: TextStyle(color: Color(0xff6b7064), height: 1.6),
-      ),
-      const SizedBox(height: 24),
-      OutlinedButton.icon(
-        onPressed: _busy ? null : _import,
-        icon: const Icon(Icons.add_photo_alternate_outlined),
-        label: const Text('Import media'),
-      ),
-      const SizedBox(height: 28),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Mask depth',
-            style: TextStyle(fontWeight: FontWeight.w600),
+      OutlinedButton(
+        onPressed: _busy ? null : _chooseFile,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          Text('${(_mask * 100).round()}%'),
-        ],
-      ),
-      Slider(
-        value: _mask,
-        divisions: 100,
-        label: '${(_mask * 100).round()}%',
-        onChanged: _busy ? null : (value) => setState(() => _mask = value),
-        onChangeEnd: _busy
-            ? null
-            : (_) {
-                if (_state != null && !_state!.pending) _apply();
-              },
-      ),
-      const Text(
-        'One black overlay across the whole window.',
-        style: TextStyle(fontSize: 12, color: Color(0xff6b7064)),
-      ),
-      const SizedBox(height: 22),
-      FilledButton.icon(
-        onPressed: _busy || _state == null ? null : _apply,
-        icon: const Icon(Icons.check),
-        label: const Text('Apply to Codex'),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.add_photo_alternate_outlined, size: 26),
+            const SizedBox(height: 12),
+            Text(
+              text(_state == null ? 'importBackground' : 'changeBackground'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              text('dropHint'),
+              style: const TextStyle(color: _muted, fontSize: 11),
+            ),
+            const Divider(height: 28),
+            Row(
+              children: [
+                Expanded(child: Text(text('chooseFile'))),
+                const Icon(Icons.north_east, size: 16),
+              ],
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 10),
       Text(
-        _state?.pending == true
-            ? 'Import ready. Apply when you are ready.'
-            : 'Mask changes apply when you release the slider.',
-        style: const TextStyle(fontSize: 12, color: Color(0xff6b7064)),
+        text('fileLimits'),
+        style: const TextStyle(color: _muted, fontSize: 10, height: 1.6),
       ),
       const SizedBox(height: 24),
-      const Divider(),
-      TextButton.icon(
-        onPressed: _busy ? null : () => _action('launch'),
-        icon: const Icon(Icons.open_in_new),
-        label: const Text('Launch with background'),
-      ),
-      TextButton.icon(
-        onPressed: _busy ? null : () => _action('pause'),
-        icon: Icon(_state?.paused == true ? Icons.play_arrow : Icons.pause),
-        label: Text(
-          _state?.paused == true ? 'Resume background' : 'Pause background',
-        ),
-      ),
-      TextButton.icon(
-        onPressed: _busy ? null : _save,
-        icon: const Icon(Icons.bookmark_add_outlined),
-        label: const Text('Save current background'),
-      ),
-      if (_state?.saved.isNotEmpty == true)
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Saved backgrounds'),
-          items: _state!.saved
-              .map(
-                (theme) => DropdownMenuItem(
-                  value: theme['Path'] as String,
-                  child: Text(
-                    theme['Name'] as String,
-                    overflow: TextOverflow.ellipsis,
+      Row(
+        children: [
+          Expanded(child: _heading('03', 'preferences')),
+          DropdownButton<String>(
+            value: _language,
+            underline: const SizedBox(),
+            style: const TextStyle(fontSize: 11),
+            items: languages.entries
+                .map(
+                  (entry) => DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(entry.value),
                   ),
-                ),
-              )
-              .toList(),
-          onChanged: _busy
-              ? null
-              : (directory) {
-                  if (directory != null) {
-                    _run(
-                      () async => _show(
-                        await widget.engine.command('select', {
-                          'directory': directory,
-                        }),
-                      ),
-                    );
-                  }
-                },
+                )
+                .toList(),
+            onChanged: _busy
+                ? null
+                : (value) {
+                    if (value != null) {
+                      _action('preferences', {'language': value});
+                    }
+                  },
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(12),
         ),
-      const SizedBox(height: 12),
-      TextButton(
-        onPressed: _busy ? null : () => _action('restore'),
-        child: const Text('Restore Codex appearance'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(text('autostartLabel'))),
+                Switch(
+                  value: _state?.autostart == true,
+                  onChanged: _busy
+                      ? null
+                      : (value) => _action('autostart', {'enabled': value}),
+                ),
+              ],
+            ),
+            Text(
+              text('autostartHint'),
+              style: const TextStyle(color: _muted, fontSize: 10, height: 1.5),
+            ),
+            if (_state?.autostart == true && _state?.autostartLoaded == false)
+              Text(
+                text('autostartUnavailable'),
+                style: const TextStyle(color: Colors.orange),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(text('maskDepth'))),
+                Text(
+                  '${(_mask * 100).round()}%',
+                  style: const TextStyle(color: _accent),
+                ),
+              ],
+            ),
+            Slider(
+              value: _mask,
+              divisions: 100,
+              semanticFormatterCallback: (value) => '${(value * 100).round()}%',
+              onChanged: _busy
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _mask = value;
+                        _maskEdited = true;
+                      });
+                      _maskTimer?.cancel();
+                      if (!_editingMask) {
+                        _maskTimer = Timer(
+                          const Duration(milliseconds: 300),
+                          _saveMask,
+                        );
+                      }
+                    },
+              onChangeStart: _busy
+                  ? null
+                  : (_) {
+                      _editingMask = true;
+                      _maskTimer?.cancel();
+                    },
+              onChangeEnd: _busy
+                  ? null
+                  : (_) {
+                      _editingMask = false;
+                      _saveMask();
+                    },
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: ['light', 'entireWindow', 'dark']
+                  .map(
+                    (key) => Text(
+                      text(key),
+                      style: const TextStyle(fontSize: 10, color: _muted),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      Text(
+        '${text('activeBackground')}: ${_state?.activeName ?? text('notConfigured')}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 11, color: _muted),
+      ),
+      const SizedBox(height: 18),
+      Text(
+        text('privacy'),
+        style: const TextStyle(fontSize: 11, color: _muted),
+      ),
+      ExpansionTile(
+        title: Text(text('savedThemes'), style: const TextStyle(fontSize: 12)),
+        tilePadding: EdgeInsets.zero,
+        children: [
+          TextButton(
+            onPressed: _busy ? null : () => _action('launch'),
+            child: Text(text('launch')),
+          ),
+          TextButton(
+            onPressed: _busy ? null : () => _action('pause'),
+            child: Text(text(_state?.paused == true ? 'resume' : 'pause')),
+          ),
+          TextButton(
+            onPressed: _busy ? null : _save,
+            child: Text(text('saveCurrent')),
+          ),
+          if (_state?.saved.isNotEmpty == true)
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              decoration: InputDecoration(labelText: text('selectSaved')),
+              items: _state!.saved
+                  .map(
+                    (item) => DropdownMenuItem(
+                      value: item['directory'] as String,
+                      child: Text(
+                        item['name'] as String,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: _busy
+                  ? null
+                  : (value) {
+                      if (value != null) {
+                        _action('select', {'directory': value});
+                      }
+                    },
+            ),
+          TextButton(
+            onPressed: _busy ? null : () => _action('restore'),
+            child: Text(text('restore')),
+          ),
+        ],
       ),
     ],
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(32, 24, 32, 20),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+  Widget build(BuildContext context) => DropTarget(
+    enable: !_busy,
+    onDragEntered: (_) => setState(() => _dragging = true),
+    onDragExited: (_) => setState(() => _dragging = false),
+    onDragDone: (details) {
+      setState(() => _dragging = false);
+      if (details.files.length == 1) {
+        _importFile(details.files.single.path);
+      } else {
+        setState(() {
+          _status = 'dropOneFile';
+          _details = text('dropOneFile');
+        });
+      }
+    },
+    child: Scaffold(
+      body: SafeArea(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: _dragging ? _accent : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(28, 16, 28, 10),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
                         'Xskin',
                         style: TextStyle(
-                          fontSize: 30,
+                          fontSize: 27,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Your media. Your workspace.',
-                        style: TextStyle(color: Color(0xff6b7064)),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => showLicensePage(
-                    context: context,
-                    applicationName: 'Xskin',
-                    applicationVersion: _version,
-                  ),
-                  child: const Text(
-                    'WINDOWS / FLUTTER · $_version',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xff75824c),
-                      letterSpacing: 1.3,
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_busy) const LinearProgressIndicator(minHeight: 2),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(32, 8, 32, 28),
-                child: constraints.maxWidth < 850
-                    ? Column(
-                        children: [
-                          _preview(),
-                          const SizedBox(height: 32),
-                          _controls(),
-                        ],
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: _preview()),
-                          const SizedBox(width: 32),
-                          SizedBox(width: 270, child: _controls()),
-                        ],
+                    TextButton(
+                      onPressed: () => showLicensePage(
+                        context: context,
+                        applicationName: 'Xskin',
+                        applicationVersion: _version,
                       ),
+                      child: const Text(
+                        'WINDOWS / FLUTTER · $_version',
+                        style: TextStyle(fontSize: 10, color: _muted),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-            child: Row(
-              children: [
-                Icon(
-                  _busy ? Icons.hourglass_top : Icons.circle,
-                  size: 9,
-                  color: _busy ? Colors.orange : const Color(0xff75824c),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _status,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xff6b7064),
-                    ),
+              if (_busy) const LinearProgressIndicator(minHeight: 2),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(28, 10, 28, 28),
+                    child: constraints.maxWidth < 850
+                        ? Column(
+                            children: [
+                              _preview(),
+                              const SizedBox(height: 28),
+                              _controls(),
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _preview()),
+                              const SizedBox(width: 28),
+                              SizedBox(width: 280, child: _controls()),
+                            ],
+                          ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _busy || _previewBusy
+                          ? Icons.hourglass_top
+                          : Icons.circle,
+                      size: 9,
+                      color: _details == null ? _accent : Colors.orange,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        text(
+                          _previewBusy && !_busy ? 'preparingPreview' : _status,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _details == null ? _muted : Colors.orange,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    FilledButton.icon(
+                      key: const ValueKey('apply-background'),
+                      onPressed: _canApply ? _apply : null,
+                      icon: const Icon(Icons.arrow_forward, size: 16),
+                      label: Text(
+                        text(
+                          _busy && _status == 'operationApplying'
+                              ? 'applyBusy'
+                              : _state?.pending == true
+                              ? 'applyButton'
+                              : _state?.applied == true
+                              ? 'applySuccess'
+                              : 'applyImport',
+                        ),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     ),
   );

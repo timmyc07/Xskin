@@ -22,7 +22,8 @@ if ($Action -eq 'fail') {
   exit 1
 }
 $state = @{name=$request.name; imagePath=$RequestPath; videoPath=$null; bytes=1048576;
-  maskOpacity=0.62; pending=$true; paused=$false; saved=@()}
+  maskOpacity=0.62; pending=$true; paused=$false; saved=@(); activeName='active';
+  applied=$false; autostart=$false; autostartLoaded=$false; language='en'}
 [Console]::Out.WriteLine('XSKIN_RESULT:' + (@{ok=$true; state=$state} | ConvertTo-Json -Depth 5 -Compress))
 ''');
     try {

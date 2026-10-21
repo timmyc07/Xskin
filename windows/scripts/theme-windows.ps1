@@ -97,7 +97,7 @@ function Assert-DreamSkinVideoFile {
     -not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { throw 'Select an existing MP4 file.' }
   $node = Get-DreamSkinNodeRuntime
   $result = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
-    (Join-Path $PSScriptRoot 'video-file.mjs'), $fullPath)
+    (Join-Path $PSScriptRoot 'video-file.mjs'), $fullPath, '--check-header')
   if ($result.ExitCode -ne 0) { throw ($result.Output -join "`n") }
 }
 
@@ -292,8 +292,7 @@ function Set-DreamSkinActiveTheme {
       id = 'custom'
       name = '自定义主题'
       appearance = 'auto'
-      art = [pscustomobject]@{ focusX = $null; focusY = $null; safeArea = 'auto'; taskMode = 'auto' }
-      palette = [pscustomobject]@{}
+      art = [pscustomobject]@{ safeArea = 'auto'; taskMode = 'auto' }
     }
   }
   $imageName = New-DreamSkinThemeImageName -Extension $extension
@@ -322,10 +321,7 @@ function Set-DreamSkinActiveTheme {
     if (-not $Theme.appearance) { $Theme | Add-Member -NotePropertyName appearance -NotePropertyValue 'auto' -Force }
     if (-not $Theme.art) {
       $Theme | Add-Member -NotePropertyName art -NotePropertyValue `
-        ([pscustomobject]@{ focusX = $null; focusY = $null; safeArea = 'auto'; taskMode = 'auto' }) -Force
-    }
-    if (-not $Theme.palette) {
-      $Theme | Add-Member -NotePropertyName palette -NotePropertyValue ([pscustomobject]@{}) -Force
+        ([pscustomobject]@{ safeArea = 'auto'; taskMode = 'auto' }) -Force
     }
     Write-DreamSkinTheme -ThemeDirectory $paths.Active -Theme $Theme
   } finally {
