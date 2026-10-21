@@ -394,6 +394,7 @@ async function loadTheme(themeDir) {
     videoBytes = await readVideo(videoPath);
     if (videoStamp(await fs.lstat(videoPath)) !== videoStamp(stat)) throw new Error("Video changed while being read");
     theme.videoKey = createHash("sha256").update(videoBytes).digest("hex");
+    theme.videoBytes = videoBytes.length;
     videoSource = { path: videoPath, stamp: videoStamp(stat), key: theme.videoKey };
   }
   const fingerprint = createHash("sha256")
@@ -546,7 +547,10 @@ export async function attachVideoToSession(session, source) {
       awaitPromise: true,
       returnByValue: true,
     });
-    if (result.exceptionDetails || result.result?.value !== true) throw new Error("Renderer rejected the video file");
+    if (result.exceptionDetails || result.result?.value !== true) {
+      const detail = result.exceptionDetails?.exception?.description ?? result.exceptionDetails?.text;
+      throw new Error(`Renderer rejected the video file${detail ? `: ${detail}` : ""}`);
+    }
   } finally {
     await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
   }

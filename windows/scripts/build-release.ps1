@@ -35,7 +35,7 @@ $redistributables = Get-ChildItem -LiteralPath (Join-Path $studio 'VC\Redist\MSV
 $crt = Join-Path $redistributables[0].FullName 'x64\Microsoft.VC143.CRT'
 if (-not (Test-Path -LiteralPath $crt)) { throw 'The x64 Visual C++ redistributable is required for the portable package.' }
 Copy-Item -Path (Join-Path $crt '*.dll') -Destination $package
-foreach ($name in @('scripts','assets','README.md','README.en.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','VERSION','Install Xskin.cmd')) {
+foreach ($name in @('scripts','assets','references','README.md','README.en.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','VERSION','Install Xskin.cmd')) {
   Copy-Item -LiteralPath (Join-Path $root $name) -Destination $package -Recurse
 }
 . (Join-Path $root 'scripts\common-windows.ps1')

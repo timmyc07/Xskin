@@ -31,6 +31,7 @@ try {
   await fs.writeFile(metadata, JSON.stringify(theme));
   const loaded = await loadPayload(temporary);
   assert.equal(loaded.theme.maskOpacity, 0.62);
+  assert.equal(loaded.theme.videoBytes, mp4.length, "The Mac renderer requires the original file length during handoff.");
   assert.ok(loaded.payload.includes("中文 $& theme"), "Replacement preserves literal dollar substitution sequences.");
   assert.ok(!loaded.payload.includes("data:video/"), "Videos never expand the CDP injection payload.");
   const calls = [];
@@ -43,6 +44,11 @@ try {
   await attachVideoToSession(session, loaded.videoSource);
   assert.deepEqual(calls.map(x => x.method), ["Runtime.evaluate", "DOM.setFileInputFiles", "Runtime.callFunctionOn", "Runtime.releaseObject"]);
   assert.deepEqual(calls[1].params.files, [await fs.realpath(video)]);
+  await assert.rejects(attachVideoToSession({ send: async (method) => {
+    if (method === 'Runtime.evaluate') return { result: { objectId: 'file-input' } };
+    if (method === 'Runtime.callFunctionOn') return { exceptionDetails: { exception: { description: 'Video file does not match the selected theme' } } };
+    return {};
+  } }, loaded.videoSource), /does not match the selected theme/, 'Keep the real renderer error in diagnostics.');
   const failingCalls = [];
   await assert.rejects(attachVideoToSession({ send: async (method) => {
     failingCalls.push(method);

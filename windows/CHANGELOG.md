@@ -7,6 +7,7 @@
 - Import MP4 directly without waiting for a screenshot or PNG conversion. Normalize common image formats through Windows Imaging Component to JPEG, up to 4096px, with the same 50 MiB source and 50MP limits. HEIC/HEIF and WebP use the installed Windows codecs.
 - Add the Windows equivalent of the Mac direct-launch entry: managed Desktop/Start shortcuts named Codex (Xskin), with ownership checks and automatic apply while the panel is closed. Pause/Restore disable these entries; original Codex shortcuts and binaries remain intact.
 - Bundle Node.js and its license, use a managed engine for Apply, preserve settings across imports, and clean completed/replaced drafts. Test the real 4K pending video in the full Flutter import/playback flow.
+- Supply the original video length required by the Mac renderer's file validation, and preserve renderer errors in the handoff log. The missing length prevented the first live video handoff despite a healthy Flutter preview.
 
 ## Xskin Windows 1.0.2 — 2026-10-21
 
