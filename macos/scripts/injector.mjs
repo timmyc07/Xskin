@@ -5,11 +5,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readImageMetadata } from "./image-metadata.mjs";
 import { readVideo, validateVideoName } from "./video-file.mjs";
+import { setTimeout as delay } from "node:timers/promises";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.4.0";
+const SKIN_VERSION = "1.5.0";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
@@ -22,6 +23,7 @@ function parseArgs(argv) {
     timeoutMs: 30000,
     screenshot: null,
     reload: false,
+    prepareFirstFrame: false,
     themeDir: null,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -36,6 +38,7 @@ function parseArgs(argv) {
     else if (arg === "--screenshot") options.screenshot = path.resolve(argv[++i]);
     else if (arg === "--theme-dir") options.themeDir = path.resolve(argv[++i]);
     else if (arg === "--reload") options.reload = true;
+    else if (arg === "--prepare-first-frame") options.prepareFirstFrame = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
   if (!Number.isInteger(options.port) || options.port < 1024 || options.port > 65535) {
@@ -189,8 +192,11 @@ class CdpSession {
   }
 }
 
-async function listAppTargets(port) {
+async function listAppTargets(port, signal) {
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  else signal?.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(() => controller.abort(), 2000);
   try {
     const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
@@ -203,6 +209,7 @@ async function listAppTargets(port) {
     return targets.filter((item) => isValidCdpPageTarget(item, port));
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
 }
 
@@ -630,6 +637,11 @@ async function verifySession(session) {
       video: window.__CODEX_DREAM_SKIN_STATE__?.videoStatus?.() ?? null,
       wallpaperLayout: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.wallpaper),
       wallpaperMask,
+      startupFrames: {
+        maskReadyAt: window.__CODEX_DREAM_SKIN_STATE__?.metrics?.maskReadyAt ?? null,
+        videoFrameReadyAt: window.__CODEX_DREAM_SKIN_STATE__?.metrics?.videoFrameReadyAt ?? null,
+        documentHidden: document.hidden,
+      },
       videoBox: box(videoElement),
       videoPointerEvents: videoElement ? getComputedStyle(videoElement).pointerEvents : null,
       chromePresent: Boolean(chrome),
@@ -671,7 +683,7 @@ async function verifySession(session) {
   })()`);
 }
 
-export async function waitForVerifiedSession(session, timeoutMs, expectedTheme) {
+export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, prepareFirstFrame = false) {
   const deadline = Date.now() + timeoutMs;
   let lastResult;
   let previousVideoTime = null;
@@ -682,6 +694,9 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme) 
       && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
+    if (prepareFirstFrame && expectedTheme.video) {
+      lastResult.pass &&= lastResult.video?.decoded === true;
+    }
     if (lastResult.wallpaperLayout) {
       lastResult.maskMatches = Math.abs(lastResult.wallpaperMask.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005;
       lastResult.pass &&= lastResult.maskMatches;
@@ -748,7 +763,7 @@ async function runOneShot(options) {
 
       const result = options.mode === "remove"
         ? await verifyRemovedSession(session)
-        : await waitForVerifiedSession(session, options.timeoutMs, loaded.theme);
+        : await waitForVerifiedSession(session, options.timeoutMs, loaded.theme, options.prepareFirstFrame);
       results.push({ targetId: target.id, title: target.title, url: target.url, probe, result });
 
       if (options.screenshot && !screenshotCaptured) {
@@ -791,9 +806,9 @@ export function earlyPayloadFor(payload, revision) {
       return true;
     };
     if (install()) return;
-    if (typeof MutationObserver === "function" && document.documentElement) {
+    if (typeof MutationObserver === "function") {
       observer = new MutationObserver(install);
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      observer.observe(document.documentElement ?? document, { childList: true, subtree: true });
     }
     timeout = setTimeout(stop, 10000);
   })()`;
@@ -846,7 +861,11 @@ async function runWatch(options) {
   let discoveryDelayMs = 100;
   let outageStartedAt = null;
   let lastListErrorAt = 0;
-  const stop = () => { stopping = true; };
+  const discovery = new AbortController();
+  const pause = (ms) => delay(ms, undefined, { signal: discovery.signal }).catch((error) => {
+    if (!discovery.signal.aborted) throw error;
+  });
+  const stop = () => { stopping = true; discovery.abort(); };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
@@ -866,9 +885,11 @@ async function runWatch(options) {
 
   const refreshPayload = async () => {
     const next = await loadPayload(options.themeDir);
+    if (stopping) return;
     if (next.revision === current.revision) return;
     current = next;
     for (const record of sessions.values()) {
+      if (stopping) break;
       const { session } = record;
       if (session.closed) continue;
       try {
@@ -880,6 +901,7 @@ async function runWatch(options) {
         }
         record.earlyScriptId = nextIdentifier;
         record.needsLoadFallback = !nextIdentifier;
+        if (stopping) break;
         await applyToSession(session, current);
       } catch (error) {
         record.needsLoadFallback = true;
@@ -890,6 +912,7 @@ async function runWatch(options) {
   };
 
   const queuePayloadRefresh = ({ staticChanged = false } = {}) => {
+    if (stopping) return;
     if (staticChanged) invalidateStaticPayloadAssets();
     if (reloadTimer) clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {
@@ -905,19 +928,21 @@ async function runWatch(options) {
     while (!stopping) {
       let targets = [];
       try {
-        targets = await listAppTargets(options.port);
+        targets = await listAppTargets(options.port, discovery.signal);
         discoveryDelayMs = 100;
         outageStartedAt = null;
       } catch (error) {
+        if (stopping) break;
         outageStartedAt ??= Date.now();
         if (Date.now() - lastListErrorAt >= discoveryLogIntervalMs(discoveryDelayMs)) {
           console.error(`[dream-skin] ${new Date().toISOString()} ${error.message}`);
           lastListErrorAt = Date.now();
         }
-        await new Promise((resolve) => setTimeout(resolve, discoveryDelayMs));
+        await pause(discoveryDelayMs);
         discoveryDelayMs = nextDiscoveryDelayMs(discoveryDelayMs, Date.now() - outageStartedAt);
         continue;
       }
+      if (stopping) break;
 
       const activeIds = new Set(targets.map((target) => target.id));
       for (const [id, record] of sessions) {
@@ -928,20 +953,24 @@ async function runWatch(options) {
       }
 
       for (const target of targets) {
+        if (stopping) break;
         if (sessions.has(target.id)) continue;
         let session;
         let record;
         try {
           session = await connectTarget(target, options.port);
+          if (stopping) { session.close(); break; }
           record = { session, earlyScriptId: null, needsLoadFallback: false };
           try {
             record.earlyScriptId = await registerEarly(session, current.payload, current.revision);
-            await session.evaluate(earlyPayloadFor(current.payload, current.revision));
+            if (!stopping) await session.evaluate(earlyPayloadFor(current.payload, current.revision));
           } catch (error) {
             record.needsLoadFallback = true;
             console.error(`[dream-skin] early injection unavailable: ${error.message}`);
           }
+          if (stopping) { await removeEarly(record); session.close(); break; }
           const probe = await waitForCodexProbe(session);
+          if (stopping) { await removeEarly(record); session.close(); break; }
           if (!probe?.codex) {
             await removeEarly(record);
             session.close();
@@ -953,8 +982,10 @@ async function runWatch(options) {
           }
           rejected.delete(target.id);
           session.on("Page.loadEventFired", () => {
+            if (stopping) return;
             if (!record.needsLoadFallback && !current.videoSource) return;
             setTimeout(() => (async () => {
+              if (stopping) return;
               if (!(await waitForCodexProbe(session))?.codex) return;
               if (record.needsLoadFallback) await applyToSession(session, current);
               else await attachVideoToSession(session, current.videoSource);
@@ -965,6 +996,7 @@ async function runWatch(options) {
           const earlyApplied = await session.evaluate(
             `window.__CODEX_DREAM_SKIN_EARLY_APPLIED__ === ${JSON.stringify(current.revision)}`,
           );
+          if (stopping) { await removeEarly(record); session.close(); break; }
           if (!earlyApplied) {
             await session.evaluate(
               `window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = ${JSON.stringify(`fallback:${current.revision}`)}`,
@@ -982,9 +1014,10 @@ async function runWatch(options) {
         }
       }
       const pollDelay = sessions.size ? 800 : (targets.length ? 250 : 100);
-      await new Promise((resolve) => setTimeout(resolve, pollDelay));
+      await pause(pollDelay);
     }
   } finally {
+    discovery.abort();
     if (reloadTimer) clearTimeout(reloadTimer);
     closePayloadWatchers();
     await reloadChain.catch(() => {});

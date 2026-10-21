@@ -28,7 +28,7 @@ INJECTOR_JOB_LABEL="com.openai.codex-dream-skin-studio.injector"
 AUTOSTART_JOB_LABEL="com.openai.codex-dream-skin-studio.autostart"
 AUTOSTART_AGENT_PATH="$HOME/Library/LaunchAgents/$AUTOSTART_JOB_LABEL.plist"
 EXPECTED_CODEX_TEAM_ID="${CODEX_EXPECTED_TEAM_ID:-2DC432GLL2}"
-SKIN_VERSION="1.4.0"
+SKIN_VERSION="1.5.0"
 
 fail() {
   local message="$*"
@@ -179,6 +179,13 @@ process_started_at() {
   /bin/ps -p "$1" -o lstart= 2>/dev/null | /usr/bin/awk '{$1=$1; print}'
 }
 
+process_is_live() {
+  local state
+  /bin/kill -0 "$1" 2>/dev/null || return 1
+  state="$(/bin/ps -p "$1" -o stat= 2>/dev/null | /usr/bin/awk '{$1=$1; print}')"
+  case "$state" in Z*) return 1 ;; *) return 0 ;; esac
+}
+
 recorded_injector_process_matches() {
   local pid="$1"
   local expected_start="${2:-}"
@@ -198,7 +205,7 @@ recorded_injector_process_matches() {
   case "$expected_port" in
     ''|*[!0-9]*) return 1 ;;
   esac
-  /bin/kill -0 "$pid" 2>/dev/null || return 1
+  process_is_live "$pid" || return 1
   command_line="$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)"
   [ -n "$command_line" ] || return 1
   command_lower="$(printf '%s' "$command_line" | /usr/bin/tr '[:upper:]' '[:lower:]')"
@@ -242,17 +249,6 @@ stop_codex() {
   /bin/sleep 0.5
   codex_is_running && fail "Codex could not be stopped safely."
   return 0
-}
-
-new_codex_launch_matches() {
-  local pid="$1"
-  local elapsed command_path
-  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
-  [ "$(codex_main_pids)" = "$pid" ] || return 1
-  command_path="$(/bin/ps -p "$pid" -o comm= 2>/dev/null || true)"
-  [ "$command_path" = "$CODEX_EXE" ] || return 1
-  elapsed="$(/bin/ps -p "$pid" -o etime= 2>/dev/null | /usr/bin/awk '{$1=$1; print}')"
-  case "$elapsed" in 00:0[0-9]|00:1[0-4]) return 0 ;; *) return 1 ;; esac
 }
 
 listener_pids() {
@@ -408,6 +404,7 @@ stop_recorded_injector() {
   local saved_start
   local saved_node
   local saved_injector
+  local stop_wait=6
   if ! pid="$(state_field injectorPid 2>/dev/null)" || [ -z "${pid:-}" ]; then
     printf 'Dream Skin state is damaged or missing its injector PID; state was preserved.\n' >&2
     return 1
@@ -451,7 +448,7 @@ stop_recorded_injector() {
     printf 'Recorded Dream Skin injector identity is incomplete; state was preserved.\n' >&2
     return 1
   fi
-  /bin/kill -0 "$pid" 2>/dev/null || {
+  process_is_live "$pid" || {
     /bin/launchctl remove "$INJECTOR_JOB_LABEL" >/dev/null 2>&1 || true
     return 0
   }
@@ -459,17 +456,33 @@ stop_recorded_injector() {
     # The process may have exited between the initial kill -0 probe and the
     # identity check. A dead (or already reaped) recorded PID is safe to
     # forget; a live PID with mismatched identity is never signalled.
-    if ! /bin/kill -0 "$pid" 2>/dev/null || [ -z "$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)" ]; then
+    if ! process_is_live "$pid"; then
       /bin/launchctl remove "$INJECTOR_JOB_LABEL" >/dev/null 2>&1 || true
       return 0
     fi
     printf 'Recorded injector PID %s is live but its identity does not match; refusing to signal it.\n' "$pid" >&2
     return 1
   fi
+  local owner_pid owner_exe owner_command
+  owner_pid="$(state_field codexPid 2>/dev/null || true)"
+  owner_exe="$(state_field codexExe 2>/dev/null || true)"
+  case "$owner_pid" in
+    ''|0|*[!0-9]*) ;;
+    *)
+      owner_command="$(/bin/ps -p "$owner_pid" -o comm= 2>/dev/null || true)"
+      if [ -n "${CODEX_EXE:-}" ] && [ "$owner_exe" = "$CODEX_EXE" ] \
+        && { ! process_is_live "$owner_pid" || { [ -n "$owner_command" ] && [ "$owner_command" != "$owner_exe" ]; }; } \
+        && ! port_belongs_to_codex "$saved_port"; then
+        # Its renderer is gone, so no live early registration needs an ACK.
+        stop_wait=0
+      fi
+      ;;
+  esac
   /bin/launchctl remove "$INJECTOR_JOB_LABEL" >/dev/null 2>&1 || true
   /bin/kill -TERM "$pid" 2>/dev/null || true
-  local deadline=$((SECONDS + 6))
-  while /bin/kill -0 "$pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do /bin/sleep 0.2; done
+  local deadline=$((SECONDS + stop_wait))
+  while recorded_injector_process_matches "$pid" "$saved_start" "$saved_node" "$saved_injector" "$saved_port" \
+    && [ "$SECONDS" -lt "$deadline" ]; do /bin/sleep 0.1; done
   if recorded_injector_process_matches "$pid" "$saved_start" "$saved_node" "$saved_injector" "$saved_port"; then
     /bin/kill -KILL "$pid" 2>/dev/null || true
   fi
@@ -610,22 +623,18 @@ launch_codex_with_cdp() {
   : > "$APP_LOG"
   : > "$APP_ERROR_LOG"
   release_codex_launchd_job
-  # Start as a normal user process (NOT launchctl submit). submit keeps a job
-  # that will restart Codex when the window is closed.
+  # A successful LaunchServices request can precede PID visibility; wait_for_cdp owns readiness.
   /usr/bin/open -na "$CODEX_BUNDLE" --args \
     --remote-debugging-address=127.0.0.1 \
     --remote-debugging-port="$port" \
-    >>"$APP_LOG" 2>>"$APP_ERROR_LOG" || true
-  # Fallback if open failed to pass args on some builds
-  if ! codex_is_running; then
-    /usr/bin/nohup "$CODEX_EXE" \
-      --remote-debugging-address=127.0.0.1 \
-      --remote-debugging-port="$port" \
-      >>"$APP_LOG" 2>>"$APP_ERROR_LOG" &
-  fi
+    >>"$APP_LOG" 2>>"$APP_ERROR_LOG"
 }
 
 launch_codex_normally() {
   release_codex_launchd_job
   /usr/bin/open -na "$CODEX_BUNDLE"
+}
+
+activate_codex() {
+  /usr/bin/open -a "$CODEX_BUNDLE"
 }

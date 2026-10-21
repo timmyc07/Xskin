@@ -50,6 +50,7 @@ fi
 "$NODE" "$ROOT/tests/video-theme.test.mjs"
 "$NODE" "$ROOT/tests/background-studio.test.mjs"
 /bin/bash "$ROOT/tests/autostart.test.sh"
+/bin/bash "$ROOT/tests/native-code.test.sh"
 
 # Every bundled preset must be a valid, injectable theme pack with a preset-* id.
 for preset in "$ROOT"/presets/preset-*/; do
@@ -428,7 +429,9 @@ WATCH_PID=""
 # A failed start must prove the recorded watcher stopped before deleting its
 # state; this static guard prevents the old launchctl-short-circuit cleanup.
 /usr/bin/grep -F -q 'set -Eeuo pipefail' "$ROOT/scripts/start-dream-skin-macos.sh"
-/usr/bin/grep -F -q 'if "$NODE" "$INJECTOR" --verify' \
+/usr/bin/grep -F -q 'verify_args=(--verify --port "$PORT" --theme-dir "$THEME_DIR"' \
+  "$ROOT/scripts/start-dream-skin-macos.sh"
+/usr/bin/grep -F -q 'if "$NODE" "$INJECTOR" "${verify_args[@]}"' \
   "$ROOT/scripts/start-dream-skin-macos.sh"
 if /usr/bin/grep -F -q 'set +e' "$ROOT/scripts/start-dream-skin-macos.sh"; then
   printf 'start script still disables errexit around expected verify retries.\n' >&2
@@ -791,7 +794,7 @@ CRLF_BACKUP="$TMP/config-crlf-backup.json"
 "$NODE" "$ROOT/scripts/theme-config.mjs" restore "$CRLF_CONFIG" "$CRLF_BACKUP" >/dev/null
 /usr/bin/cmp -s "$CRLF_CONFIG" "$TMP/original-crlf.toml"
 
-/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.4.0" ]' _ "$ROOT"
+/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.5.0" ]' _ "$ROOT"
 "$ROOT/scripts/doctor-macos.sh" >/dev/null
 
 printf 'PASS: syntax, payload, bundled presets, preset seeding, runtime-state safety, custom-theme, config round-trips, HOME recovery, signature, and doctor checks.\n'

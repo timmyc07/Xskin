@@ -23,11 +23,19 @@ APP="$TEMPORARY/$APP_NAME.app"
 PREVIOUS="$TEMPORARY/previous.app"
 trap '/bin/rm -rf "$TEMPORARY"' EXIT
 /bin/mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/runtime"
+/bin/mkdir -p "$PROJECT_ROOT/bin"
+/usr/bin/xcrun swiftc -parse-as-library -O \
+  -target "$(/usr/bin/uname -m)-apple-macos13.0" \
+  -module-cache-path "$TEMPORARY/module-cache" -framework AppKit \
+  "$PROJECT_ROOT/native/DirectLauncher.swift" "$PROJECT_ROOT/native/Localization.swift" \
+  -o "$TEMPORARY/CodexLauncher"
+/usr/bin/codesign --force --sign - --timestamp=none "$TEMPORARY/CodexLauncher" >&2
+/bin/mv "$TEMPORARY/CodexLauncher" "$PROJECT_ROOT/bin/CodexLauncher"
 /usr/bin/xcrun swiftc -parse-as-library -O \
   -target "$(/usr/bin/uname -m)-apple-macos13.0" \
   -module-cache-path "$TEMPORARY/module-cache" \
   -framework SwiftUI -framework AppKit -framework AVKit -framework AVFoundation \
-  "$SOURCE" -o "$APP/Contents/MacOS/Xskin"
+  "$SOURCE" "$PROJECT_ROOT/native/Localization.swift" -o "$APP/Contents/MacOS/Xskin"
 
 PLIST="$APP/Contents/Info.plist"
 /usr/bin/plutil -create xml1 "$PLIST"

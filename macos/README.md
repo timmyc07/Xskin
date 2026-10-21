@@ -1,6 +1,20 @@
-# macOS video edition
+# Xskin for macOS
 
-This fork adds local or HTTPS MP4 video backgrounds to the Skill, using the existing macOS runtime pinned by Codex-Dream-Skin-Themes. The `macos/` directory is a self-contained `codex-dream-skin` Skill.
+Xskin is a native macOS app for importing, previewing, and applying local images and original 4K MP4 backgrounds to official Codex Desktop. The `macos/` directory includes the native app source and the self-contained `codex-dream-skin` background engine.
+
+## Native app
+
+[Download Xskin 1.5.0](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires macOS 13 or later, Apple Silicon, and official Codex Desktop; no separate Node.js or Xcode installation is needed. The release uses an ad-hoc signature and is not Apple Developer ID notarized.
+
+Use the system file picker or drag a local image or MP4 into the app, inspect its native preview, and apply when ready. The mask-depth slider updates all surfaces together (0–100%, default 62%); release it to apply, or adjust it with the keyboard. Mask depth, pending imports, and your language preference persist locally. English is the default interface, with Traditional Chinese, Simplified Chinese, and Japanese available in the app.
+
+Enable **Apply on Codex launch** once, then use the Codex Dock shortcut Xskin prepares. It enables the background connection on the first launch and applies the media and full-window mask as the workspace loads. It does not quit and relaunch Codex. Xskin does not need to remain open. Disabling the option restores the original Dock entry.
+
+The Dock shortcut points to a separate managed entry at `~/Applications/Codex (Xskin).app`; it does not modify the official app bundle or signature. Opening the original official `.app` path directly leaves it running without an automatic background; use the managed Dock entry for background-enabled launches. A cold start still needs application loading and media decoding; no fixed startup time is guaranteed.
+
+See the [product README](../README.md) and [native app user guide](../docs/background-panel.md) for current features, formats, installation, and startup limitations. The sections below document the advanced engine and retained command-line workflows.
+
+## Advanced video backgrounds
 
 - MP4 up to 256 MiB; H.264/AVC recommended. Playback is muted, looping, and non-interactive.
 - Hidden documents and reduced-motion preferences pause decoding and show the static background.
@@ -12,9 +26,9 @@ This fork adds local or HTTPS MP4 video backgrounds to the Skill, using the exis
 
 Video behavior references the community proposal [Fei-Away/Codex-Dream-Skin#240](https://github.com/Fei-Away/Codex-Dream-Skin/issues/240). The one-click wrapper comes from [aithink001/Codex-Dream-Skin-Themes](https://github.com/aithink001/Codex-Dream-Skin-Themes), MIT licensed; its license is included in `NOTICE.md`.
 
-# Codex Dream Skin Studio
+## Background engine
 
-Unofficial macOS theme studio for the **official Codex Desktop** app.
+The external theme engine supports the **official Codex Desktop** app.
 
 Turn an image you like into one continuous full-window Codex theme. The same wallpaper runs beneath the native sidebar and main surface, while route-aware translucency keeps home, task, plugin, scheduled-task, and pull-request controls fully interactive and readable.
 
@@ -89,7 +103,7 @@ CDP is powerful and unauthenticated on loopback. Prefer Restore when you are don
 ## Bundled presets
 
 A fresh install seeds one tested featured preset plus five procedural abstract
-presets into your theme library. **桥本有菜 / Arina Hashimoto** is highlighted
+presets into your theme library. **Arina Hashimoto** is highlighted
 first here:
 
 ```bash
@@ -107,8 +121,8 @@ background. The artwork is a user-provided AI-generated example, not an
 official OpenAI/Codex visual or endorsement; confirm likeness and asset rights
 before redistributing it.
 
-The other five presets — **午夜极光 / 樱粉晨曦 / 琥珀黄昏 / 森野薄雾 /
-赛博霓虹** — are generated procedurally (pure Node + zlib, no photos, no
+The other five presets — **Midnight Aurora / Sakura Dawn / Amber Dusk / Forest Mist /
+Cyber Neon** — are generated procedurally (pure Node + zlib, no photos, no
 third-party art or likeness) by `presets/generate-presets.mjs`. Apply one
 directly, for example:
 
@@ -117,7 +131,7 @@ directly, for example:
 ```
 
 Seeding is idempotent and only manages `preset-*` packs — your own `custom-*`
-themes from “换一张图” are never touched. If no active theme exists yet, install
+themes created by importing a new image are never touched. If no active theme exists yet, install
 starts from the neutral **Midnight Aurora** preset; it never overwrites an
 existing active theme.
 
@@ -211,20 +225,6 @@ MIT — see `LICENSE`. Additional notices in `NOTICE.md` cover trademarks,
 runtime Node, user-provided artwork, third-party rights, and assets that are not
 licensed under the software license.
 
-## Sponsors
-
-Thanks to **[passion8.cc](https://passion8.cc/register?aff=TuPe)** for sponsoring this project.
-
-<p align="center">
-  <a href="https://passion8.cc/register?aff=TuPe">
-    <img src="../docs/images/sponsor-passion8.png" alt="Passion8" height="96">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://passion8.cc/register?aff=TuPe"><strong>Passion8｜感谢 passion8.cc 赞助本项目</strong></a><br>
-  AI API 中转站，支持 Codex / Claude Code / Grok 等工具接入。主题与 API 配置互相独立。
-</p>
 
 ## What this is not
 
@@ -232,5 +232,3 @@ Thanks to **[passion8.cc](https://passion8.cc/register?aff=TuPe)** for sponsorin
 - Not a way to patch or rebrand the official binary
 - Not a Windows build (see `../windows/`)
 - Not an API proxy: theming does not change model providers or API keys
-
-If you use a third-party API relay, configure it separately — keep theme install and API config as two explicit steps.

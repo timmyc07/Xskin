@@ -157,9 +157,9 @@ bash scripts/dream-skin-macos.sh autostart enable
 bash scripts/dream-skin-macos.sh autostart status
 ```
 
-A user LaunchAgent starts at login and waits for a new normal Codex process. It gracefully reopens that new process once with the existing theme, including the original 4K video. Explain that this handoff can briefly flash the window. It never patches the official application, never launches Codex merely because the user logged in or quit the app, skips windows already open when the service starts, and does not force-close a process that refuses to quit. Failed launches are not repeatedly retried.
+Enabling automatic startup creates a separate managed entry at `~/Applications/Codex (Xskin).app` and connects the Codex Dock shortcut to it. Explain this reversible Dock change unless the user has already authorized it. That entry enables the background connection on the first launch and applies the existing theme, including original 4K video, as the workspace loads. Xskin does not need to remain open. Never automatically quit and reopen a detected normal process. Opening the original official app directly leaves it running without an automatic background; use the managed Dock entry for background-enabled launches. Cold startup still requires application loading and media decoding.
 
-The service is stored at `~/Library/LaunchAgents/com.openai.codex-dream-skin-studio.autostart.plist`; its logs are in the normal Dream Skin state folder. The menu bar toggle controls the same service. `autostart disable` leaves the current theme playing but stops automatic application on future launches. Pause and Restore also disable the service, and runtime updates retain an enabled service.
+The service is stored at `~/Library/LaunchAgents/com.openai.codex-dream-skin-studio.autostart.plist`; it cleans up the old injector after Codex quits and never opens Codex merely because the user logged in or quit. The menu bar toggle controls the same service. `autostart disable` restores the original Dock shortcut and leaves the current theme playing. Pause and Restore also disable the service, and runtime updates retain an enabled service.
 
 ### Start, status, pause, and menu bar
 

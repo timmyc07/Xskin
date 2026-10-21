@@ -2,98 +2,107 @@
 
 # Xskin
 
-### 讓 Codex 成為你的工作風景。
+### Make Codex feel like your workspace.
 
-把喜歡的圖片與原始 4K 影片，變成每天打開 Codex 時的背景。<br>
-原生 macOS 體驗，從匯入、預覽到套用，在一個精簡視窗裡完成。
+Bring your favorite images and original 4K videos into Codex.<br>
+Import, preview, and apply from one focused, native macOS app.
 
-[![Version](https://img.shields.io/badge/version-1.4.0-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.4.0)
+[![Version](https://img.shields.io/badge/version-1.5.0-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[下載 Xskin 1.4.0](https://github.com/timmyc07/Xskin/releases/tag/v1.4.0)** · [使用指南](docs/background-panel.md) · [English](README.en.md) · [回報問題](https://github.com/timmyc07/Xskin/issues)
+**[Download Xskin 1.5.0](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0)** · [User guide](docs/background-panel.md) · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+
+English by default · Traditional Chinese · Simplified Chinese · Japanese
 
 </div>
 
-![Xskin 原生 macOS 應用程式](docs/images/xskin.png)
+![Xskin native macOS application](docs/images/xskin.png)
 
-## 喜歡的畫面，值得保留原貌
+## Your media. Your atmosphere.
 
-Xskin 為想要個人化工作空間的 Codex 使用者而設計。選一張安靜的照片，或一段富有層次的動態風景；保留熟悉的對話與工作流程，讓背景成為日常的一部分。
+A quiet photograph. A moving landscape. A workspace that feels a little more like you. Xskin brings your chosen media into Codex while keeping the familiar conversations, projects, and controls at the center of your work.
 
-| 你的素材，你的風格 | 看清楚，再套用 | 原生而精簡 | 為日常使用而設計 |
+| Choose your scene | See it before you apply | Feel at home on macOS | Keep your setup |
 | --- | --- | --- | --- |
-| 匯入本機圖片與 MP4，支援原始 4K 影片。 | 原生媒體預覽、解析度與檔案大小，確認後再變更背景。 | 獨立 macOS App，使用系統選檔、拖放與播放控制。 | 記住目前背景與未套用素材，支援正常開啟 Codex 時自動套用。 |
+| Import local images and MP4s, including original 4K video. | Check the composition, resolution, and file size in a native preview. | Use system file selection, drag and drop, and native playback controls. | Keep your background, mask depth, pending import, and language preference locally. |
 
-## 從素材到背景，只要三步
+## From media to workspace in three steps
 
-1. **匯入** — 按「選擇檔案」，或直接將圖片、MP4 拖入 Xskin。
-2. **預覽** — 檢視構圖、解析度與檔案資訊；影片可透過原生控制播放。匯入不會改變目前背景。
-3. **套用** — 按「套用這個背景」。Xskin 會檢查實際套用結果，失敗時還原原有設定，保留素材供你重試。
+1. **Import** an image or MP4 with the file picker, or drag one into Xskin.
+2. **Preview** the composition and media details. Video starts paused; use the native controls to play it. Importing does not replace the current background.
+3. **Apply** when you are ready. Xskin checks the result, restores the previous configuration if applying fails, and retains the import for retry.
 
-下載後解壓，將 **Xskin.app** 移至「應用程式」並開啟。預編譯版本不需要另外安裝 Node.js、套件管理器或 Xcode。
+Download and extract the app, move **Xskin.app** to Applications, and open it. The prebuilt app requires no separate Node.js installation, package manager, or Xcode.
 
-> v1.4.0 使用本機 ad-hoc 簽章，尚未通過 Apple Developer ID 公證。macOS 可能顯示來源驗證提示；請先確認下載自本專案的 Release，並參閱 [使用指南](docs/background-panel.md)。
+> v1.5.0 uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Download from this project's Release page and review the [user guide](docs/background-panel.md).
 
-## 細節，為你的工作留出空間
+## Details that make room for your work
 
-### 4K 保留原始品質
+### Keep 4K in its original form
 
-MP4 直接保留原始檔案內容，不重新編碼，也不降成 1080p。解析度與幀率維持原樣；你的來源是 4K，套用的就是同一份 4K 素材。
+MP4 files retain their original bytes, resolution, and frame rate. There is no re-encoding or forced conversion to 1080p. If your source is 4K, Xskin uses that same 4K media.
 
-### 有氛圍，也有閱讀層次
+### Set the balance between atmosphere and readability
 
-影片以靜音循環方式成為 Codex 背景。全版黑色遮罩與透明側欄讓畫面連貫，也為文字與控制項保留對比。原生對話、專案與輸入功能仍可正常操作。
+Muted, looping video, a full-window black mask, and a transparent sidebar create one continuous background. Codex conversations, projects, and input controls remain interactive.
 
-透過「遮罩深度」滑桿，一次調整全部區塊的遮罩，範圍 0–100%，預設 62%。拖動時同步預覽，放開後自動套用；使用鍵盤調整也會套用，設定保留至下次開啟。遮罩只改變顯示效果，不修改圖片或影片內容，原始畫質照樣保留。
+One **mask-depth slider** adjusts all surfaces together from **0–100%**, with a **62% default**. The preview updates while dragging; release the slider to apply automatically. Keyboard adjustments also apply, and the value persists locally. The mask changes the visual overlay without modifying the image or video.
 
-### 預覽與背景，各有節奏
+### Use the language that works for you
 
-影片預覽預設暫停，需要時再播放。背景在視窗隱藏或系統啟用「減少動態效果」時暫停播放，減少不需要的持續運作。
+Xskin opens in **English** by default. Switch the interface to **Traditional Chinese**, **Simplified Chinese**, or **Japanese** inside the app. Your choice is remembered for the next session.
 
-### 下次開啟，延續現在的風格
+### Let playback follow your attention
 
-開啟「啟動時自動套用」，之後從一般 Codex 圖示啟動，也會載入目前背景。未套用的素材會保留在本機，重新開啟 Xskin 後可接續處理。
+Video preview starts paused so you can inspect it when needed. Background playback pauses when the Codex window is hidden or system Reduce Motion is enabled, avoiding playback you are not watching.
 
-自動套用透過本機背景服務完成啟動交接，可能短暫重新開啟 Codex 視窗；這不是官方內建的零延遲啟動畫面。
+### Pick up where you left off
 
-## 支援素材
+Keep your current background and any pending import on your Mac. Turn on **Apply on Codex launch** once, then open Codex from the Dock shortcut Xskin prepares. Your background loads with Codex; Xskin does not need to stay open.
 
-| 類型 | 支援格式 | 檔案上限 | 處理方式 |
+The Dock entry enables the background connection on the first launch, then applies your media and full-window mask as the workspace loads. It never quits and relaunches Codex to apply a background. Turn the option off to restore your original Dock entry.
+
+## Supported media
+
+| Type | Formats | File limit | Processing |
 | --- | --- | --- | --- |
-| 圖片 | JPG、PNG、WebP、HEIC、TIFF | 50 MiB | 轉為 JPEG，最長邊不超過 4096 像素；小圖不放大。 |
-| 影片 | MP4，建議 H.264 編碼 | 256 MiB | 原始檔案直接保留，不重新編碼；支援 4K 解析度。 |
+| Images | JPG, PNG, WebP, HEIC, TIFF | 50 MiB | Converted to JPEG, up to 4096 pixels on the longest edge. Smaller images are not enlarged. |
+| Video | MP4; H.264 recommended | 256 MiB | Original file preserved without re-encoding, including 4K sources. |
 
-匯入會建立本機副本，原始檔案保留。MP4 是容器格式，實際播放支援仍取決於影片編碼與系統解碼能力。
+Imports create local copies and leave source files intact. MP4 is a container format; playback depends on the video codec and system decoder support.
 
-## 你的素材，留在你的 Mac
+## Your media stays on your Mac
 
-- **本機處理**：Xskin 不會將匯入的圖片或影片上傳雲端。
-- **不需要額外帳號**：不要求提供 OpenAI API Key，也不改寫 Codex 帳號、API Key 或模型供應商設定。
-- **不修改官方安裝包**：背景引擎透過本機連線套用外觀，不改動官方應用程式檔案與程式碼簽章。
-- **可檢視的實作**：介面使用 SwiftUI、AppKit 與 AVKit；沒有 WebView、HTTP 面板服務或第三方 UI 套件。背景引擎使用 Codex 隨附且經驗證的 Node 執行環境。
+- **Local media processing.** Xskin does not upload imported images or videos to the cloud.
+- **No additional account.** It does not ask for an OpenAI API key or change Codex account credentials, API keys, or model provider settings.
+- **Official app files remain intact.** The background engine applies appearance changes through a local connection without modifying the official app bundle or its code signature.
+- **An implementation you can inspect.** The interface uses SwiftUI, AppKit, and AVKit, with no WebView, HTTP panel server, or third-party UI framework. The background engine uses a verified Node runtime bundled with official Codex Desktop.
 
-背景引擎的除錯連線僅綁定本機回環位址。這仍是外部客製化工具，請從可信來源下載，並避免執行不明本機程式。
+The debugging connection binds only to the loopback address. Xskin remains an external customization tool: download it from trusted sources and avoid running untrusted local programs.
 
-## 系統需求與使用邊界
+## Requirements and practical limits
 
-| 項目 | 需求 |
+| Item | Requirement |
 | --- | --- |
-| 作業系統 | macOS 13 或更新版本 |
-| 處理器 | Apple Silicon；v1.4.0 預編譯版為 arm64 |
-| 必要軟體 | 已安裝官方 Codex Desktop，且其隨附執行環境可通過驗證 |
-| 安裝方式 | 獨立 App；也可透過 Codex 插件啟動，詳見 [使用指南](docs/background-panel.md) |
+| Operating system | macOS 13 or later |
+| Processor | Apple Silicon; the v1.5.0 prebuilt app is arm64 |
+| Required software | Official Codex Desktop, with a bundled runtime that passes verification |
+| Installation | Standalone app; an optional Codex plugin launches the same app. See the [user guide](docs/background-panel.md). |
+| Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- 本版原生 App 面向 macOS；不提供 Windows 或 Intel Mac 的預編譯版本。
-- Codex 更新可能改變介面與啟動行為，影響外觀套用；遇到異常可先關閉自動套用並回報版本資訊。
-- 4K 影片的解碼與播放負載取決於素材幀率、編碼及 Mac 硬體。Xskin 保留原始品質，不保證所有素材都有相同的資源用量。
-- Xskin 是獨立開源專案，與 OpenAI、Apple 無官方合作或背書關係。
+- This native app release targets macOS. No Windows native app or Intel Mac prebuilt binary is provided.
+- Automatic startup prepares a separate managed entry at `~/Applications/Codex (Xskin).app` and connects it to the Dock; the official app bundle remains unchanged. Opening the original official `.app` path directly leaves it running without an automatic background. Use the managed Dock entry for background-enabled launches.
+- A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
+- Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
+- 4K decoding and playback load depend on frame rate, codec, and Mac hardware. Preserving original quality does not guarantee identical resource use across files.
+- Xskin is an independent open-source project, with no official affiliation with or endorsement from OpenAI or Apple.
 
 <details>
-<summary><strong>開發、建置與測試</strong></summary>
+<summary><strong>Build and contribute</strong></summary>
 
-原始碼建置需要 macOS 與 Xcode Command Line Tools。介面原始碼位於 [`macos/native/Xskin.swift`](macos/native/Xskin.swift)，背景引擎位於 [`macos/scripts/`](macos/scripts/)。
+Source builds require macOS and Xcode Command Line Tools. The native interface is in [`macos/native/Xskin.swift`](macos/native/Xskin.swift); the background engine is in [`macos/scripts/`](macos/scripts/).
 
 ```sh
 git clone https://github.com/timmyc07/Xskin.git
@@ -101,23 +110,23 @@ cd Xskin
 bash macos/scripts/build-native-studio.sh "$PWD/build/Xskin.app"
 ```
 
-執行現有的 macOS 檢查：
+Run the existing macOS checks:
 
 ```sh
 cd macos
 npm test
 ```
 
-測試背景套用或自動啟動前，請保存未送出的輸入；相關流程可能重新開啟 Codex。貢獻時請附上系統、Codex 與 Xskin 版本，以及可重現步驟，勿提交私密對話、素材或金鑰。
+An initial manual Apply may ask for one confirmed restart when Codex was opened without the background connection. Later managed Dock launches do not restart it. Include system, Codex, and Xskin versions with reproducible steps when contributing. Do not submit private chats, media, or credentials.
 
 </details>
 
-## 開源與致謝
+## Open source and acknowledgments
 
-Xskin 採用 [MIT License](macos/LICENSE)。本專案延伸自 [Codex Dream Skin Themes](https://github.com/aithink001/Codex-Dream-Skin-Themes) 與 [Codex Dream Skin](https://github.com/Fei-Away/Codex-Dream-Skin)，感謝上游貢獻者建立的主題引擎與工作流程。相關授權與聲明請見 [NOTICE](macos/NOTICE.md)。
+Xskin is released under the [MIT License](macos/LICENSE). It builds on [Codex Dream Skin Themes](https://github.com/aithink001/Codex-Dream-Skin-Themes) and [Codex Dream Skin](https://github.com/Fei-Away/Codex-Dream-Skin). Thank you to the upstream contributors for the theme engine and workflows. See [NOTICE](macos/NOTICE.md) for attribution and license details.
 
-Codex、OpenAI、macOS 與 Apple 等名稱及商標歸各權利人所有。請只使用你有權使用與分享的背景素材。
+Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to their respective owners. Use and share only background media you have the right to use.
 
 ---
 
-**把喜歡的畫面，帶進每天的工作。** [下載 Xskin →](https://github.com/timmyc07/Xskin/releases/tag/v1.4.0)
+**Bring your favorite scene into your everyday work.** [Download Xskin →](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0)

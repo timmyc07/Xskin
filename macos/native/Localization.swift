@@ -1,0 +1,163 @@
+import Foundation
+
+enum XskinLanguage: String, CaseIterable, Identifiable {
+  case english = "en"
+  case traditionalChinese = "zh-Hant"
+  case simplifiedChinese = "zh-Hans"
+  case japanese = "ja"
+
+  var id: String { rawValue }
+  var name: String {
+    switch self {
+    case .english: return "English"
+    case .traditionalChinese: return "繁體中文"
+    case .simplifiedChinese: return "简体中文"
+    case .japanese: return "日本語"
+    }
+  }
+  var locale: Locale { Locale(identifier: rawValue) }
+}
+
+enum XskinText: String, CaseIterable {
+  case preview, source, preferences, pending, appliedBadge, savedBadge, imageBackground, original4K, originalMP4
+  case noMedia, preparingPreview, previewUnavailable, previewHint, previewAccessibility, localMedia, mediaType, image, mp4Video, resolution, fileSize, reading, videoHint
+  case mediaFormats, importBackground, changeBackground, dropHint, chooseFile, chooseFileHelp, fileLimits, importPanelHint, importMedia, importMenu
+  case autostartLabel, autostartHint, activeBackground, notConfigured, autostartUnavailable, maskDepth, light, dark, entireWindow, language, localProcessing, privacy
+  case statusPrefix, statusReady, statusApplied, statusChoose, operationLoading, operationImporting, operationApplying, operationAutostart, operationMask, applyBusy, applyButton, applySuccess, applyImport
+  case launchFailed, resourcesUnavailable, responseInvalid, maskResponseInvalid, localFileRequired, dropOneFile, dropUnreadable, fileUnreadable, imageDecode, videoUnplayable, videoNoFrames, videoDecode, mediaUnsupported
+  case imported, applied, maskUpdated = "mask_updated", autostartEnabled = "autostart_enabled", autostartDisabled = "autostart_disabled"
+  case invalidMedia = "invalid_media", invalidSelection = "invalid_selection", missingSelection = "missing_selection", invalidBackground = "invalid_background", invalidStudio = "invalid_studio", invalidLock = "invalid_lock", operationBusy = "operation_busy", invalidLocalFile = "invalid_local_file", videoSizeLimit = "video_size_limit", imageSizeLimit = "image_size_limit", sourceChanged = "source_changed", unsupportedFormat = "unsupported_format", invalidVideo = "invalid_video", invalidImage = "invalid_image", imageDimensions = "image_dimensions", imageConversion = "image_conversion", selectMedia = "select_media", applyFailedRestored = "apply_failed_restored", applyFailedUnrestored = "apply_failed_unrestored", maskFailedRestored = "mask_failed_restored", maskFailedUnrestored = "mask_failed_unrestored", invalidCommand = "invalid_command", invalidAutostart = "invalid_autostart", invalidMask = "invalid_mask", invalidWorker = "invalid_worker", operationFailed = "operation_failed"
+}
+
+enum XskinLocalization {
+  // Each row follows XskinLanguage.allCases: English, Traditional Chinese, Simplified Chinese, Japanese.
+  private static let translations: [XskinText: [String]] = [
+    .preview: ["Preview", "畫面預覽", "画面预览", "プレビュー"],
+    .source: ["Source", "素材來源", "素材来源", "素材"],
+    .preferences: ["Preferences", "使用偏好", "使用偏好", "環境設定"],
+    .pending: ["Not applied", "待套用", "待应用", "未適用"],
+    .appliedBadge: ["Applied", "已套用", "已应用", "適用済み"],
+    .savedBadge: ["Saved", "已儲存", "已保存", "保存済み"],
+    .imageBackground: ["Image background", "圖片背景", "图片背景", "画像の背景"],
+    .original4K: ["4K · Original video", "4K · 原始影片", "4K · 原始视频", "4K · 元の動画"],
+    .originalMP4: ["MP4 · Original video", "MP4 · 原始影片", "MP4 · 原始视频", "MP4 · 元の動画"],
+    .noMedia: ["No media selected", "尚未選擇素材", "尚未选择素材", "素材が選択されていません"],
+    .preparingPreview: ["Preparing preview…", "正在準備預覽…", "正在准备预览…", "プレビューを準備中…"],
+    .previewUnavailable: ["Preview unavailable", "目前無法顯示預覽", "目前无法显示预览", "プレビューを表示できません"],
+    .previewHint: ["Import an image or video to preview it here.", "匯入圖片或影片，即可在這裡預覽。", "导入图片或视频，即可在这里预览。", "画像や動画を読み込むと、ここで確認できます。"],
+    .previewAccessibility: ["Background preview", "背景素材預覽", "背景素材预览", "背景のプレビュー"],
+    .localMedia: ["Local file", "本機素材", "本地素材", "ローカル素材"],
+    .mediaType: ["Media type", "素材類型", "素材类型", "素材の種類"],
+    .image: ["Image", "圖片", "图片", "画像"],
+    .mp4Video: ["MP4 video", "MP4 影片", "MP4 视频", "MP4 動画"],
+    .resolution: ["Resolution", "解析度", "分辨率", "解像度"],
+    .fileSize: ["File size", "檔案大小", "文件大小", "ファイルサイズ"],
+    .reading: ["Loading…", "讀取中…", "读取中…", "読み込み中…"],
+    .videoHint: ["Preview starts paused. Backgrounds loop silently at original quality and frame rate.", "預覽預設暫停。套用後靜音循環，保留原始畫質與幀率。", "预览默认暂停。应用后静音循环，保留原始画质与帧率。", "プレビューは一時停止で始まります。適用後は元の画質・フレームレートで無音ループ再生します。"],
+    .mediaFormats: ["Images / Video", "圖片 / 影片", "图片 / 视频", "画像 / 動画"],
+    .importBackground: ["Import background", "匯入背景素材", "导入背景素材", "背景素材を読み込む"],
+    .changeBackground: ["Change background", "更換背景素材", "更换背景素材", "背景素材を変更"],
+    .dropHint: ["Drop an image or MP4, or choose a file", "拖入圖片或 MP4，也可點此選擇", "拖入图片或 MP4，也可点击选择", "画像・MP4 をドロップ、または選択"],
+    .chooseFile: ["Choose file", "選擇檔案", "选择文件", "ファイルを選択"],
+    .chooseFileHelp: ["Choose a file on this Mac", "開啟本機檔案選擇視窗", "打开本地文件选择窗口", "この Mac のファイルを選択"],
+    .fileLimits: ["Common image formats and MP4\nImages ≤ 50 MiB · Videos ≤ 256 MiB", "常見圖片格式與 MP4\n圖片 ≤ 50 MiB · 影片 ≤ 256 MiB", "常见图片格式与 MP4\n图片 ≤ 50 MiB · 视频 ≤ 256 MiB", "一般的な画像形式と MP4\n画像 ≤ 50 MiB · 動画 ≤ 256 MiB"],
+    .importPanelHint: ["Choose an image or MP4. 4K videos retain their original quality and frame rate.", "選擇圖片或 MP4 影片。4K 影片會保留原始畫質與幀率。", "选择图片或 MP4 视频。4K 视频会保留原始画质与帧率。", "画像または MP4 を選択してください。4K 動画は元の画質とフレームレートを維持します。"],
+    .importMedia: ["Import", "匯入素材", "导入素材", "読み込む"],
+    .importMenu: ["Import background…", "匯入背景素材…", "导入背景素材…", "背景素材を読み込む…"],
+    .autostartLabel: ["Apply on Codex launch", "啟動時自動套用", "启动时自动应用", "Codex 起動時に適用"],
+    .autostartHint: ["Sets up a Codex Dock shortcut that applies your background in one launch. Xskin can stay closed.", "設定 Codex Dock 入口，單次啟動即可套用；Xskin 不必常駐。", "设置 Codex Dock 入口，单次启动即可应用；Xskin 无需常驻。", "Codex Dock ショートカットから一度の起動で背景を適用。Xskin の常駐は不要です。"],
+    .activeBackground: ["In use", "正在使用", "正在使用", "使用中"],
+    .notConfigured: ["Not set", "尚未設定", "尚未设置", "未設定"],
+    .autostartUnavailable: ["Automatic startup is not ready", "自動套用服務尚未就緒", "自动应用服务尚未就绪", "自動適用の準備ができていません"],
+    .maskDepth: ["Overlay opacity", "遮罩深度", "遮罩深度", "オーバーレイの濃さ"],
+    .light: ["Light", "明", "明", "明るく"],
+    .dark: ["Dark", "暗", "暗", "暗く"],
+    .entireWindow: ["Whole window", "全版一起調整", "全局一起调整", "ウィンドウ全体"],
+    .language: ["Language", "語言", "语言", "言語"],
+    .localProcessing: ["Processed on this Mac", "只在這台電腦處理", "只在这台电脑处理", "この Mac 内で処理"],
+    .privacy: ["Your files never leave this device.", "你的檔案，不會上傳雲端。", "你的文件，不会上传云端。", "ファイルはクラウドに送信されません。"],
+    .statusPrefix: ["Status: ", "操作狀態：", "操作状态：", "状態："],
+    .statusReady: ["Media is ready. Check the preview, then apply.", "素材已就緒，確認預覽後即可套用。", "素材已就绪，确认预览后即可应用。", "素材の準備ができました。プレビューを確認して適用してください。"],
+    .statusApplied: ["Background is applied. Import a new file to change it.", "目前背景已套用，匯入新素材即可更換。", "当前背景已应用，导入新素材即可更换。", "背景は適用済みです。変更するには新しい素材を読み込んでください。"],
+    .statusChoose: ["Choose a local file to preview and apply.", "選擇本機素材，預覽後即可套用。", "选择本地素材，预览后即可应用。", "ローカル素材を選択し、プレビューして適用してください。"],
+    .operationLoading: ["Reading background settings…", "正在讀取本機背景設定…", "正在读取本地背景设置…", "背景の設定を読み込み中…"],
+    .operationImporting: ["Importing media. Your file stays on this Mac.", "正在匯入素材，檔案只會留在這台電腦。", "正在导入素材，文件只会留在这台电脑。", "素材を読み込み中。ファイルはこの Mac 内に保存されます。"],
+    .operationApplying: ["Applying the background and checking Codex…", "正在套用背景並確認 Codex，請稍候…", "正在应用背景并检查 Codex，请稍候…", "背景を適用し、Codex を確認中…"],
+    .operationAutostart: ["Updating automatic startup…", "正在更新自動套用設定…", "正在更新自动应用设置…", "自動適用の設定を更新中…"],
+    .operationMask: ["Updating the whole-window overlay…", "正在更新全版遮罩…", "正在更新全局遮罩…", "ウィンドウ全体のオーバーレイを更新中…"],
+    .applyBusy: ["Applying background…", "正在套用背景…", "正在应用背景…", "背景を適用中…"],
+    .applyButton: ["Apply this background", "套用這個背景", "应用这个背景", "この背景を適用"],
+    .applySuccess: ["Background applied", "背景已套用", "背景已应用", "背景を適用しました"],
+    .applyImport: ["Import a file to apply", "匯入素材以套用", "导入素材以应用", "素材を読み込んで適用"],
+    .launchFailed: ["Xskin could not apply the background. Open Xskin and choose Apply to retry. Codex will not be restarted automatically.", "Xskin 無法套用背景。請開啟 Xskin 並按下套用重試；程式不會自動重啟 Codex。", "Xskin 无法应用背景。请打开 Xskin 并点击应用重试；程序不会自动重启 Codex。", "背景を適用できませんでした。Xskin を開き、適用を選んで再試行してください。Codex は自動再起動されません。"],
+    .resourcesUnavailable: ["App resources are unavailable. Reinstall Xskin.", "無法讀取程式資源，請重新安裝 Xskin。", "无法读取程序资源，请重新安装 Xskin。", "アプリのリソースを読み込めません。Xskin を再インストールしてください。"],
+    .responseInvalid: ["The local service returned incomplete data. Reopen Xskin.", "本機背景服務回傳的資料不完整，請重新開啟 Xskin。", "本地背景服务返回的数据不完整，请重新打开 Xskin。", "ローカルサービスからのデータが不完全です。Xskin を開き直してください。"],
+    .maskResponseInvalid: ["The local service returned an invalid overlay value. Reopen Xskin.", "本機背景服務回傳的遮罩深度無效，請重新開啟 Xskin。", "本地背景服务返回的遮罩深度无效，请重新打开 Xskin。", "オーバーレイの値が無効です。Xskin を開き直してください。"],
+    .localFileRequired: ["Import an image or MP4 stored on this Mac.", "請匯入這台電腦上的圖片或 MP4 檔案。", "请导入这台电脑上的图片或 MP4 文件。", "この Mac に保存された画像または MP4 を読み込んでください。"],
+    .dropOneFile: ["Drop one image or MP4 at a time.", "請一次拖入一個圖片或 MP4 檔案。", "请一次拖入一个图片或 MP4 文件。", "画像または MP4 を1つずつドロップしてください。"],
+    .dropUnreadable: ["The dropped file could not be read. Use Choose file.", "無法讀取拖入的檔案，請使用「選擇檔案」。", "无法读取拖入的文件，请使用“选择文件”。", "ドロップしたファイルを読み込めません。「ファイルを選択」を使用してください。"],
+    .fileUnreadable: ["This media cannot be read. Import the file again.", "無法讀取這個素材，請重新匯入檔案。", "无法读取这个素材，请重新导入文件。", "素材を読み込めません。ファイルを再度読み込んでください。"],
+    .imageDecode: ["This image cannot be decoded. Choose another file.", "無法解碼這張圖片，請選擇其他檔案。", "无法解码这张图片，请选择其他文件。", "画像をデコードできません。別のファイルを選択してください。"],
+    .videoUnplayable: ["This video cannot play. Choose a playable MP4.", "這部影片無法播放，請使用可播放的 MP4 檔案。", "这个视频无法播放，请使用可播放的 MP4 文件。", "動画を再生できません。再生可能な MP4 を選択してください。"],
+    .videoNoFrames: ["This video has no valid frames. Choose another MP4.", "影片缺少有效畫面，請選擇其他 MP4。", "视频缺少有效画面，请选择其他 MP4。", "有効な映像がありません。別の MP4 を選択してください。"],
+    .videoDecode: ["This video cannot be decoded. Choose another MP4.", "無法解碼這部影片，請選擇其他 MP4 檔案。", "无法解码这个视频，请选择其他 MP4 文件。", "動画をデコードできません。別の MP4 を選択してください。"],
+    .mediaUnsupported: ["This media type is not supported. Import an image or MP4.", "不支援這個素材類型，請重新匯入圖片或 MP4。", "不支持这个素材类型，请重新导入图片或 MP4。", "この素材には対応していません。画像または MP4 を読み込んでください。"],
+    .imported: ["Media imported. Check the preview, then apply the background.", "素材已匯入；確認預覽後按下套用背景。", "素材已导入；确认预览后应用背景。", "素材を読み込みました。プレビューを確認して背景を適用してください。"],
+    .applied: ["Background applied. Playback and layout checks passed.", "背景已套用，播放與版面檢查通過。", "背景已应用，播放与布局检查通过。", "背景を適用しました。再生とレイアウトの確認に合格しました。"],
+    .maskUpdated: ["Whole-window overlay applied. Playback and layout checks passed.", "全版遮罩已套用，播放與版面檢查通過。", "全局遮罩已应用，播放与布局检查通过。", "ウィンドウ全体にオーバーレイを適用しました。再生とレイアウトを確認しました。"],
+    .autostartEnabled: ["This background will apply whenever Codex opens.", "一般開啟 Codex 時會自動套用目前背景。", "正常打开 Codex 时会自动应用当前背景。", "Codex を通常起動すると、この背景が自動適用されます。"],
+    .autostartDisabled: ["Automatic startup is off. The current background is unchanged.", "自動套用已關閉，目前背景不變。", "自动应用已关闭，当前背景不变。", "自動適用をオフにしました。現在の背景は変わりません。"],
+    .invalidMedia: ["The background file is invalid. Import it again.", "背景檔案無效，請重新匯入。", "背景文件无效，请重新导入。", "背景ファイルが無効です。再度読み込んでください。"],
+    .invalidSelection: ["The pending media settings are invalid. Import the file again.", "待套用素材設定無效，請重新匯入。", "待应用素材设置无效，请重新导入。", "未適用の素材設定が無効です。再度読み込んでください。"],
+    .missingSelection: ["The pending media is missing. Import the file again.", "待套用素材已遺失，請重新匯入。", "待应用素材已丢失，请重新导入。", "未適用の素材が見つかりません。再度読み込んでください。"],
+    .invalidBackground: ["The current background settings are invalid. Import a file again.", "目前背景設定無效，請重新匯入。", "当前背景设置无效，请重新导入。", "現在の背景設定が無効です。素材を再度読み込んでください。"],
+    .invalidStudio: ["The Xskin data folder is invalid. Reopen Xskin.", "Xskin 資料夾無效，請重新開啟。", "Xskin 文件夹无效，请重新打开。", "Xskin のデータフォルダが無効です。開き直してください。"],
+    .invalidLock: ["The operation lock is invalid. Reopen Xskin.", "背景操作鎖定檔無效，請重新開啟 Xskin。", "背景操作锁定文件无效，请重新打开 Xskin。", "操作ロックが無効です。Xskin を開き直してください。"],
+    .operationBusy: ["A background operation is running. Wait for it to finish.", "正在處理背景，請等待目前操作完成。", "正在处理背景，请等待当前操作完成。", "背景の処理中です。現在の操作が完了するまでお待ちください。"],
+    .invalidLocalFile: ["Choose a valid local file. Symbolic links are not supported.", "請選擇有效的本機檔案；不支援符號連結。", "请选择有效的本地文件；不支持符号链接。", "有効なローカルファイルを選択してください。シンボリックリンクには対応していません。"],
+    .videoSizeLimit: ["Choose a regular MP4 file no larger than 256 MiB.", "MP4 必須是一般檔案且不得超過 256 MiB。", "MP4 必须是普通文件且不得超过 256 MiB。", "256 MiB 以下の通常の MP4 ファイルを選択してください。"],
+    .imageSizeLimit: ["Choose a regular image file no larger than 50 MiB.", "圖片必須是一般檔案且不得超過 50 MiB。", "图片必须是普通文件且不得超过 50 MiB。", "50 MiB 以下の通常の画像ファイルを選択してください。"],
+    .sourceChanged: ["The file changed during import. Select it again.", "檔案在匯入期間變更，請重新選擇。", "文件在导入期间发生变化，请重新选择。", "読み込み中にファイルが変更されました。再度選択してください。"],
+    .unsupportedFormat: ["Use MP4, PNG, JPEG, WebP, HEIC, or TIFF.", "支援 MP4、PNG、JPEG、WebP、HEIC 或 TIFF。", "支持 MP4、PNG、JPEG、WebP、HEIC 或 TIFF。", "MP4、PNG、JPEG、WebP、HEIC、TIFF に対応しています。"],
+    .invalidVideo: ["This MP4 cannot be read. Choose a valid video file.", "無法讀取 MP4，請選擇有效的影片檔案。", "无法读取 MP4，请选择有效的视频文件。", "MP4 を読み込めません。有効な動画ファイルを選択してください。"],
+    .invalidImage: ["This image cannot be read. Choose a valid image file.", "無法讀取圖片，請選擇有效的圖片檔案。", "无法读取图片，请选择有效的图片文件。", "画像を読み込めません。有効な画像ファイルを選択してください。"],
+    .imageDimensions: ["Images must be within 16,384 pixels per side and 50 megapixels.", "圖片須小於 16384 像素／5000 萬像素。", "图片须小于 16384 像素／5000 万像素。", "画像は各辺 16,384 ピクセル以下、5,000 万画素以下にしてください。"],
+    .imageConversion: ["This image could not be prepared as a background. Choose a smaller image.", "圖片無法轉換成有效背景，請選擇較小的圖片。", "图片无法转换为有效背景，请选择较小的图片。", "背景用に画像を変換できません。より小さい画像を選択してください。"],
+    .selectMedia: ["Import a background before applying it.", "請先匯入要套用的背景。", "请先导入要应用的背景。", "適用する背景を先に読み込んでください。"],
+    .applyFailedRestored: ["Apply failed. Your previous background was restored and the imported media was kept. Try again.", "套用未完成，已還原原本背景設定。素材已保留，請重試。", "应用未完成，已还原原本背景设置。素材已保留，请重试。", "適用できませんでした。元の背景に戻し、素材は保持しています。もう一度お試しください。"],
+    .applyFailedUnrestored: ["Apply failed and the previous settings could not be restored. Reopen Xskin to check the status.", "套用未完成，背景設定無法還原。請重新開啟 Xskin 查看狀態。", "应用未完成，背景设置无法还原。请重新打开 Xskin 查看状态。", "適用に失敗し、元の設定を復元できませんでした。Xskin を開き直して状態を確認してください。"],
+    .maskFailedRestored: ["The overlay was not applied. Your previous settings were restored. Try again.", "遮罩未套用，已還原原本背景設定。請重試。", "遮罩未应用，已还原原本背景设置。请重试。", "オーバーレイを適用できませんでした。元の設定に戻しました。もう一度お試しください。"],
+    .maskFailedUnrestored: ["The overlay was not applied and the previous settings could not be restored. Reopen Xskin.", "遮罩未套用，背景設定無法還原。請重新開啟 Xskin 查看狀態。", "遮罩未应用，背景设置无法还原。请重新打开 Xskin 查看状态。", "オーバーレイの適用と設定の復元に失敗しました。Xskin を開き直してください。"],
+    .invalidCommand: ["The requested operation is invalid. Reopen Xskin.", "背景操作指令無效，請重新開啟 Xskin。", "背景操作指令无效，请重新打开 Xskin。", "操作コマンドが無効です。Xskin を開き直してください。"],
+    .invalidAutostart: ["The automatic startup setting is invalid. Try again.", "自動套用設定無效，請重試。", "自动应用设置无效，请重试。", "自動適用の設定が無効です。もう一度お試しください。"],
+    .invalidMask: ["Overlay opacity must be between 0 and 1, with up to two decimal places.", "遮罩濃度須為 0 到 1，且最多兩位小數。", "遮罩浓度须为 0 到 1，且最多两位小数。", "オーバーレイの濃さは 0〜1、小数点以下2桁までで指定してください。"],
+    .invalidWorker: ["The background operation must be started by Xskin. Reopen the app.", "內部背景操作必須由 Xskin 啟動，請重新開啟。", "内部背景操作必须由 Xskin 启动，请重新打开。", "背景の操作は Xskin から実行してください。アプリを開き直してください。"],
+    .operationFailed: ["The operation could not be completed. Try again.", "無法完成背景操作，請稍後重試。", "无法完成背景操作，请稍后重试。", "操作を完了できませんでした。もう一度お試しください。"],
+  ]
+
+  static func text(_ key: XskinText, language: XskinLanguage) -> String {
+    let index = XskinLanguage.allCases.firstIndex(of: language)!
+    return translations[key]![index]
+  }
+
+  static func validate() {
+    assert(Set(translations.keys) == Set(XskinText.allCases), "Every text key needs translations.")
+    assert(XskinLanguage.allCases.count == 4 && XskinLanguage.allCases.first == .english, "English must remain the default language.")
+    for key in XskinText.allCases {
+      assert(translations[key]?.count == 4, "Each key needs all four languages: \(key.rawValue)")
+      for language in XskinLanguage.allCases {
+        assert(!text(key, language: language).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "Translations cannot be empty.")
+      }
+    }
+  }
+}
+
+#if LOCALIZATION_SELF_CHECK
+@main
+struct LocalizationSelfCheck {
+  static func main() {
+    XskinLocalization.validate()
+    print("PASS: \(XskinText.allCases.count) text keys cover English, Traditional Chinese, Simplified Chinese, and Japanese.")
+  }
+}
+#endif

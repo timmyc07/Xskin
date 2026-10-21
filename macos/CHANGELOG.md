@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0 — 2026-10-21
+
+- Default to English with persistent English, Traditional Chinese, Simplified Chinese, and Japanese interface choices.
+- Use stable message codes for localized operation and validation errors.
+- Add a managed Codex Dock entry that enables the background connection on the first launch.
+- Remove the automatic quit-and-relaunch handoff and the duplicate startup request. Leave directly opened official windows running.
+- Observe new documents before their HTML element exists so early injection does not wait for its timeout.
+- Restore the original Dock entry when automatic startup is disabled.
+- Cancel idle discovery waits during shutdown and avoid waiting on dead-owner or zombie injectors.
+- Keep hidden videos paused with a decoded frame ready; preserve reduced-motion and error fallbacks.
+- Rewrite all README guides in English.
+
 ## 1.4.0 — 2026-10-21
 
 - Replace the browser background panel with Xskin, a standalone native macOS application using SwiftUI, AppKit, and AVKit.

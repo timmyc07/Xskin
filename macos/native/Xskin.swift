@@ -30,20 +30,20 @@ private struct StudioSnapshot: Decodable {
   let autostart: Bool
   let autostartLoaded: Bool
   let maskOpacity: Double
-  let message: String?
+  let messageCode: String?
 }
 
-private struct CommandError: Decodable { let error: String }
+private struct CommandError: Decodable { let errorCode: String? }
 
 private struct StudioFailure: LocalizedError {
-  let message: String
-  var errorDescription: String? { message }
+  let key: XskinText
+  var errorDescription: String? { XskinLocalization.text(key, language: .english) }
 }
 
 private enum StudioCommand {
   static func run(_ command: String, arguments: [String] = []) async throws -> StudioSnapshot {
     guard let resources = Bundle.main.resourceURL else {
-      throw StudioFailure(message: "無法讀取程式資源，請重新安裝 Xskin。")
+      throw StudioFailure(key: .resourcesUnavailable)
     }
     let script = resources.appendingPathComponent("runtime/scripts/studio-command-macos.sh")
     return try await withCheckedThrowingContinuation { continuation in
@@ -60,13 +60,13 @@ private enum StudioCommand {
           process.waitUntilExit()
           if process.terminationStatus != 0 {
             let failure = try? JSONDecoder().decode(CommandError.self, from: data)
-            throw StudioFailure(message: failure?.error ?? "本機背景服務無法完成操作，請重試。")
+            throw StudioFailure(key: failure?.errorCode.flatMap(XskinText.init(rawValue:)) ?? .operationFailed)
           }
           guard let result = try? JSONDecoder().decode(StudioSnapshot.self, from: data) else {
-            throw StudioFailure(message: "本機背景服務回傳的資料不完整，請重新開啟 Xskin。")
+            throw StudioFailure(key: .responseInvalid)
           }
           guard result.maskOpacity.isFinite && (0...1).contains(result.maskOpacity) else {
-            throw StudioFailure(message: "本機背景服務回傳的遮罩深度無效，請重新開啟 Xskin。")
+            throw StudioFailure(key: .maskResponseInvalid)
           }
           continuation.resume(returning: result)
         } catch {
@@ -81,21 +81,24 @@ private enum StudioCommand {
 private final class StudioModel: ObservableObject {
   enum Operation {
     case loading, importing, applying, autostart, mask
-    var message: String {
+    var messageKey: XskinText {
       switch self {
-      case .loading: return "正在讀取本機背景設定…"
-      case .importing: return "正在匯入素材，檔案只會留在這台電腦。"
-      case .applying: return "正在套用背景並確認 Codex，請稍候…"
-      case .autostart: return "正在更新自動套用設定…"
-      case .mask: return "正在更新全版遮罩…"
+      case .loading: return .operationLoading
+      case .importing: return .operationImporting
+      case .applying: return .operationApplying
+      case .autostart: return .operationAutostart
+      case .mask: return .operationMask
       }
     }
   }
 
   @Published var snapshot: StudioSnapshot?
   @Published var operation: Operation? = .loading
-  @Published var errorMessage = ""
-  @Published var notice = ""
+  @Published var error: XskinText?
+  @Published var notice: XskinText?
+  @Published var language: XskinLanguage {
+    didSet { UserDefaults.standard.set(language.rawValue, forKey: "xskin.language") }
+  }
   @Published var previewImage: NSImage?
   @Published var player: AVPlayer?
   @Published var dimensions = CGSize.zero
@@ -112,6 +115,16 @@ private final class StudioModel: ObservableObject {
   private var editingMask = false
   private var maskEdited = false
 
+  init() {
+    language = XskinLanguage(rawValue: UserDefaults.standard.string(forKey: "xskin.language") ?? "en") ?? .english
+  }
+
+  func text(_ key: XskinText) -> String { XskinLocalization.text(key, language: language) }
+  var errorMessage: String { error.map(text) ?? "" }
+  func fileSize(_ bytes: Int64) -> String {
+    String(format: "%.1f MiB", locale: language.locale, Double(bytes) / (1024 * 1024))
+  }
+
   var media: StudioMedia? { snapshot?.selection ?? snapshot?.active }
   var busy: Bool { operation != nil }
   var hasPendingMask: Bool { maskEdited }
@@ -119,26 +132,26 @@ private final class StudioModel: ObservableObject {
     !busy && !importFailed && previewReady && snapshot?.selection?.id != nil
   }
   var statusMessage: String {
-    if let operation { return operation.message }
+    if let operation { return text(operation.messageKey) }
     if !errorMessage.isEmpty { return errorMessage }
-    if !notice.isEmpty { return notice }
-    if snapshot?.selection != nil { return "素材已就緒，確認預覽後即可套用。" }
-    if snapshot?.active?.applied == true { return "目前背景已套用，匯入新素材即可更換。" }
-    return "選擇本機素材，預覽後即可套用。"
+    if let notice { return text(notice) }
+    if snapshot?.selection != nil { return text(.statusReady) }
+    if snapshot?.active?.applied == true { return text(.statusApplied) }
+    return text(.statusChoose)
   }
   var resolution: String {
-    dimensions.width > 0 ? "\(Int(dimensions.width)) × \(Int(dimensions.height))" : decoding ? "讀取中…" : "—"
+    dimensions.width > 0 ? "\(Int(dimensions.width)) × \(Int(dimensions.height))" : decoding ? text(.reading) : "—"
   }
   var mediaLabel: String {
     guard let media else { return "" }
-    if media.kind == "image" { return "圖片背景" }
-    return dimensions.width >= 3840 && dimensions.height >= 2160 ? "4K · 原始影片" : "MP4 · 原始影片"
+    if media.kind == "image" { return text(.imageBackground) }
+    return text(dimensions.width >= 3840 && dimensions.height >= 2160 ? .original4K : .originalMP4)
   }
   var applyLabel: String {
-    if operation == .applying { return "正在套用背景…" }
-    if snapshot?.selection != nil { return "套用這個背景" }
-    if snapshot?.active?.applied == true && !notice.isEmpty { return "背景已套用" }
-    return "匯入素材以套用"
+    if operation == .applying { return text(.applyBusy) }
+    if snapshot?.selection != nil { return text(.applyButton) }
+    if snapshot?.active?.applied == true && notice != nil { return text(.applySuccess) }
+    return text(.applyImport)
   }
 
   func refresh() {
@@ -150,9 +163,9 @@ private final class StudioModel: ObservableObject {
     guard !busy else { return }
     player?.pause()
     let panel = NSOpenPanel()
-    panel.title = "匯入背景素材"
-    panel.message = "選擇圖片或 MP4 影片。4K 影片會保留原始畫質與幀率。"
-    panel.prompt = "匯入素材"
+    panel.title = text(.importBackground)
+    panel.message = text(.importPanelHint)
+    panel.prompt = text(.importMedia)
     panel.allowedContentTypes = ["mp4", "png", "jpg", "jpeg", "webp", "heic", "heif", "tif", "tiff"].compactMap { UTType(filenameExtension: $0) }
     panel.allowsMultipleSelection = false
     panel.canChooseDirectories = false
@@ -166,7 +179,7 @@ private final class StudioModel: ObservableObject {
   func importFile(_ url: URL) {
     guard !busy else { return }
     guard url.isFileURL else {
-      errorMessage = "請匯入這台電腦上的圖片或 MP4 檔案。"
+      error = .localFileRequired
       importFailed = true
       return
     }
@@ -179,7 +192,7 @@ private final class StudioModel: ObservableObject {
   func acceptDrop(_ providers: [NSItemProvider]) -> Bool {
     guard !busy, providers.count == 1, let provider = providers.first,
       provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else {
-      if !busy { errorMessage = "請一次拖入一個圖片或 MP4 檔案。" }
+      if !busy { error = .dropOneFile }
       return false
     }
     provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, error in
@@ -187,7 +200,7 @@ private final class StudioModel: ObservableObject {
       Task { @MainActor in
         guard let self else { return }
         guard error == nil, let url else {
-          self.errorMessage = "無法讀取拖入的檔案，請使用「選擇檔案」。"
+          self.error = .dropUnreadable
           self.importFailed = true
           return
         }
@@ -242,17 +255,17 @@ private final class StudioModel: ObservableObject {
 
   private func perform(_ command: String, arguments: [String] = [], operation: Operation) async {
     self.operation = operation
-    errorMessage = ""
-    notice = ""
+    error = nil
+    notice = nil
     do {
       let result = try await StudioCommand.run(command, arguments: arguments)
       snapshot = result
       if !maskEdited { maskOpacity = result.maskOpacity }
       if command == "import" { importFailed = false }
-      notice = result.message ?? ""
+      notice = result.messageCode.map { XskinText(rawValue: $0) ?? .operationFailed }
       preparePreview()
     } catch {
-      errorMessage = error.localizedDescription
+      self.error = (error as? StudioFailure)?.key ?? .operationFailed
       if command == "mask" { maskOpacity = snapshot?.maskOpacity ?? 0.62 }
     }
     self.operation = nil
@@ -300,7 +313,7 @@ private final class StudioModel: ObservableObject {
     previewTask = Task { [weak self] in
       do {
         guard FileManager.default.isReadableFile(atPath: url.path) else {
-          throw StudioFailure(message: "無法讀取這個素材，請重新匯入檔案。")
+          throw StudioFailure(key: .fileUnreadable)
         }
         if media.kind == "image" {
           let decoded = await Task.detached(priority: .userInitiated) { () -> CGImage? in
@@ -308,7 +321,7 @@ private final class StudioModel: ObservableObject {
             return CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
           }.value
           try Task.checkCancellation()
-          guard let decoded else { throw StudioFailure(message: "無法解碼這張圖片，請選擇其他檔案。") }
+          guard let decoded else { throw StudioFailure(key: .imageDecode) }
           self?.previewImage = NSImage(cgImage: decoded, size: .zero)
           self?.dimensions = CGSize(width: decoded.width, height: decoded.height)
           self?.previewReady = true
@@ -316,14 +329,14 @@ private final class StudioModel: ObservableObject {
         } else if media.kind == "video" {
           let asset = AVURLAsset(url: url)
           guard try await asset.load(.isPlayable), let track = try await asset.loadTracks(withMediaType: .video).first else {
-            throw StudioFailure(message: "這部影片無法播放，請使用可播放的 MP4 檔案。")
+            throw StudioFailure(key: .videoUnplayable)
           }
           let (size, transform) = try await track.load(.naturalSize, .preferredTransform)
           try Task.checkCancellation()
           let transformed = size.applying(transform)
           let dimensions = CGSize(width: abs(transformed.width), height: abs(transformed.height))
           guard dimensions.width > 0, dimensions.height > 0 else {
-            throw StudioFailure(message: "影片缺少有效畫面，請選擇其他 MP4。")
+            throw StudioFailure(key: .videoNoFrames)
           }
           let item = AVPlayerItem(asset: asset)
           let player = AVPlayer(playerItem: item)
@@ -340,7 +353,7 @@ private final class StudioModel: ObservableObject {
               } else if item.status == .failed {
                 self.previewReady = false
                 self.decoding = false
-                self.errorMessage = "無法解碼這部影片，請選擇其他 MP4 檔案。"
+                self.error = .videoDecode
               }
             }
           }
@@ -348,14 +361,14 @@ private final class StudioModel: ObservableObject {
             player?.seek(to: .zero) { finished in if finished { player?.play() } }
           }
         } else {
-          throw StudioFailure(message: "不支援這個素材類型，請重新匯入圖片或 MP4。")
+          throw StudioFailure(key: .mediaUnsupported)
         }
       } catch is CancellationError {
       } catch {
         guard !Task.isCancelled else { return }
         self?.decoding = false
         self?.previewReady = false
-        self?.errorMessage = error.localizedDescription
+        self?.error = (error as? StudioFailure)?.key ?? (media.kind == "video" ? .videoDecode : .imageDecode)
       }
     }
   }
@@ -408,6 +421,7 @@ private struct StudioView: View {
     .background(StudioStyle.background)
     .foregroundColor(StudioStyle.text)
     .preferredColorScheme(.dark)
+    .environment(\.locale, model.language.locale)
     .background(WindowObserver(model: model))
     .onAppear { model.refresh() }
     .onDrop(of: [UTType.fileURL], isTargeted: $dropTargeted) { model.acceptDrop($0) }
@@ -421,10 +435,10 @@ private struct StudioView: View {
   private func previewColumn(stageHeight: CGFloat) -> some View {
     VStack(alignment: .leading, spacing: 15) {
       HStack {
-        SectionHeading(number: "01", title: "畫面預覽")
+        SectionHeading(number: "01", title: model.text(.preview))
         Spacer()
         if model.media != nil {
-          Text(model.snapshot?.selection != nil ? "待套用" : model.snapshot?.active?.applied == true ? "已套用" : "已儲存")
+          Text(model.text(model.snapshot?.selection != nil ? .pending : model.snapshot?.active?.applied == true ? .appliedBadge : .savedBadge))
             .font(.system(size: 10, weight: .medium))
             .foregroundColor(model.snapshot?.selection != nil ? StudioStyle.accent : StudioStyle.muted)
             .padding(.horizontal, 9).padding(.vertical, 4)
@@ -441,9 +455,9 @@ private struct StudioView: View {
           VStack(spacing: 14) {
             Image(systemName: model.media == nil ? "photo.on.rectangle.angled" : "exclamationmark.triangle")
               .font(.system(size: 37, weight: .ultraLight)).foregroundColor(StudioStyle.muted.opacity(0.65))
-            Text(model.media == nil ? "尚未選擇素材" : model.decoding ? "正在準備預覽…" : "目前無法顯示預覽")
+            Text(model.text(model.media == nil ? .noMedia : model.decoding ? .preparingPreview : .previewUnavailable))
               .font(.system(size: 12)).foregroundColor(StudioStyle.muted)
-            if model.media == nil { Text("匯入圖片或影片，即可在這裡預覽。")
+            if model.media == nil { Text(model.text(.previewHint))
               .font(.system(size: 10)).foregroundColor(StudioStyle.muted.opacity(0.7)) }
           }
         }
@@ -462,7 +476,7 @@ private struct StudioView: View {
             .background(Color.black.opacity(0.7), in: Capsule()).padding(12).allowsHitTesting(false)
         }
       }
-      .accessibilityLabel("背景素材預覽")
+      .accessibilityLabel(model.text(.previewAccessibility))
       if let media = model.media {
         VStack(alignment: .leading, spacing: 17) {
           HStack(spacing: 9) {
@@ -470,17 +484,17 @@ private struct StudioView: View {
             Text(media.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle).help(media.name)
               .accessibilityIdentifier("preview-file-name")
             Spacer(minLength: 0)
-            Text("本機素材").font(.system(size: 9)).foregroundColor(StudioStyle.muted)
+            Text(model.text(.localMedia)).font(.system(size: 9)).foregroundColor(StudioStyle.muted)
           }
           HStack(spacing: 12) {
-            fact("素材類型", media.kind == "video" ? "MP4 影片" : "圖片")
-            fact("解析度", model.resolution)
-            fact("檔案大小", ByteCountFormatter.string(fromByteCount: media.bytes, countStyle: .file))
+            fact(model.text(.mediaType), model.text(media.kind == "video" ? .mp4Video : .image))
+            fact(model.text(.resolution), model.resolution)
+            fact(model.text(.fileSize), model.fileSize(media.bytes))
           }
         }
         .padding(16).background(StudioStyle.surface, in: RoundedRectangle(cornerRadius: 12))
         if media.kind == "video" {
-          Label("預覽預設暫停。套用後靜音循環，保留原始畫質與幀率。", systemImage: "speaker.slash")
+          Label(model.text(.videoHint), systemImage: "speaker.slash")
             .font(.system(size: 10)).foregroundColor(StudioStyle.muted).fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -498,20 +512,20 @@ private struct StudioView: View {
     VStack(alignment: .leading, spacing: 18) {
       VStack(alignment: .leading, spacing: 12) {
         HStack {
-          SectionHeading(number: "02", title: "素材來源")
+          SectionHeading(number: "02", title: model.text(.source))
           Spacer()
-          Text("圖片 / 影片").font(.system(size: 9)).foregroundColor(StudioStyle.muted)
+          Text(model.text(.mediaFormats)).font(.system(size: 9)).foregroundColor(StudioStyle.muted)
         }
         Button(action: model.chooseFile) {
           VStack(alignment: .leading, spacing: 10) {
             Image(systemName: "photo.badge.plus").font(.system(size: 22, weight: .light)).foregroundColor(StudioStyle.accent)
             VStack(alignment: .leading, spacing: 7) {
-              Text(model.media == nil ? "匯入背景素材" : "更換背景素材").font(.system(size: 13, weight: .semibold))
-              Text("拖入圖片或 MP4，也可點此選擇").font(.system(size: 10)).foregroundColor(StudioStyle.muted)
+              Text(model.text(model.media == nil ? .importBackground : .changeBackground)).font(.system(size: 13, weight: .semibold))
+              Text(model.text(.dropHint)).font(.system(size: 10)).foregroundColor(StudioStyle.muted)
             }
             Rectangle().fill(StudioStyle.line).frame(height: 1)
             HStack {
-              Text("選擇檔案").font(.system(size: 11, weight: .medium))
+              Text(model.text(.chooseFile)).font(.system(size: 11, weight: .medium))
               Spacer()
               Image(systemName: "arrow.up.right").font(.system(size: 12))
             }.foregroundColor(StudioStyle.accent)
@@ -521,30 +535,40 @@ private struct StudioView: View {
           .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(StudioStyle.muted.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
         }
         .buttonStyle(.plain).disabled(model.busy).opacity(model.busy ? 0.5 : 1)
-        .help("開啟本機檔案選擇視窗")
-        .accessibilityLabel("選擇檔案")
+        .help(model.text(.chooseFileHelp))
+        .accessibilityLabel(model.text(.chooseFile))
         .accessibilityIdentifier("import-background")
-        Text("常見圖片格式與 MP4\n圖片 ≤ 50 MiB · 影片 ≤ 256 MiB")
+        Text(model.text(.fileLimits))
           .font(.system(size: 9)).foregroundColor(StudioStyle.muted).lineSpacing(5)
       }
       VStack(alignment: .leading, spacing: 12) {
-        SectionHeading(number: "03", title: "使用偏好")
+        HStack {
+          SectionHeading(number: "03", title: model.text(.preferences))
+          Spacer(minLength: 4)
+          Picker(model.text(.language), selection: $model.language) {
+            ForEach(XskinLanguage.allCases) { language in Text(language.name).tag(language) }
+          }
+          .labelsHidden().pickerStyle(.menu).controlSize(.small).frame(width: 112)
+          .accessibilityLabel(model.text(.language))
+          .accessibilityIdentifier("interface-language")
+          .help(model.text(.language))
+        }
         HStack(alignment: .center, spacing: 12) {
           VStack(alignment: .leading, spacing: 7) {
-            Text("啟動時自動套用").font(.system(size: 12, weight: .medium))
-            Text("下次開啟 Codex，繼續使用目前背景。")
+            Text(model.text(.autostartLabel)).font(.system(size: 12, weight: .medium))
+            Text(model.text(.autostartHint))
               .font(.system(size: 10)).foregroundColor(StudioStyle.muted).fixedSize(horizontal: false, vertical: true)
           }
           Spacer(minLength: 0)
-          Toggle("啟動時自動套用", isOn: Binding(get: { model.snapshot?.autostart ?? false }, set: model.setAutostart))
+          Toggle(model.text(.autostartLabel), isOn: Binding(get: { model.snapshot?.autostart ?? false }, set: model.setAutostart))
             .toggleStyle(.switch).tint(StudioStyle.accent).labelsHidden().controlSize(.small).disabled(model.busy)
-            .accessibilityLabel("啟動時自動套用")
+            .accessibilityLabel(model.text(.autostartLabel))
             .accessibilityIdentifier("autostart-background")
         }
         .padding(12).background(StudioStyle.surface, in: RoundedRectangle(cornerRadius: 12))
         VStack(alignment: .leading, spacing: 8) {
           HStack {
-            Text("遮罩深度").font(.system(size: 12, weight: .medium))
+            Text(model.text(.maskDepth)).font(.system(size: 12, weight: .medium))
             Spacer()
             Text("\(Int((model.maskOpacity * 100).rounded()))%")
               .font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(StudioStyle.accent)
@@ -553,34 +577,34 @@ private struct StudioView: View {
           Slider(value: Binding(get: { model.maskOpacity }, set: model.setMaskOpacity), in: 0...1, step: 0.01,
             onEditingChanged: model.setMaskEditing)
             .tint(StudioStyle.accent).controlSize(.small).disabled(model.busy)
-            .accessibilityLabel("遮罩深度")
+            .accessibilityLabel(model.text(.maskDepth))
             .accessibilityValue("\(Int((model.maskOpacity * 100).rounded()))%")
             .accessibilityIdentifier("mask-opacity")
           HStack {
-            Text("明")
+            Text(model.text(.light))
             Spacer()
-            Text("全版一起調整")
+            Text(model.text(.entireWindow))
             Spacer()
-            Text("暗")
+            Text(model.text(.dark))
           }.font(.system(size: 9)).foregroundColor(StudioStyle.muted)
         }
         .padding(12).background(StudioStyle.surface, in: RoundedRectangle(cornerRadius: 12))
         HStack(alignment: .top, spacing: 7) {
           Circle().fill(model.snapshot?.active == nil ? StudioStyle.muted : StudioStyle.accent).frame(width: 4, height: 4).padding(.top, 4)
-          Text("正在使用").font(.system(size: 9)).foregroundColor(StudioStyle.muted)
-          Text(model.snapshot?.active?.name ?? "尚未設定").font(.system(size: 9)).lineLimit(1).truncationMode(.middle)
-            .help(model.snapshot?.active?.name ?? "尚未設定")
+          Text(model.text(.activeBackground)).font(.system(size: 9)).foregroundColor(StudioStyle.muted)
+          Text(model.snapshot?.active?.name ?? model.text(.notConfigured)).font(.system(size: 9)).lineLimit(1).truncationMode(.middle)
+            .help(model.snapshot?.active?.name ?? model.text(.notConfigured))
         }
         if model.snapshot?.autostart == true && model.snapshot?.autostartLoaded == false {
-          Label("自動套用服務尚未就緒", systemImage: "exclamationmark.circle")
+          Label(model.text(.autostartUnavailable), systemImage: "exclamationmark.circle")
             .font(.system(size: 10)).foregroundColor(.orange)
         }
       }
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: "checkmark.shield").font(.system(size: 15, weight: .light)).padding(.top, 1)
         VStack(alignment: .leading, spacing: 6) {
-          Text("只在這台電腦處理").font(.system(size: 10, weight: .medium))
-          Text("你的檔案，不會上傳雲端。").font(.system(size: 9)).foregroundColor(StudioStyle.muted)
+          Text(model.text(.localProcessing)).font(.system(size: 10, weight: .medium))
+          Text(model.text(.privacy)).font(.system(size: 9)).foregroundColor(StudioStyle.muted)
         }
       }.foregroundColor(StudioStyle.muted)
     }
@@ -596,7 +620,7 @@ private struct StudioView: View {
           Text(model.statusMessage).font(.system(size: 11)).lineLimit(3)
             .foregroundColor(model.errorMessage.isEmpty ? StudioStyle.muted : Color.orange)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel("操作狀態：\(model.statusMessage)")
+            .accessibilityLabel(model.text(.statusPrefix) + model.statusMessage)
             .accessibilityIdentifier("operation-status")
         }
         Button(action: model.apply) {
@@ -704,7 +728,7 @@ private struct XskinApp: App {
     .defaultSize(width: 1080, height: 680)
     .commands {
       CommandGroup(replacing: .newItem) {
-        Button("匯入背景素材…", action: model.chooseFile).keyboardShortcut("o", modifiers: .command).disabled(model.busy)
+        Button(model.text(.importMenu), action: model.chooseFile).keyboardShortcut("o", modifiers: .command).disabled(model.busy)
       }
     }
   }

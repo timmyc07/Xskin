@@ -1,88 +1,85 @@
-# 预设主题 · Preset packs
+# Bundled preset packs
 
-这个目录放 **Codex Dream Skin 的内置预设主题**。安装时 `install-dream-skin-macos.sh` 会把每个 `preset-*/` 幂等地播种到用户主题库 `~/Library/Application Support/CodexDreamSkinStudio/themes/`，装完即可在**菜单栏「已保存的主题」**或 `switch-theme-macos.sh --id <id>` 里直接切换。
+This directory contains the background engine's bundled presets. During installation, `install-dream-skin-macos.sh` idempotently seeds each `preset-*/` into the user theme library at `~/Library/Application Support/CodexDreamSkinStudio/themes/`. Switch through the menu bar's saved themes or with `switch-theme-macos.sh --id <id>`.
 
-> This folder holds the bundled preset themes. Install seeds each `preset-*/` into the user theme library, so a fresh install ships with ready-to-use skins.
+## Featured preset
 
-## 置顶：实测精选预设
+`preset-romantic-rose/` (Arina Hashimoto) is the featured preset documented with live Codex verification. Its `2560 × 1440` (16:9) background leaves a quiet area on the left for native home content, with the subject and flowers on the right. The light and dark previews are real injected Codex screenshots, not generated images of an entire app window.
 
-`preset-romantic-rose/`（桥本有菜 / Arina Hashimoto）是当前置顶的实机验证主题。它使用一张
-`2560 × 1440`（16:9）纯背景：左侧低信息留白承载 Codex 原生标题，人物和花卉主视觉集中在右侧。浅色与暗色截图均来自真实 Codex 注入，不是 AI 绘制的整窗 UI。
+Distinguish the source from the derived export: the archived, user-provided PNG is `1672 × 941` and is not seeded as part of the pack. The preset's `background.jpg` preserves the near-16:9 composition in a standardized `2560 × 1440` JPEG; this does not recover or add source detail. The derivative was generated with `sips -z 1440 2560 -s format jpeg -s formatOptions 90`.
 
-来源尺寸必须如实区分：归档的用户源图（不随 preset 播种）是 `1672 × 941` PNG；preset 内的 `background.jpg` 保持其近 16:9 构图，标准化导出为 `2560 × 1440` JPEG，并不代表补回或新增了源图细节。派生文件使用 `sips -z 1440 2560 -s format jpeg -s formatOptions 90` 生成。
+- The importable, seedable theme files are [`background.jpg`](./preset-romantic-rose/background.jpg) and [`theme.json`](./preset-romantic-rose/theme.json).
+- The byte-identical, user-provided source PNG is archived separately at [`docs/images/presets/romantic-rose-source.png`](../../docs/images/presets/romantic-rose-source.png). It is outside the preset pack so the installer does not seed an extra file.
+- The light and dark documentation screenshots are `2308 × 1572` Retina JPEGs (CSS viewport `1154 × 786`) from the same real Codex home page. Temporary local styles hid unsent input and collapsed the editor for the screenshots, without changing the draft or fabricating the skin effect. These previews include native UI and **must never be imported as background images**.
+- This featured artwork has a different source from the five procedural presets below. Running `generate-presets.mjs` does not overwrite it.
+- The artwork is a user-provided AI-generated example, not an official OpenAI/Codex visual or endorsement. Confirm likeness, model-output, and asset rights before redistributing it.
+- This maintainer-provided preset is a separately recorded release exception and is not covered by the MIT software license. See [`../NOTICE.md`](../NOTICE.md) for the file inventory and restrictions. The exception does not permit future submissions of other identifiable real people.
 
-- 可导入/可播种的主题素材只有 [`background.jpg`](./preset-romantic-rose/background.jpg) 与 [`theme.json`](./preset-romantic-rose/theme.json)。
-- 用户提供的 byte-identical 源 PNG 单独归档在 [`docs/images/presets/romantic-rose-source.png`](../../docs/images/presets/romantic-rose-source.png)，不放进 preset pack，因此不会被安装脚本播种为多余文件。
-- 当前浅色、暗色实测文档截图均为 `2308 × 1572` Retina JPEG（CSS viewport `1154 × 786`），来自同一真实 Codex 首页；为保护未发送草稿，截图时仅用临时本地样式隐藏输入文字并收起编辑区，没有修改草稿内容或伪造皮肤效果。它们包含真实侧栏、项目工具栏和输入框，**只作预览，绝不能当背景导入**。
-- 这套精选图与下面五套程序化抽象预设来源不同；重新运行 `generate-presets.mjs` 不会覆盖它。
-- 背景是用户提供的 AI 生成示例，不代表 OpenAI/Codex 官方视觉或背书；公开分发前仍需确认人物、模型输出与素材使用权。
-- 该维护者提供的精选预设是单独记录的发行例外，不纳入 MIT 软件许可；文件清单和限制见 [`../NOTICE.md`](../NOTICE.md)。这不表示以后可以提交其他可识别真人素材。
-
-安装后可直接切换：
+Switch after installation:
 
 ```bash
 ~/.codex/codex-dream-skin-studio/scripts/switch-theme-macos.sh \
   --id preset-romantic-rose
 ```
 
-## 一套预设的结构
+## Pack structure
 
-```
+```text
 preset-<slug>/
-├── theme.json        # schemaVersion 1，与 assets/theme.json 同一格式
-└── background.jpg    # 背景图（横向，JPEG）
+├── theme.json        # schemaVersion 1; same format as assets/theme.json
+└── background.jpg    # Landscape background image, JPEG
 ```
 
-- 目录名与 `theme.json` 的 `id` **必须**都是 `preset-<slug>` 形式（`slug` 用小写英文 + 连字符）。播种只管理 `preset-*`，绝不会碰用户自己「换一张图」保存的 `custom-*` 主题。
-- `image` 字段只能是**本目录内**的文件名（不能是路径），格式 `png` / `jpg` / `jpeg` / `webp`，≤ 16 MB（建议 < 1 MB）。
-- 人物/场景背景优先提交 `2560 × 1440`（16:9）母版；主视觉放在右侧约 58%～88%，左侧约 50%～58% 保持低信息、低对比。禁止把效果截图、窗口 mockup 或任何带 UI 的图片命名为 `background.*`。
+- The directory name and `theme.json` ID must both use `preset-<slug>`, with a lowercase, hyphenated English slug. Seeding manages only `preset-*` packs and never changes user-created `custom-*` themes.
+- The `image` field must name a file within the same directory, not a path. Supported formats are `png` / `jpg` / `jpeg` / `webp`, up to 16 MB; less than 1 MB is recommended.
+- For subjects or scenes, prefer a `2560 × 1440` (16:9) master. Place the main subject around the right 58%–88%, keeping roughly the left 50%–58% calm and low-contrast. Never name a preview screenshot, window mockup, or image containing UI `background.*`.
 
-## 素材红线（务必阅读）
+## Asset requirements
 
-内置预设会随仓库分发，**不是**「个人本地示意」。为避免把维护者和使用者拖进法律风险，只接受：
+Bundled presets are distributed with the repository. They are not private, local examples. Accepted sources are:
 
-- ✅ **原创**或你**拥有授权**的图像；
-- ✅ 明确 **CC0 / 公有领域 / 允许再分发**的素材；
-- ✅ 纯程序化生成的抽象 / 渐变 / 几何背景（见下）。
-- ✅ 原创虚构的成年人物形象，且能说明生成/授权来源、没有模仿可识别真人。
+- Original images or images you have permission to distribute.
+- Assets explicitly released under CC0, in the public domain, or with redistribution permission.
+- Procedurally generated abstract, gradient, or geometric backgrounds.
+- Original fictional adult characters with documented generation or licensing sources that do not imitate identifiable real people.
 
-除非维护者事先完成独立权利审核并在 `NOTICE.md` 逐项记录，否则**不接受**（PR 会被拒绝）：
+Unless maintainers complete a separate rights review in advance and record it per asset in `NOTICE.md`, submissions must not contain:
 
-- ❌ 真人肖像（明星、网红、AV 演员等）——涉肖像权，且本仓库带 MIT 与商业赞助；
-- ❌ 受版权保护的动漫 / 游戏 / 影视角色与截图；
-- ❌ 任何你无权再分发的第三方素材。
+- Portraits of identifiable real people, including celebrities, influencers, or adult performers.
+- Copyrighted anime, game, or film characters and screenshots.
+- Any third-party asset you do not have the right to redistribute.
 
-提交预设即视为你声明：对该素材拥有分发与再授权的权利。
+By submitting a preset, you represent that you have the rights needed to distribute and sublicense its assets.
 
-## 两种贡献方式
+## Two ways to contribute
 
-### A. 程序化生成（推荐，零版权）
+### A. Procedural generation (recommended)
 
-`generate-presets.mjs` 是一个**纯 Node + 内置 zlib** 的确定性生成器（无第三方依赖），用多层渐变 + 光晕 + 暗角画出五套抽象背景，再用 macOS `sips` 压成 JPEG。同样的输入永远产出同样的字节，所以提交的资产 diff 稳定。它只管理脚本 `PRESETS` 数组中的程序化主题，不会处理或覆盖实测精选主题。
+`generate-presets.mjs` is a deterministic generator using only Node and built-in zlib. It creates five abstract backgrounds with layered gradients, glows, and vignettes, then uses macOS `sips` to encode JPEGs. Identical inputs produce identical bytes for stable asset diffs. It manages only procedural themes listed in its `PRESETS` array, not the featured preset.
 
-加一套：在 `PRESETS` 数组追加一项（`slug` / `name` / `bg` / `lights` / `colors` …），然后：
+Add an entry to `PRESETS` (`slug` / `name` / `bg` / `lights` / `colors` …), then run:
 
 ```bash
 node macos/presets/generate-presets.mjs
 ```
 
-- 深色底用默认 `screen` 混合；浅色底请设 `blend: "tint"`（`screen` 在亮底上几乎不显光晕）。
-- 用 Quick Look 或直接打开 `background.jpg` 核对观感；左侧留一片相对干净的区域给原生首页标题。
+- Use the default `screen` blending for dark backgrounds. Set `blend: "tint"` for light backgrounds; `screen` produces little visible glow on an already light base.
+- Inspect `background.jpg` in Quick Look or an image viewer. Keep a relatively quiet area on the left for native home content.
 
-### B. 直接提供图片
+### B. Provide an image directly
 
-没有 mac 或想用自制原图，也可以直接放 `preset-<slug>/background.jpg` + 手写 `theme.json`（照抄任一现有预设改配色即可）。
+Without a Mac, or when using your own artwork, provide `preset-<slug>/background.jpg` and a hand-written `theme.json`. Start with an existing preset and adjust its colors.
 
-生成纯背景前建议直接使用 [`docs/reference-background-prompt-guide.md`](../../docs/reference-background-prompt-guide.md) 的 16:9 通用模板、浅/暗兼容约束和负面词；八种概念图的逐张拆解另见 [`docs/background-generation-prompts.md`](../../docs/background-generation-prompts.md)。
+Before generating an image, use the 16:9 composition template, light/dark constraints, and negative prompt in [`docs/reference-background-prompt-guide.md`](../../docs/reference-background-prompt-guide.md). Individual breakdowns of eight concept directions are in [`docs/background-generation-prompts.md`](../../docs/background-generation-prompts.md).
 
-## 提交前自检
+## Checks before submitting
 
 ```bash
-# 单独校验一套预设是否是合法可注入的主题包
+# Validate one preset as an injectable theme pack
 node macos/scripts/injector.mjs --check-payload --theme-dir macos/presets/preset-<slug>/
 
-# 跑完整测试（含预设合法性 + 播种幂等）
+# Run the complete checks, including preset validity and idempotent seeding
 cd macos && npm test
 ```
 
-`theme.json` 字段含义见 `../assets/theme.json` 与 `scripts/write-theme.mjs`；`colors` 十个键请与背景图协调（`accent` / `secondary` / `highlight` 会体现在原生控件的强调色上）。
+See `../assets/theme.json` and `scripts/write-theme.mjs` for theme fields. Coordinate the ten `colors` keys with the artwork; `accent` / `secondary` / `highlight` become accent colors in native controls.

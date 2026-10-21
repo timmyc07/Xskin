@@ -157,6 +157,9 @@ try {
   assert.equal((await waitForVerifiedSession(rendererSession, 1200, expectedVideoTheme)).pass, true, "The selected, progressing video verifies after its handoff completes.");
   rendererState.videoStatus = () => ({ ready: false, suspended: true, currentTime: 0 });
   assert.equal((await waitForVerifiedSession(rendererSession, 250, expectedVideoTheme)).pass, true, "Intentional hidden/reduced-motion suspension remains valid for the selected video.");
+  assert.equal((await waitForVerifiedSession(rendererSession, 250, expectedVideoTheme, true)).pass, false, "A prepared launch cannot present a video before its first decoded frame.");
+  rendererState.videoStatus = () => ({ ready: false, suspended: true, decoded: true, currentTime: 0 });
+  assert.equal((await waitForVerifiedSession(rendererSession, 250, expectedVideoTheme, true)).pass, true, "A decoded paused video can be prepared before the window is shown.");
   const expectedImageTheme = { id: "selected-image" };
   rendererState.themeId = expectedImageTheme.id;
   assert.equal((await waitForVerifiedSession(rendererSession, 250, expectedImageTheme)).pass, false, "Switching to an image must remove the previous video controller before verifying.");

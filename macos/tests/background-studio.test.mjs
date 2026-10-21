@@ -30,7 +30,7 @@ async function call(...args) {
     return { code: 0, value: JSON.parse(result.stdout) };
   } catch (error) {
     if (typeof error.code !== "number") throw error;
-    assert.equal(error.stderr, "", "Failures return only a structured Chinese error");
+    assert.equal(error.stderr, "", "Failures return only a structured English error");
     return { code: error.code, value: JSON.parse(error.stdout) };
   }
 }
@@ -38,14 +38,21 @@ async function call(...args) {
 async function success(...args) {
   const result = await call(...args);
   assert.equal(result.code, 0, JSON.stringify(result.value));
+  const messageCode = { import: "imported", apply: "applied", mask: "mask_updated", autostart: args[1] === "true" ? "autostart_enabled" : "autostart_disabled" }[args[0]];
+  if (messageCode) {
+    assert.equal(result.value.messageCode, messageCode);
+    assert.match(result.value.message, /^[\x20-\x7e]+$/u, "Successful operations have English default messages");
+  }
   return result.value;
 }
 
-async function rejects(args, message) {
+async function rejects(args, errorCode) {
   const result = await call(...args);
   assert.equal(result.code, 1);
-  assert.match(result.value.error, message);
-  assert.deepEqual(Object.keys(result.value), ["error"]);
+  assert.equal(result.value.errorCode, errorCode);
+  assert.match(result.value.error, /^[\x20-\x7e]+$/u, "Failures have English default messages");
+  assert.doesNotMatch(JSON.stringify(result.value), /PRIVATE_CHILD_(?:STDOUT|STDERR)/u, "Failures must not reveal internal child output");
+  assert.deepEqual(Object.keys(result.value), ["error", "errorCode"]);
 }
 
 try {
@@ -58,6 +65,8 @@ set -eu
 printf '%s\\n' "$*" >> "$HOME/start-calls"
 if [ -f "$HOME/fail-next-apply" ]; then
   /bin/rm "$HOME/fail-next-apply"
+  printf 'PRIVATE_CHILD_STDOUT\\n'
+  printf 'PRIVATE_CHILD_STDERR\\n' >&2
   exit 1
 fi
 if [ -f "$HOME/block-apply" ]; then
@@ -68,6 +77,11 @@ fi
 `);
   await fs.writeFile(path.join(engine, "scripts/autostart-dream-skin-macos.sh"), `#!/bin/bash
 set -eu
+if [ -f "$HOME/fail-autostart" ]; then
+  printf 'PRIVATE_CHILD_STDOUT\\n'
+  printf 'PRIVATE_CHILD_STDERR\\n' >&2
+  exit 1
+fi
 case "$1" in
   enable) : > "$HOME/autostart-enabled" ;;
   disable) /bin/rm -f "$HOME/autostart-enabled" ;;
@@ -88,7 +102,7 @@ esac
   await fs.writeFile(path.join(theme, initial.image), image);
   await fs.writeFile(configPath, JSON.stringify(initial));
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.4.0");
+  assert.equal(initialStatus.version, "1.5.0");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);
@@ -99,38 +113,38 @@ esac
   assert.equal((await success("status")).maskOpacity, 0.37, "Status returns a saved mask value");
   await fs.writeFile(configPath, JSON.stringify(initial));
 
-  await rejects(["import", "relative.png"], /本機檔案/u);
-  await rejects(["apply", "missing"], /先匯入/u);
-  await rejects(["autostart", "yes"], /設定無效/u);
-  await rejects(["status", "extra"], /請使用/u);
-  await rejects(["--locked-worker", "autostart", "true"], /內部背景操作/u);
+  await rejects(["import", "relative.png"], "invalid_local_file");
+  await rejects(["apply", "missing"], "select_media");
+  await rejects(["autostart", "yes"], "invalid_autostart");
+  await rejects(["status", "extra"], "invalid_command");
+  await rejects(["--locked-worker", "autostart", "true"], "invalid_worker");
   for (const value of [undefined, "", "-0.1", "1.01", "0.001", "NaN", "Infinity", "-Infinity", "1e-2", "0x1", " 0.5", ".5"]) {
-    await rejects(["mask", ...(value === undefined ? [] : [value])], /遮罩濃度/u);
+    await rejects(["mask", ...(value === undefined ? [] : [value])], "invalid_mask");
   }
-  await rejects(["mask", "0.5", "extra"], /請使用/u);
-  await rejects(["--locked-worker", "mask", "0.5"], /內部背景操作/u);
+  await rejects(["mask", "0.5", "extra"], "invalid_command");
+  await rejects(["--locked-worker", "mask", "0.5"], "invalid_worker");
   const symlink = path.join(temporary, "連結.png");
   await fs.symlink(source, symlink);
-  await rejects(["import", symlink], /符號連結/u);
+  await rejects(["import", symlink], "invalid_local_file");
   const invalid = path.join(temporary, "broken.png");
   await fs.writeFile(invalid, "not an image");
-  await rejects(["import", invalid], /無法讀取圖片/u);
+  await rejects(["import", invalid], "invalid_image");
   const wrong = path.join(temporary, "wrong.txt");
   await fs.writeFile(wrong, image);
-  await rejects(["import", wrong], /支援/u);
+  await rejects(["import", wrong], "unsupported_format");
   const oversized = path.join(temporary, "oversized.png");
   const handle = await fs.open(oversized, "w");
   await handle.truncate(50 * 1024 * 1024 + 1);
   await handle.close();
-  await rejects(["import", oversized], /50 MiB/u);
+  await rejects(["import", oversized], "image_size_limit");
   const brokenVideo = path.join(temporary, "broken.mp4");
   await fs.writeFile(brokenVideo, "not an MP4 container");
-  await rejects(["import", brokenVideo], /無法讀取 MP4/u);
+  await rejects(["import", brokenVideo], "invalid_video");
   const oversizedVideo = path.join(temporary, "oversized.mp4");
   const videoHandle = await fs.open(oversizedVideo, "w");
   await videoHandle.truncate(256 * 1024 * 1024 + 1);
   await videoHandle.close();
-  await rejects(["import", oversizedVideo], /256 MiB/u);
+  await rejects(["import", oversizedVideo], "video_size_limit");
   assert.deepEqual(await readJson(configPath), initial);
   assert.deepEqual(await stages(), []);
 
@@ -148,7 +162,7 @@ esac
   await assert.rejects(fs.access(path.join(home, "start-calls")), { code: "ENOENT" });
   assert.deepEqual((await success("status")).selection, imported.selection, "Pending imports survive a completely new CLI process");
   assert.deepEqual(await stages(), [`import-${imported.selection.id}`]);
-  await rejects(["apply", "wrong-id"], /先匯入/u);
+  await rejects(["apply", "wrong-id"], "select_media");
   const imageApplied = await success("apply", imported.selection.id);
   assert.equal(imageApplied.selection, null);
   assert.equal(imageApplied.active.kind, "image");
@@ -189,7 +203,7 @@ esac
 
   const pending = await success("import", source);
   await fs.writeFile(path.join(home, "fail-next-apply"), "");
-  await rejects(["mask", "0.11"], /遮罩未套用，已還原原本背景設定/u);
+  await rejects(["mask", "0.11"], "mask_failed_restored");
   assert.deepEqual(await readJson(configPath), previous, "A failed mask Verify restores the exact previous theme");
   const maskRestored = await success("status");
   assert.equal(maskRestored.maskOpacity, 0.27);
@@ -197,7 +211,7 @@ esac
   assert.deepEqual(await fs.readFile(videoApplied.active.path), mp4);
   assert.match(await fs.readFile(path.join(home, "start-calls"), "utf8"), /--prompt-restart\n\n$/u, "Mask rollback reapplies the original settings once");
   await fs.writeFile(path.join(home, "fail-next-apply"), "");
-  await rejects(["apply", pending.selection.id], /已還原原本背景設定/u);
+  await rejects(["apply", pending.selection.id], "apply_failed_restored");
   assert.deepEqual(await readJson(configPath), previous, "A failed Verify restores the previous settings");
   assert.deepEqual(await fs.readFile(videoApplied.active.path), mp4);
   assert.deepEqual((await success("status")).selection, pending.selection, "A failed apply retains the selection for retry");
@@ -220,10 +234,10 @@ esac
     if (attempt === 99) throw Error("The isolated apply stub did not start");
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  await rejects(["import", source], /正在處理背景/u);
-  await rejects(["apply", replacement.selection.id], /正在處理背景/u);
-  await rejects(["autostart", "true"], /正在處理背景/u);
-  await rejects(["mask", "0.5"], /正在處理背景/u);
+  await rejects(["import", source], "operation_busy");
+  await rejects(["apply", replacement.selection.id], "operation_busy");
+  await rejects(["autostart", "true"], "operation_busy");
+  await rejects(["mask", "0.5"], "operation_busy");
   assert.equal((await success("status")).selection.id, replacement.selection.id, "Status remains readable while another process owns the mutation lock");
   await fs.unlink(path.join(home, "block-apply"));
   assert.deepEqual(await blockedExit, [0, null]);
@@ -250,11 +264,14 @@ esac
   blocked = null;
   assert.equal((await success("autostart", "true")).autostartLoaded, true, "Killing an operation releases its kernel lock without stale-PID recovery");
   assert.equal((await success("autostart", "false")).autostart, false);
+  await fs.writeFile(path.join(home, "fail-autostart"), "");
+  await rejects(["autostart", "true"], "operation_failed");
+  await fs.unlink(path.join(home, "fail-autostart"));
   await fs.writeFile(path.join(studio, "selection.json"), JSON.stringify({ id: "../../outside", kind: "video", name: "test.mp4" }));
-  await rejects(["status"], /素材設定無效/u);
+  await rejects(["status"], "invalid_selection");
   const repaired = await success("import", source);
   assert.equal(repaired.selection.kind, "image", "A fresh import repairs corrupt pending selection metadata");
-  console.log("PASS: isolated native import, local preview paths, explicit apply, original MP4 bytes, mask validation/persistence/rollback, pending persistence, lock exclusion/recovery, and autostart status.");
+  console.log("PASS: isolated native import, local preview paths, explicit apply, original MP4 bytes, mask validation/persistence/rollback, pending persistence, lock exclusion/recovery, autostart status, and structured English localization codes without child output leaks.");
 } finally {
   if (blocked && blocked.exitCode === null) {
     await fs.rm(path.join(home, "block-apply"), { force: true });

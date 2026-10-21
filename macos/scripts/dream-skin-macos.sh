@@ -102,7 +102,6 @@ reject_argument() {
 
 run_safe_start() {
   reject_argument --restart-existing "$@"
-  reject_argument --restart-new-launch "$@"
   local starter
   starter="$(installed_script start-dream-skin-macos.sh)"
   exec "$starter" --prompt-restart "$@"

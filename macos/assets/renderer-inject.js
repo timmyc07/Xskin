@@ -51,6 +51,8 @@
     textWrites: 0,
     analysisRuns: 0,
     analysisCacheHits: artAnalysis ? 1 : 0,
+    maskReadyAt: null,
+    videoFrameReadyAt: null,
     firstEnsureMs: null,
     analysisMs: null,
   };
@@ -91,6 +93,7 @@
     video.muted = video.defaultMuted = true;
     video.volume = 0;
     video.autoplay = video.loop = video.playsInline = true;
+    video.preload = "auto";
     video.controls = false;
     video.disablePictureInPicture = video.disableRemotePlayback = true;
     video.poster = artUrl;
@@ -108,22 +111,28 @@
       hide();
       video.pause();
     };
-    const onPlaying = () => {
-      if (!disposed && !failed && !suspended()) {
+    const revealFrame = () => {
+      // Keep one decoded frame ready while hidden so presentation does not flash the poster.
+      if (!disposed && !failed && !motionQuery.matches && video.readyState >= 2) {
         document.documentElement.setAttribute("data-dream-video-ready", "true");
         document.documentElement.style.setProperty("--dream-skin-art", "none");
+        metrics.videoFrameReadyAt ??= Date.now();
       }
     };
     const syncPlayback = () => {
       if (disposed) return;
-      if (suspended() || failed) {
+      if (motionQuery.matches || failed) {
         hide();
         video.pause();
+      } else if (document.hidden) {
+        video.pause();
+        revealFrame();
       } else {
         video.play().catch(() => { if (!suspended()) onError(); });
       }
     };
-    video.addEventListener("playing", onPlaying);
+    video.addEventListener("playing", revealFrame);
+    video.addEventListener("loadeddata", revealFrame);
     video.addEventListener("error", onError);
     document.addEventListener("visibilitychange", syncPlayback);
     motionQuery.addEventListener("change", syncPlayback);
@@ -133,6 +142,7 @@
     return {
       status: () => ({
         ready: !failed && video.readyState >= 2 && !video.paused,
+        decoded: !failed && video.readyState >= 2,
         suspended: !failed && Boolean(suspended()),
         failed, paused: video.paused, currentTime: video.currentTime,
         width: video.videoWidth, height: video.videoHeight,
@@ -141,7 +151,8 @@
         disposed = true;
         document.removeEventListener("visibilitychange", syncPlayback);
         motionQuery.removeEventListener("change", syncPlayback);
-        video.removeEventListener("playing", onPlaying);
+        video.removeEventListener("playing", revealFrame);
+        video.removeEventListener("loadeddata", revealFrame);
         video.removeEventListener("error", onError);
         video.pause();
         video.removeAttribute("src");
@@ -632,6 +643,7 @@
     if (WALLPAPER) setAttribute(root, "data-dream-wallpaper", "true");
     else root.removeAttribute("data-dream-wallpaper");
     if (!root.classList.contains("codex-dream-skin")) root.classList.add("codex-dream-skin");
+    metrics.maskReadyAt ??= Date.now();
     return shell;
   };
 

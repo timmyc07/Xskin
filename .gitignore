@@ -13,3 +13,4 @@ macos/native/*.app/
 .env
 .env.*
 build/
+macos/bin/

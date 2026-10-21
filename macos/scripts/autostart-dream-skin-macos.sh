@@ -14,18 +14,23 @@ check_autostart_agent() {
 }
 
 disable_autostart() {
+  local restore_entry="${1:-true}"
   check_autostart_agent
-  [ -f "$AUTOSTART_AGENT_PATH" ] || return 0
-  if ! /bin/launchctl bootout "$AUTOSTART_TARGET" 2>/dev/null; then
-    ! /bin/launchctl print "$AUTOSTART_TARGET" >/dev/null 2>&1 \
-      || fail "Could not stop automatic startup; its plist was preserved."
+  if [ -f "$AUTOSTART_AGENT_PATH" ]; then
+    if ! /bin/launchctl bootout "$AUTOSTART_TARGET" 2>/dev/null; then
+      ! /bin/launchctl print "$AUTOSTART_TARGET" >/dev/null 2>&1 \
+        || fail "Could not stop automatic startup; its plist was preserved."
+    fi
+    local deadline=$((SECONDS + 15))
+    while /bin/launchctl print "$AUTOSTART_TARGET" >/dev/null 2>&1; do
+      [ "$SECONDS" -lt "$deadline" ] || fail "Automatic startup is still stopping; its plist was preserved."
+      /bin/sleep 0.2
+    done
+    /bin/rm -f "$AUTOSTART_AGENT_PATH"
   fi
-  local deadline=$((SECONDS + 15))
-  while /bin/launchctl print "$AUTOSTART_TARGET" >/dev/null 2>&1; do
-    [ "$SECONDS" -lt "$deadline" ] || fail "Automatic startup is still stopping; its plist was preserved."
-    /bin/sleep 0.2
-  done
-  /bin/rm -f "$AUTOSTART_AGENT_PATH"
+  if [ "$restore_entry" = "true" ] && [ -f "$STATE_ROOT/direct-launch-dock.plist" ]; then
+    "$PROJECT_ROOT/bin/CodexLauncher" --unlink-dock
+  fi
 }
 
 enable_autostart() {
@@ -34,7 +39,7 @@ enable_autostart() {
   ensure_state_root
   [ "$PROJECT_ROOT" = "$INSTALL_ROOT" ] || fail "Enable automatic startup from the installed runtime."
   "$NODE" "$INJECTOR" --check-payload --theme-dir "$THEME_DIR" >/dev/null
-  disable_autostart
+  disable_autostart false
   /bin/mkdir -p "$(dirname "$AUTOSTART_AGENT_PATH")"
   local temporary
   temporary="$(/usr/bin/mktemp "$AUTOSTART_AGENT_PATH.XXXXXX")"
@@ -60,12 +65,12 @@ enable_autostart() {
   fi
   /bin/launchctl print "$AUTOSTART_TARGET" >/dev/null \
     || fail "Automatic startup registration could not be verified."
-  printf '一般開啟 Codex 時會自動套用目前背景；目前視窗保持開啟。\n'
-}
-
-apply_new_launch() {
-  local pid="$1"
-  "$SCRIPT_DIR/start-dream-skin-macos.sh" --restart-new-launch "$pid"
+  if ! "$PROJECT_ROOT/bin/CodexLauncher" --install "$CODEX_BUNDLE" >/dev/null ||
+    ! "$PROJECT_ROOT/bin/CodexLauncher" --link-dock "$CODEX_BUNDLE" >/dev/null; then
+    disable_autostart
+    fail "Could not configure the direct-launch Dock entry; automatic startup was disabled."
+  fi
+  printf 'The Codex Dock shortcut is ready. Xskin does not need to remain open.\n'
 }
 
 autostart_step() {
@@ -77,19 +82,8 @@ autostart_step() {
     stop_recorded_injector || printf 'Automatic startup could not stop the old injector.\n' >&2
     return 0
   fi
-  # Explicit skin launches already own their injector and verification.
   case "$command_line" in *--remote-debugging-port=*) return 0 ;; esac
-  if [ $((SECONDS - AUTOSTART_LAST_HANDOFF)) -lt 30 ]; then
-    printf 'Automatic handoff skipped to prevent a restart loop.\n' >&2
-    return 0
-  fi
-  AUTOSTART_LAST_HANDOFF="$SECONDS"
-  printf '%s detected a new normal Codex launch (PID %s).\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$pid"
-  if ! apply_new_launch "$pid"; then
-    printf 'Automatic apply failed; this launch will not be retried.\n' >&2
-    if ! codex_is_running; then launch_codex_normally; fi
-  fi
-  AUTOSTART_PREVIOUS_PID="$(codex_main_pids | /usr/bin/head -n 1)"
+  printf 'Codex was opened directly and was left running. Use the Codex (Xskin) Dock shortcut for automatic backgrounds.\n' >&2
 }
 
 watch_normal_launches() {
@@ -98,7 +92,6 @@ watch_normal_launches() {
   ensure_state_root
   # Installation and login must not interrupt a window that is already open.
   AUTOSTART_PREVIOUS_PID="$(codex_main_pids | /usr/bin/head -n 1)"
-  AUTOSTART_LAST_HANDOFF=-30
   trap 'exit 0' INT TERM
   printf '%s automatic startup is watching normal launches.\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
   while :; do
@@ -115,7 +108,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   [ "$#" -eq 1 ] || fail "Use autostart enable, disable, or status."
   case "$1" in
     enable) enable_autostart ;;
-    disable) disable_autostart; printf '自動套用已關閉，目前背景不變。\n' ;;
+    disable) disable_autostart; printf 'Automatic startup is off. The current background is unchanged.\n' ;;
     status)
       if [ -f "$AUTOSTART_AGENT_PATH" ]; then
         printf 'enabled=true\n'

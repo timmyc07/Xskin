@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-background-studio",
-  "version": "1.4.0",
-  "description": "Xskin：以原生 macOS 程式匯入、預覽並套用 Codex 圖片或 4K MP4 背景。",
+  "version": "1.5.0",
+  "description": "Xskin: native image and original 4K MP4 backgrounds for Codex.",
   "author": {
     "name": "Xskin contributors"
   },
@@ -21,8 +21,8 @@
       "onboardingSkill": "./skills/background-studio/SKILL.md",
       "interface": {
         "displayName": "Xskin",
-        "shortDescription": "原生程式管理圖片與 4K 影片背景",
-        "longDescription": "Xskin 是獨立的 macOS 原生程式，可匯入、預覽並直接套用 Codex 圖片與 MP4 背景。媒體全程留在本機，影片保留原始畫質。",
+        "shortDescription": "Native background studio for images and original 4K video",
+        "longDescription": "Import, preview, and apply local images and original MP4 video backgrounds to Codex. Adjust one overlay across the whole window, choose from four languages, and prepare backgrounds before the Codex Dock shortcut opens the workspace.",
         "developerName": "Xskin contributors",
         "category": "Productivity",
         "capabilities": [
@@ -30,7 +30,7 @@
           "Write"
         ],
         "defaultPrompt": [
-          "開啟 Xskin"
+          "Open Xskin"
         ]
       }
     }
