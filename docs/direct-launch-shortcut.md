@@ -38,10 +38,12 @@ The earlier Windows overlay fixes remain intact and are now shared with macOS: d
 | Windows startup/installer fixtures | Passed under local PowerShell 7 with physical temporary paths. Three cold-start fixtures and repeated, ordinary, paused and failure cases pass. This is not Windows cold-start evidence. |
 | Flutter analyze | Passed. |
 | Flutter tests on macOS | 5 passed, 1 skipped because its process bridge requires Windows. |
-| Windows full runner/package CI | Passed on Windows Server 2022 / Windows PowerShell 5.1, commit `aa8833d`; the final MSIX locator revision is awaiting its own CI run. Full runner, Flutter analyze, all 6 Flutter tests, release build and package upload passed: [CI run](https://github.com/timmyc07/Xskin/actions/runs/39795123443). |
+| Windows full runner/package CI | Passed on Windows Server 2022 / Windows PowerShell 5.1, commit `b5f0455`, including the final MSIX locator revision. Full runner, Flutter analyze, all 6 Flutter tests, release build and package upload passed: [CI run](https://github.com/timmyc07/Xskin/actions/runs/39797483294). |
 | Real Windows three cold starts, new login and Store update | Not performed here. The user confirmed that no remote execution connection is available; retain this manual checklist. Requires an interactive Windows session with official Codex installed. |
 | Real home/task visual checks | Not completed. Native computer-use access to Codex was denied by tool safety restrictions; no alternative capture/navigation was used to bypass that denial. |
 | Physical macOS cold starts | Not performed: current Codex session was preserved. The three-launch result above uses isolated fixtures. |
+
+GitHub reported an Actions Results incident while this work ran; the workflow summary lagged behind execution. Completion was verified from the full job log and its finalized artifact (ID `12434392408`), rather than inferred from the summary badge.
 
 Windows-only tests include an inherited-stream reproduction with a live Node grandchild, Unicode/emoji/space shortcuts, foreign-name preservation, physical-store selection after task removal, injector identity, retained bundled Node and engine-swap rollback. CI cannot replace interactive login, physical shortcut clicks or Store-update checks.
 
