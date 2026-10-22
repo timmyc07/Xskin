@@ -1,6 +1,6 @@
-# Xskin for Windows 1.8.0
+# Xskin for Windows 1.8.1
 
-This describes the 1.8.0 source. The published [Windows 1.6.0 download](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.6.0) does not include these changes.
+This describes the 1.8.1 source. The published [Windows 1.6.0 download](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.6.0) does not include these changes.
 
 Extract the entire package and run `Install Xskin.exe`, or open `xskin.exe` for first-use setup. Installation and upgrades preserve an open Codex, bundled Node, media, language, opacity and pause settings. No separate Node/Flutter installation is required for packaged users.
 

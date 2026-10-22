@@ -64,9 +64,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-macOS 1.8.1 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen.
+macOS 1.8.2 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen.
 
-Windows 1.8.0 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
+Windows 1.8.1 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
 
 ### Keep streaming updates light
 
@@ -142,7 +142,7 @@ cd macos
 npm test
 ```
 
-Windows 1.8.0 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.8.1 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
+Windows 1.8.1 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.8.2 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
 
 </details>
 

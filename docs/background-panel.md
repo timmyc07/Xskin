@@ -45,6 +45,10 @@ The optional macOS ~/Applications/Codex (Xskin).app starts directly with the bac
 
 A cold start still needs app loading and media decoding. CDP/CSS injection authorization is unconfirmed; see [validation and recovery](direct-launch-shortcut.md).
 
+## Conversation usage
+
+macOS 1.8.2 / Windows 1.8.1 place usage in a translucent strip **above** the task input. Long metrics wrap within the available width; the native project/files/plugins toolbar retains its own placement and controls. Home has no empty usage strip. Composer and toolbar surfaces reveal the selected background, with matching translucent material in video mode.
+
 ## Media and playback limits
 
 | Type | Formats | Limit | Preparation |

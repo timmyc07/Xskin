@@ -41,6 +41,10 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
       siblings.splice(siblings.indexOf(this), 1);
       this.parentElement = null;
     }
+    get previousElementSibling() {
+      const siblings = this.parentElement?.children ?? [];
+      return siblings[siblings.indexOf(this) - 1] ?? null;
+    }
     get nextElementSibling() {
       const siblings = this.parentElement?.children ?? [];
       return siblings[siblings.indexOf(this) + 1] ?? null;
@@ -50,15 +54,16 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
     getAttribute(name) { return this.attributes.get(name) ?? null; }
     removeAttribute(name) { this.attributes.delete(name); }
     insertAdjacentElement(position, element) {
-      assert.equal(position, "afterend");
+      assert.equal(position, "beforebegin");
       element.remove();
       element.parentElement = this.parentElement;
-      this.parentElement.children.splice(this.parentElement.children.indexOf(this) + 1, 0, element);
+      this.parentElement.children.splice(this.parentElement.children.indexOf(this), 0, element);
     }
   }
   const parent = new Element();
   const anchor = new Element();
-  parent.append(anchor);
+  const toolbar = new Element();
+  parent.append(anchor, toolbar);
   const composer = new Element();
   anchor.append(composer);
   const inactiveComposer = new Element();
@@ -122,13 +127,13 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   };
   install();
   return {
-    state, document, motion, data, selected, parent, anchor, composer, timers, listeners, motionListeners,
+    state, document, motion, data, selected, parent, anchor, toolbar, composer, timers, listeners, motionListeners,
     install, advance,
     get overlay() { return state.usageOverlay; },
-    get row() { return anchor.nextElementSibling; },
-    get text() { return anchor.nextElementSibling?.children[1].textContent; },
-    get cacheBar() { return anchor.nextElementSibling?.children[2].children[0]; },
-    get cacheText() { return anchor.nextElementSibling?.children[2].children[1].textContent; },
+    get row() { return anchor.previousElementSibling; },
+    get text() { return anchor.previousElementSibling?.children[1].textContent; },
+    get cacheBar() { return anchor.previousElementSibling?.children[2].children[0]; },
+    get cacheText() { return anchor.previousElementSibling?.children[2].children[1].textContent; },
     sample(overrides = {}) {
       return { threadId: THREAD, totalTokens: 1000, inputTokens: 800, cachedInputTokens: 600, outputTokens: 200,
         contextRemainingPercent: 75.4, primary: { remainingPercent: 86.2, windowMinutes: 300 },
@@ -138,7 +143,9 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
 }
 
 const f = fixture();
-assert.equal(f.row.parentElement, f.anchor.parentElement, "The overlay sits below the native composer layout");
+assert.equal(f.row.parentElement, f.anchor.parentElement, "The overlay precedes the composer in normal flow, away from its footer");
+assert.equal(f.row.nextElementSibling, f.anchor);
+assert.equal(f.anchor.nextElementSibling, f.toolbar, "The native footer remains immediately after the input");
 assert.equal(f.overlay.request().threadId, THREAD, "Memory-router task identity comes from the exact local selection");
 assert.match(f.text, /Token —.*快取 —.*上下文剩餘 —.*額度剩餘 —.*方案 —/);
 assert.equal(f.overlay.update(f.sample()), true);
@@ -195,10 +202,14 @@ assert.equal(f.overlay.update(f.sample({ threadId: OTHER, sampledAt: Date.now() 
 
 f.data.home = true;
 assert.equal(f.overlay.request().threadId, null, "Home ignores a retained selected sidebar row");
-assert.match(f.text, /Token —/);
+assert.equal(f.row, null, "Home has no empty usage strip covering its utility toolbar");
+assert.equal(f.timers.size, 0);
 assert.equal(f.overlay.update(f.sample({ threadId: null, totalTokens: null, inputTokens: null,
   cachedInputTokens: null, outputTokens: null, contextRemainingPercent: null, primary: null,
-  secondary: null, planType: '<img src="private">' })), true);
+  secondary: null, planType: '<img src="private">' })), false);
+f.data.home = false;
+f.overlay.request();
+assert.equal(f.overlay.update(f.sample({ threadId: OTHER, planType: '<img src="private">' })), true);
 assert.match(f.text, /方案 <img src="private">/, "Plan text is displayed literally, never interpreted as HTML");
 assert.equal(f.row.children.length, 3);
 f.data.home = false;
@@ -241,7 +252,8 @@ f.overlay.request();
 const old = f.overlay;
 f.install();
 assert.notEqual(f.overlay.request().installation, installation, "Reinstallation changes the primitive identity");
-assert.equal(f.parent.children.length, 2, "Reinstallation removes the previous row");
+assert.equal(f.parent.children.length, 3, "Reinstallation keeps one strip and the native footer");
+assert.equal(f.anchor.nextElementSibling, f.toolbar);
 assert.equal(f.listeners.size, 1);
 assert.equal(f.motionListeners.size, 1);
 assert.equal(old.request().visible, false);

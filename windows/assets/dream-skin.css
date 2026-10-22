@@ -48,9 +48,7 @@
   --ds-task-immersive-sidebar: rgb(var(--ds-panel-rgb) / .70);
   --ds-immersive-chrome: rgb(var(--ds-panel-rgb) / .28);
   --ds-immersive-composer: rgb(var(--ds-panel-rgb) / .44);
-  --ds-immersive-composer-solid: color-mix(in srgb,
-    rgb(var(--ds-panel-2-rgb)) 88%,
-    rgb(var(--ds-muted-rgb)) 12%);
+  --ds-composer-surface: rgb(var(--ds-panel-rgb) / .58);
   --ds-immersive-line: rgb(var(--ds-muted-rgb) / .42);
   --ds-task-immersive-edge: rgb(var(--ds-bg-rgb) / .82);
   --ds-task-immersive-mid: rgb(var(--ds-bg-rgb) / .74);
@@ -95,7 +93,7 @@ html.codex-dream-skin[data-dream-shell="light"] {
   --ds-task-immersive-sidebar: rgb(var(--ds-panel-rgb) / .72);
   --ds-immersive-chrome: rgb(var(--ds-panel-rgb) / .34);
   --ds-immersive-composer: rgb(var(--ds-panel-rgb) / .46);
-  --ds-immersive-composer-solid: rgb(var(--ds-panel-rgb) / .74);
+  --ds-composer-surface: rgb(var(--ds-panel-rgb) / .70);
   --ds-immersive-line: rgb(var(--ds-accent-rgb) / .24);
   --ds-task-immersive-edge: rgb(var(--ds-panel-rgb) / .86);
   --ds-task-immersive-mid: rgb(var(--ds-panel-rgb) / .78);
@@ -279,6 +277,7 @@ html.codex-dream-skin[data-dream-wallpaper="true"] #root [class~="group/summary-
 }
 
 html.codex-dream-skin[data-dream-wallpaper="true"] #root [class~="group/summary-panel"],
+html.codex-dream-skin[data-dream-wallpaper="true"] #root .dream-skin-home-utility,
 html.codex-dream-skin[data-dream-wallpaper="true"] #root [data-composer-body] {
   background: rgb(0 0 0 / .38) !important;
   backdrop-filter: none !important;
@@ -461,7 +460,7 @@ html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-
 
 html.codex-dream-skin:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main[data-app-shell-main-surface]:not(.dream-skin-home-shell))
   [data-composer-body] {
-  background: var(--ds-immersive-composer-solid) !important;
+  background: var(--ds-composer-surface) !important;
   border: 0 !important;
   box-shadow:
     0 10px 30px rgb(var(--ds-bg-rgb) / .20),
@@ -956,7 +955,7 @@ html.codex-dream-skin[data-dream-art-wide="true"] main[data-app-shell-main-surfa
 }
 
 html.codex-dream-skin[data-dream-art-wide="true"] [data-composer-body] {
-  background: var(--ds-immersive-composer-solid) !important;
+  background: var(--ds-composer-surface) !important;
   border: 0 !important;
   box-shadow:
     0 10px 30px rgb(var(--ds-bg-rgb) / .20),
@@ -980,50 +979,12 @@ html.codex-dream-skin[data-dream-shell="light"]
   opacity: 1 !important;
 }
 
-/* Current Codex builds render the home project picker as a separate opaque
-   cap above the composer. Join both native controls into one continuous
-   surface while leaving task and utility-route inputs untouched. */
+/* Keep the native toolbar geometry; it can sit above or below the input. */
 html.codex-dream-skin .dream-skin-home-utility {
-  top: 0 !important;
-  width: 100% !important;
-  margin-inline: 0 !important;
-  padding-inline: 18px !important;
-  border-radius: 22px 22px 0 0 !important;
-  background: rgb(var(--ds-panel-rgb) / .94) !important;
-  box-shadow:
-    inset 1px 0 rgb(var(--ds-muted-rgb) / .18),
-    inset -1px 0 rgb(var(--ds-muted-rgb) / .18),
-    inset 0 1px rgb(var(--ds-muted-rgb) / .18) !important;
-  backdrop-filter: blur(16px) saturate(108%) !important;
-}
-
-html.codex-dream-skin .dream-skin-home:has(.dream-skin-home-utility)
-  [data-composer-body] {
-  border: 0 !important;
-  border-radius: 0 0 22px 22px !important;
-  box-shadow:
-    0 10px 28px rgb(var(--ds-bg-rgb) / .24),
-    inset 1px 0 rgb(var(--ds-muted-rgb) / .18),
-    inset -1px 0 rgb(var(--ds-muted-rgb) / .18),
-    inset 0 -1px rgb(var(--ds-muted-rgb) / .18) !important;
-}
-
-html.codex-dream-skin[data-dream-art-wide="true"] .dream-skin-home-utility {
-  background: var(--ds-immersive-composer-solid) !important;
-  box-shadow:
-    inset 1px 0 var(--ds-immersive-line),
-    inset -1px 0 var(--ds-immersive-line),
-    inset 0 1px rgb(var(--ds-text-rgb) / .12) !important;
+  background: var(--ds-composer-surface) !important;
+  color: var(--ds-muted) !important;
+  box-shadow: inset 0 0 0 1px var(--ds-immersive-line) !important;
   backdrop-filter: none !important;
-}
-
-html.codex-dream-skin[data-dream-art-wide="true"]
-  .dream-skin-home:has(.dream-skin-home-utility) [data-composer-body] {
-  box-shadow:
-    0 10px 30px rgb(var(--ds-bg-rgb) / .20),
-    inset 1px 0 var(--ds-immersive-line),
-    inset -1px 0 var(--ds-immersive-line),
-    inset 0 -1px var(--ds-immersive-line) !important;
 }
 
 html.codex-dream-skin[data-dream-shell="light"][data-dream-art-wide="true"]
@@ -1195,11 +1156,18 @@ html.codex-dream-skin .dream-skin-usage {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  position: relative;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
-  margin-top: 4px;
-  padding: 2px 8px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1px solid rgb(var(--ds-muted-rgb) / .18);
+  border-radius: 12px;
+  background: rgb(var(--ds-panel-rgb) / .32);
   color: var(--ds-muted);
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.65;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -1208,14 +1176,16 @@ html.codex-dream-skin .dream-skin-usage {
 html.codex-dream-skin .dream-skin-usage-cache {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+  margin-inline-start: auto;
   gap: 5px;
-  white-space: nowrap;
 }
 
 html.codex-dream-skin .dream-skin-usage-totals {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: calc(100% - 19px);
+  flex: 1 1 0;
+  min-width: min(240px, calc(100% - 19px));
+  max-width: 100%;
 }
 
 html.codex-dream-skin .dream-skin-usage-cache-bar {

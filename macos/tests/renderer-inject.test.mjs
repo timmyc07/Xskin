@@ -81,7 +81,7 @@ assert.match(
 );
 assert.match(
   css,
-  /--ds-immersive-composer-solid:\s*rgb\(var\(--ds-panel-rgb\) \/ \.74\);/,
+  /--ds-composer-surface:\s*rgb\(var\(--ds-panel-rgb\) \/ \.70\);/,
   "The light composer should retain enough transparency to reveal the selected artwork.",
 );
 assert.match(
@@ -94,11 +94,15 @@ assert.match(
   /\[class\*="_homeUtilityBar_"\][\s\S]{0,500}dream-skin-home-utility/,
   "The renderer should give the current native home utility bar a stable theme class.",
 );
-assert.match(
+assert.doesNotMatch(
   css,
-  /\.dream-skin-home:has\(\.dream-skin-home-utility\)[\s\S]{0,120}\[data-composer-body\]\s*\{[\s\S]{0,180}border-radius:\s*0 0 22px 22px !important;/,
-  "The home utility bar and composer should render as one continuous control.",
+  /\.dream-skin-home-utility\s*\{[^}]*(?:top|width|margin-inline|padding-inline|border-radius):/,
+  "Toolbar styling must preserve its native placement, size and corner shape.",
 );
+assert.match(css, /--ds-composer-surface:\s*rgb\(var\(--ds-panel-rgb\) \/ \.58\);/,
+  "The dark composer/toolbar material must reveal the wallpaper.");
+assert.match(css, /data-dream-wallpaper="true"\] #root \.dream-skin-home-utility,[^}]*background:\s*rgb\(0 0 0 \/ \.38\)/,
+  "Video toolbar material must match the translucent composer instead of hiding the video.");
 assert.match(
   css,
   /\[data-composer-body\] button:not\(\[class~="bg-token-foreground"\]\)[\s\S]{0,100}color:\s*var\(--ds-muted\) !important;/,

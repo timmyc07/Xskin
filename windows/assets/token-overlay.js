@@ -122,9 +122,10 @@
     const composer = [...document.querySelectorAll("[data-composer-body]")].find(node =>
       !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
     const anchor = composer?.closest("[data-composer-layout]") ?? composer;
-    if (!anchor) {
+    if (!anchor || home) {
       row?.remove();
       row = text = cacheBar = cacheFill = cacheText = null;
+      clearData();
       return { threadId, visible: false };
     }
     if (!row) {
@@ -152,14 +153,14 @@
       cache.append(cacheBar, cacheText);
       row.append(fan, text, cache);
     }
-    if (anchor.nextElementSibling !== row) anchor.insertAdjacentElement("afterend", row);
+    if (anchor.previousElementSibling !== row) anchor.insertAdjacentElement("beforebegin", row);
     if (changed) render();
     else paintMotion();
     return { threadId, visible: !document.hidden, installation };
   };
   const update = next => {
     request();
-    if (disposed) return false;
+    if (disposed || !row) return false;
     if (next === null) {
       clearData();
       render();

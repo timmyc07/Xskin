@@ -1,5 +1,11 @@
 # Windows Changelog
 
+## 1.8.1 — 2026-10-23
+
+- Place usage above the input, with natural wrapping and no empty Home row, keeping native footer controls unobstructed.
+- Use translucent composer/toolbar materials for images and video while preserving native placement and corners. Retain usage isolation, subscriptions and fan behavior.
+- Startup remains Codex (Xskin) shortcut-only and never automatically closes/reopens Codex. Flutter package metadata is 1.8.1+13.
+
 ## 1.8.0 — 2026-10-22 (source; Windows validation pending)
 
 - Use Codex (Xskin) for one explicit official launch. Retire legacy launch monitoring; ordinary existing apps and failed launches are never closed/reopened by startup.

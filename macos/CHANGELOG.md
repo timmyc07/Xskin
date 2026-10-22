@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.2 — 2026-10-23
+
+- Move usage into a slim translucent strip above the input, in normal flow, so it cannot cover the native footer. Wrap long metrics on narrow windows and hide the empty strip on Home.
+- Reveal the wallpaper through dark/light composer and home-toolbar surfaces. Video uses matching translucent material for both. Preserve native toolbar placement, size and corners instead of forcing an older top-cap layout.
+- Keep macOS official-app monitoring and Windows shortcut-only startup unchanged; retain saved media/preferences and all usage/fan behavior.
+
 ## 1.8.1 — 2026-10-22 (source; physical startup validation pending)
 
 - Restore the macOS official-app entry at the user's request: the enabled login service observes new native launches and gracefully reopens each once to apply the background. The Xskin panel can stay closed. Windows retains its 1.8.0 shortcut-only startup and never automatically reopens Codex.
