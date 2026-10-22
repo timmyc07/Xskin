@@ -1,5 +1,7 @@
 # Xskin for Windows 1.8.1
 
+The unreleased **1.8.2 source** recovers usage before long tool-output tails, replaces empty metrics with waiting/reconnecting status, and themes shared page/settings/menu materials. [Coverage and validation](https://github.com/timmyc07/Xskin/blob/codex/fix-usage-availability/docs/surface-materials.md). Published downloads below remain 1.8.1.
+
 [Download Windows 1.8.1](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.1/Xskin-1.8.1-windows-x64.zip) · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1) · [繁體中文](README.md)
 
 Extract the entire package and run `Install Xskin.exe`, or open `xskin.exe` for first-use setup. Installation and upgrades preserve an open Codex, bundled Node, media, language, opacity and pause settings. No separate Node/Flutter installation is required for packaged users.

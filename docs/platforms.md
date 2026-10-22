@@ -72,6 +72,8 @@ Windows 新任务的记录文件尚未创建时会暂时监听其确切 UUID 的
 
 ### 2026-10-23 overlay layout validation
 
+The subsequent unreleased macOS 1.8.3 / Windows 1.8.2 source addresses missing long-tail usage and utility/settings/menu material coverage. See [surface coverage and actual validation](surface-materials.md); earlier release results below remain historical.
+
 macOS 1.8.2 / Windows 1.8.1 move the usage strip above the input in normal flow and hide empty Home rows. The native toolbar keeps its placement, size and corners. Dark/light image surfaces use alpha 0.58/0.70; video composer and toolbar share alpha 0.38.
 
 - An independent browser fixture using the actual CSS/overlay passed at 320, 600 and 1280 px: no horizontal overflow, no overlap, 8 px separation from the input and native footer, and working toolbar clicks. Home, light and video material checks passed. Fixture screenshots contain only sample data, not private chats.

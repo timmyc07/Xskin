@@ -1,5 +1,8 @@
 # Runtime notes
 
+- Unreleased 1.8.3 recovers missing usage/limits/lifecycle independently in bounded reverse reads, then resumes incremental reads. An unidentified task has no row; missing records and host heartbeat loss have explicit states. Remount changes the stable serialized installation token once to trigger immediate resubscription.
+- Shared semantic surfaces cover native/Work route-local dark/light/theme scopes. Main surfaces stay clear, cards/dialogs/menus use increasing tint, and floating panels retain their controls. The rules are scoped away from Dot and disappear with Pause; no per-message DOM scan is added. See the repository surface-materials report for validation limits.
+
 - Discover the official `com.openai.codex` bundle on every launch; do not assume an upgrade keeps the same executable internals.
 - Use `Contents/Resources/cua_node/bin/node` from that bundle. Require Node.js 20+, a valid strict code signature, matching architecture, and OpenAI Team ID `2DC432GLL2` on both app and runtime.
 - Do not ship a Node binary and do not depend on a globally installed `node` or `npm`.

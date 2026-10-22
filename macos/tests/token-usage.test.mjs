@@ -221,6 +221,27 @@ try {
     return handle;
   };
   try {
+    await fs.writeFile(historyFile, `${usage(3050)}\n${toolOutput}${lifecycle("task_started")}\n`);
+    const reopeningReader = new TokenUsageReader({ codexHome: root, now: () => now });
+    const beforeUsageTail = await reopeningReader.read(historyId);
+    assert.equal(beforeUsageTail?.totalTokens, 3050,
+      "Reopening a long task recovers usage before the 1 MiB tool-output tail without waiting for another token event");
+    assert.equal(beforeUsageTail.running, true, "Older usage must not overwrite the current lifecycle");
+    const recoveredBytes = readBytes;
+    assert.deepEqual(await reopeningReader.read(historyId), beforeUsageTail);
+    assert.equal(readBytes, recoveredBytes, "A recovered idle session does not rescan history at each heartbeat");
+    await fs.appendFile(historyFile, `${usage(3075)}\n${toolOutput}${lifecycle("task_complete")}\n`);
+    const afterLongAppend = await reopeningReader.read(historyId);
+    assert.equal(afterLongAppend.totalTokens, 3075, "Large appends recover newer usage even when it precedes the tail");
+    assert.equal(afterLongAppend.running, false);
+    await fs.appendFile(historyFile, `${usage(3075, { info: null, rate_limits: {
+      plan_type: "pro", primary: null, secondary: null,
+    } })}\n${toolOutput}${lifecycle("task_started")}\n`);
+    const afterLimitAppend = await reopeningReader.read(historyId);
+    assert.equal(afterLimitAppend.totalTokens, 3075, "A rate-only append retains known totals");
+    assert.equal(afterLimitAppend.planType, "pro");
+    assert.equal(afterLimitAppend.primary, null, "An explicit newer quota clear is not replaced by older limits");
+    assert.equal(afterLimitAppend.running, true);
     const nonEvent = `${JSON.stringify({ type: "response_item", payload: { type: "task_complete" } })}\n`;
     await fs.writeFile(historyFile, `${lifecycle("task_started")}\n${toolOutput}${nonEvent}${usage(3100)}\n`);
     const activeHistory = await historyReader.read(historyId);

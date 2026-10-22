@@ -1,5 +1,8 @@
 # Runtime notes
 
+- Unreleased 1.8.2 shares bounded long-tail recovery and explicit waiting/reconnecting states with macOS. Composer remounts trigger one immediate resubscription while subsequent serialized polls stay stable.
+- Shared native/Work semantic materials cover page headers/lists, settings and portal menus, including nested theme scopes. Dot, native control colors and document thumbnails remain isolated; Pause removes the scoped rules. Windows startup remains shortcut-only.
+
 - 1.8.1 places usage before the native composer in normal flow and hides empty Home rows. Translucent composer/home-toolbar materials preserve native geometry and keep footer controls clear, including on narrow windows. Startup remains shortcut-only without automatic reopen.
 
 - The skin discovers the current `OpenAI.Codex` package on every run, requires a non-development `Store` signature kind, and launches its `ChatGPT.exe` with an explicit `--remote-debugging-address=127.0.0.1` and selected port.

@@ -1,0 +1,36 @@
+# Usage availability and shared surface materials
+
+Unreleased source: macOS 1.8.3 / Windows 1.8.2. Updated 2026-10-23, Asia/Taipei. Published v1.8.2 / windows-v1.8.1 assets are unchanged.
+
+## Changes
+
+| Reported area | Shared treatment |
+| --- | --- |
+| Plugin, Space/page/slide and Drive headers | Clear primary surfaces, including nested native dark/light/theme scopes |
+| Site lists and page wrappers | Clear primary surfaces; retain separators and controls |
+| Settings groups | Translucent secondary/raised surfaces |
+| Menus, listboxes and dialogs | Stronger tinted material for floating controls, with native geometry and focus behavior |
+| Template/document previews and switches | Preserve raster preview content and native control colors |
+| Unknown/currently switching task | Hide the usage strip until one local task is identified |
+| Waiting for a local usage event | One waiting label; no empty cache meter or row of dashes |
+| Host heartbeat missing | Reconnecting label; do not present stale numbers as live |
+
+Surface colors use the existing Xskin palette and mask. Only scoped CSS variables/materials change; there is no new per-message scan, image/video processing or launch behavior. Dot is excluded from the new shared surface rules. Removing the skin class/style through Pause restores native materials.
+
+The source reader previously recovered only task lifecycle before its initial 1 MiB tail. A valid earlier token event could therefore remain unavailable after reopening a long task. Reverse recovery now finds the newest valid usage, limits and lifecycle independently while preserving newer records, reading at most 1 MiB per operation. Once attached, unchanged heartbeats do not reread history; large appends inspect only the new range plus a bounded overlap. Lifecycle timestamps are not used to reject a first historical token sample.
+
+## Validation
+
+- Reproduced the missing-usage failure before the fix: a valid token event followed by more than 2 MiB of tool output and a lifecycle event returned no total. The added regression now passes, including large appends, rate-only updates, explicit quota clearing and unchanged-heartbeat read counts.
+- macOS and Windows overlay/reader/host-bridge regressions pass. They retain exact-thread isolation, out-of-order token rejection, stable subscriptions, lifecycle fan behavior, UTF-8 paths and new-file tracking.
+- A real browser rendered the actual stylesheet against [the public fixture](../macos/tests/fixtures/surface-materials.html): native/Work × dark/light, excluded Dot, and disabled skin all pass 13 checks each. Work dark at 320 px also passes, with no horizontal overflow. Real clicks reach the menu item and switch. The fixture contains sample data only.
+- The fixture proves the CSS contract for the listed semantic surfaces; it does not prove every current official route uses those variables. Complete official-page visual verification remains pending because native computer-use access to Codex was denied. No alternate capture/navigation was used to bypass that restriction.
+- Windows physical cold starts, new login and Store updates remain pending; no Windows execution connection is available. A local 1.8.3 engine/native-app update passed its current-page self-check without restarting Codex; official process identity, selected media/theme digest, config bytes and Xskin language stayed unchanged. Full macOS tests/native build and eight portable Windows regression files passed. Windows runner/Flutter CI results are recorded when complete.
+
+## Reference and recovery
+
+Before implementation, searched the public [codex-token-overlay](https://github.com/soleillevant0125/codex-token-overlay) reader and [Catppuccin ChatGPT userstyle](https://github.com/catppuccin/userstyles/blob/78caa053c497df46f6f3e123b7c8ec65936d2899/styles/chatgpt/catppuccin.user.less) semantic colors. The implementation reuses Xskin's own bounded reader and CSS palette; no dependency or official-program analysis was added.
+
+An engine update keeps the official app running and preserves the selected media, opacity, language and pause preference. Retain the prior Xskin app/runtime before updating. To revert, disable automatic backgrounds, close Xskin and install the saved Xskin package/runtime while retaining its data directory. This does not require restoring account files. [Full recovery and authorization status](direct-launch-shortcut.md#install-and-restore).
+
+CDP/CSS authorization remains unconfirmed. Unchanged official files and successful styling checks do not establish permission or a compliance guarantee.

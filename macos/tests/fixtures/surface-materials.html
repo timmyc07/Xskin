@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-TW" class="codex-dream-skin" data-dream-surface="codex" data-dream-shell="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Xskin surface material fixtures</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.6 system-ui; }
+    .dark, .light {
+      --bg-primary: #191919; --bg-secondary: #252525; --bg-tertiary: #303030;
+      --bg-elevated-primary: #191919; --main-surface-primary: #191919;
+      --sidebar-surface-primary: #191919; --text-primary: #eee; --text-secondary: #aaa;
+    }
+    #root { min-height: 100vh; padding: 24px; color: var(--text-primary); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px; }
+    .panel { min-width: 0; border: 1px solid #8298a344; border-radius: 18px; overflow: hidden; }
+    h2, .content { margin: 0; padding: 16px; }
+    h2 { font-size: 17px; }
+    .bg-token-bg-primary { background: var(--bg-primary); }
+    .bg-token-bg-secondary { background: var(--bg-secondary); }
+    .bg-token-bg-elevated-primary { background: var(--bg-elevated-primary); }
+    .bg-token-main-surface-primary { background: var(--main-surface-primary); }
+    button { font: inherit; border: 1px solid #8298a377; border-radius: 8px; padding: 6px 10px; color: inherit; background: transparent; cursor: pointer; }
+    button[role="switch"] { background: rgb(48 128 255); color: white; }
+    .bg-token-text-primary { background: var(--text-primary); }
+    .text-token-bg-primary { color: var(--bg-primary); }
+    .preview { display: block; width: 100%; height: 90px; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+  <link rel="stylesheet" href="../../assets/dream-skin.css">
+</head>
+<body class="dark">
+  <div id="root">
+    <h1>Xskin 材質回歸測試 · 僅含範例內容</h1>
+    <p>已操作：<span id="clicks">0</span></p>
+    <div class="grid">
+      <section class="panel dark"><h2 data-material="clear" class="bg-token-bg-primary">外掛程式／搜尋頂欄</h2><div class="content">保留搜尋、篩選和新增操作。</div></section>
+      <section class="panel light"><h2 data-material="clear" class="bg-token-main-surface-primary">空間／頁面／簡報頂欄</h2><div class="content">巢狀主題也使用同一份材質。</div></section>
+      <section class="panel dark" data-theme="dark"><h2 data-material="clear" class="bg-token-bg-primary">雲端硬碟頂欄</h2><div class="content">檔案名稱均為測試資料。</div></section>
+      <section class="panel"><div data-material="clear" class="content bg-token-main-surface-primary">網站清單與資料列<br><button class="bg-token-text-primary text-token-bg-primary">開啟範例網站</button></div></section>
+      <section class="panel bg-token-bg-elevated-primary" data-material="dialog"><h2>設定頁</h2><div class="content bg-token-bg-secondary" data-material="card">設定群組 <button role="switch" aria-checked="true">已開啟</button></div></section>
+      <section class="panel"><h2>範本預覽保持原始內容</h2><img class="preview" alt="範例文件縮圖" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='90'%3E%3Cpath fill='%23202020' d='M0 0h400v90H0z'/%3E%3Ctext x='20' y='50' fill='white'%3EDocument preview%3C/text%3E%3C/svg%3E"></section>
+      <div class="panel dark bg-token-bg-elevated-primary" role="menu" data-material="floating"><h2>側欄更多選單</h2><div class="content"><button role="menuitem">專案</button> <button role="menuitem">圖像</button></div></div>
+      <div class="panel bg-token-bg-elevated-primary" role="listbox" data-material="floating"><h2>下拉選單</h2><div class="content"><button role="option" aria-selected="false">範例選項</button></div></div>
+      <div class="panel bg-token-bg-elevated-primary" role="dialog" data-material="dialog"><h2>對話框</h2><div class="content"><button>完成</button></div></div>
+    </div>
+    <details><summary>檢查結果</summary><pre id="results"></pre></details>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const root = document.documentElement;
+    const surface = params.get('surface') || 'codex';
+    root.dataset.dreamSurface = surface;
+    root.dataset.dreamShell = params.get('shell') === 'light' ? 'light' : 'dark';
+    if (params.get('off') === 'true') root.classList.remove('codex-dream-skin');
+    document.body.style.setProperty('--dream-skin-art', 'linear-gradient(125deg,#214880,#80556e 55%,#81a79d)');
+    root.dataset.dreamWallpaper = 'true';
+    let clicks = 0;
+    document.querySelectorAll('button').forEach(button => button.addEventListener('click', () => {
+      document.getElementById('clicks').textContent = String(++clicks);
+    }));
+    addEventListener('load', () => {
+      const active = surface !== 'dot' && params.get('off') !== 'true';
+      const results = [...document.querySelectorAll('[data-material]')].map(node => {
+        const background = getComputedStyle(node).backgroundColor;
+        const alpha = background.startsWith('rgba') ? Number(background.match(/,\s*([\d.]+)\)$/)?.[1]) : 1;
+        const expected = !active ? alpha === 1 : node.dataset.material === 'clear' ? alpha === 0 : alpha > 0 && alpha < 1;
+        return { material: node.dataset.material, background, pass: expected };
+      });
+      const control = getComputedStyle(document.querySelector('[role="switch"]')).backgroundColor;
+      results.push({ nativeControl: control, pass: control === 'rgb(48, 128, 255)' });
+      const inverted = getComputedStyle(document.querySelector('.text-token-bg-primary'));
+      results.push({ invertedControl: inverted.color, pass: !inverted.color.startsWith('rgba') && inverted.color !== inverted.backgroundColor });
+      results.push({ preview: true, pass: document.querySelector('img').naturalWidth === 400 });
+      results.push({ overflow: true, pass: document.documentElement.scrollWidth <= innerWidth });
+      document.getElementById('results').textContent = JSON.stringify({ surface, active, pass: results.every(result => result.pass), results }, null, 2);
+    });
+  </script>
+</body>
+</html>

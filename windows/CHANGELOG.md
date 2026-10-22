@@ -1,5 +1,11 @@
 # Windows Changelog
 
+## 1.8.2 — 2026-10-23 (unreleased)
+
+- Recover usage and rate limits outside long tool-output tails, independently of task lifecycle, without rescanning old history on each heartbeat.
+- Show waiting/reconnecting status instead of an all-empty metrics row; hide unidentified tasks and refresh remounted composers immediately. Accept first token timestamps after lifecycle-only snapshots.
+- Share translucent page/settings/menu materials with macOS, including nested theme scopes; retain native controls, document previews and Dot isolation. Startup remains shortcut-only with no automatic close/reopen. Flutter metadata is 1.8.2+14.
+
 ## 1.8.1 — 2026-10-23
 
 - Place usage above the input, with natural wrapping and no empty Home row, keeping native footer controls unobstructed.

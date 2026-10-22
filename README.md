@@ -17,6 +17,8 @@ Import, preview, and apply from native macOS and Flutter Windows apps.
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
+> Source follow-up (unreleased): **macOS 1.8.3 / Windows 1.8.2** recover usage hidden behind long tool output, show clear waiting/reconnecting messages, and extend translucent materials to menus, settings and utility-page headers/lists. [Coverage and validation](docs/surface-materials.md). Downloads above remain macOS 1.8.2 / Windows 1.8.1.
+
 [Windows guide](windows/README.md) · [macOS guide](docs/background-panel.md) · [Windows performance measurements](windows/references/performance.md)
 
 </div>

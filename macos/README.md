@@ -1,5 +1,7 @@
 # Xskin for macOS
 
+The unreleased **1.8.3 source** fixes missing usage in long tool-output tails and extends translucent material to native/Work page headers, lists, settings, menus and dialogs. Waiting/reconnecting messages replace an all-empty usage strip. [Coverage and validation](https://github.com/timmyc07/Xskin/blob/codex/fix-usage-availability/docs/surface-materials.md). Published downloads below remain 1.8.2.
+
 Xskin is a native macOS app for importing, previewing, and applying local images and original 4K MP4 backgrounds to official Codex Desktop. The `macos/` directory includes the native app source and the self-contained `codex-dream-skin` background engine.
 
 ## Native app

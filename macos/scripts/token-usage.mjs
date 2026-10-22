@@ -63,6 +63,7 @@ function readEvent(line, record, now) {
     record.sampledAt = Number.isFinite(timestamp) ? timestamp : now;
   }
   if (limits && typeof limits === "object" && !Array.isArray(limits)) {
+    record.limitsRead = true;
     record.primary = limitWindow(limits.primary);
     record.secondary = limitWindow(limits.secondary);
     record.planType = typeof limits.plan_type === "string" && /^[a-z][a-z0-9_-]{0,39}$/i.test(limits.plan_type)
@@ -70,19 +71,31 @@ function readEvent(line, record, now) {
   }
 }
 
-async function readEarlierActivity(handle, end, minimum, completeFirstLine, record, now) {
+async function readEarlierState(handle, end, minimum, completeFirstLine, record, now) {
+  const complete = () => record.usage && Number.isFinite(record.activityAt) && record.limitsRead;
+  if (complete()) return;
   let pending = Buffer.alloc(0);
   let discard = true;
   const accept = bytes => {
     if (bytes.length > MAX_READ_BYTES) return false;
     const line = bytes.toString("utf8");
-    if (!/"type"\s*:\s*"(?:task_started|task_complete|turn_aborted)"/.test(line)) return false;
-    const activity = { activityAt: null };
-    readEvent(line, activity, now);
-    if (activity.activityAt === null) return false;
-    record.running = activity.running;
-    record.activityAt = activity.activityAt;
-    return true;
+    const earlier = { activityAt: null };
+    readEvent(line, earlier, now);
+    if (!record.usage && earlier.usage) {
+      record.usage = earlier.usage;
+      record.sampledAt = earlier.sampledAt;
+    }
+    if (!Number.isFinite(record.activityAt) && Number.isFinite(earlier.activityAt)) {
+      record.running = earlier.running;
+      record.activityAt = earlier.activityAt;
+    }
+    if (!record.limitsRead && earlier.limitsRead) {
+      record.primary = earlier.primary;
+      record.secondary = earlier.secondary;
+      record.planType = earlier.planType;
+      record.limitsRead = true;
+    }
+    return complete();
   };
   while (end > minimum) {
     const start = Math.max(minimum, end - MAX_READ_BYTES);
@@ -261,11 +274,11 @@ export class TokenUsageReader {
       }
       if (stat.size > record.offset) {
         let recoveryStart = null;
+        let updates = record;
         const completeFirstLine = !record.skipFirst;
-        const previousActivityAt = record.activityAt;
         if (stat.size - record.offset > MAX_READ_BYTES) {
-          // shortcut: attach reads the last 1 MiB; wait for a new event if no usage fits in that tail.
           recoveryStart = record.offset - record.pending.length;
+          updates = { activityAt: null };
           record.offset = stat.size - MAX_READ_BYTES;
           record.pending = Buffer.alloc(0);
           record.skipFirst = true;
@@ -277,7 +290,7 @@ export class TokenUsageReader {
         let start = 0;
         for (let end = data.indexOf(10); end !== -1; end = data.indexOf(10, start)) {
           if (record.skipFirst) record.skipFirst = false;
-          else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end).toString("utf8"), record, this.now());
+          else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end).toString("utf8"), updates, this.now());
           start = end + 1;
         }
         record.pending = Buffer.from(data.subarray(start));
@@ -285,9 +298,16 @@ export class TokenUsageReader {
           record.pending = Buffer.alloc(0);
           record.skipFirst = true;
         }
-        // Recover skipped lifecycle events without revisiting previously parsed history.
-        if (recoveryStart !== null && record.activityAt === previousActivityAt) {
-          await readEarlierActivity(handle, stat.size, recoveryStart, completeFirstLine, record, this.now());
+        // Recover each missing event type without revisiting previously parsed history.
+        if (recoveryStart !== null) {
+          await readEarlierState(handle, stat.size, recoveryStart, completeFirstLine, updates, this.now());
+          if (updates.usage) { record.usage = updates.usage; record.sampledAt = updates.sampledAt; }
+          if (Number.isFinite(updates.activityAt)) { record.running = updates.running; record.activityAt = updates.activityAt; }
+          if (updates.limitsRead) {
+            record.primary = updates.primary;
+            record.secondary = updates.secondary;
+            record.planType = updates.planType;
+          }
         }
       }
       record.mtimeMs = stat.mtimeMs;

@@ -102,7 +102,7 @@ esac
   await fs.writeFile(path.join(theme, initial.image), image);
   await fs.writeFile(configPath, JSON.stringify(initial));
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.8.2");
+  assert.equal(initialStatus.version, "1.8.3");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);

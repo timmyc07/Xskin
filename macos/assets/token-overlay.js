@@ -4,7 +4,7 @@
   if (state?.surface !== "codex") return false;
 
   const ID = "codex-dream-skin-usage";
-  const installation = window.crypto.randomUUID();
+  let installation = window.crypto.randomUUID();
   const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
   const threadPattern = new RegExp(`^local:(${UUID})$`, "i");
   const draftPattern = new RegExp(`^local:client-new-thread:${UUID}$`, "i");
@@ -12,9 +12,11 @@
   const chinese = /^zh\b/i.test(document.documentElement.lang);
   const labels = chinese
     ? { total: "Token", cache: "快取", context: "上下文剩餘", quota: "額度剩餘", plan: "方案", input: "輸入", output: "輸出", stale: "資料暫不可用", cacheNote: "快取包含在輸入內", minute: "分", hour: "時", day: "天",
-      hit: "最近快取", hitDescription: "最近一次輸入的快取命中率", write: "寫入", totalWrite: "累計寫入", sampled: "Token 事件更新", retention: "服務端快取保存量與保留期限未提供" }
+      hit: "最近快取", hitDescription: "最近一次輸入的快取命中率", write: "寫入", totalWrite: "累計寫入", sampled: "Token 事件更新", retention: "服務端快取保存量與保留期限未提供",
+      waiting: "等待本機用量記錄", running: "任務執行中", disconnected: "用量連線暫時中斷，正在重新連接" }
     : { total: "Tokens", cache: "Cached", context: "Context left", quota: "Quota left", plan: "Plan", input: "Input", output: "Output", stale: "Usage unavailable", cacheNote: "Cached tokens are included in input", minute: "m", hour: "h", day: "d",
-      hit: "Recent cache", hitDescription: "Latest input cache hit rate", write: "Written", totalWrite: "Total written", sampled: "Token event updated", retention: "Server cache inventory and retention are not provided" };
+      hit: "Recent cache", hitDescription: "Latest input cache hit rate", write: "Written", totalWrite: "Total written", sampled: "Token event updated", retention: "Server cache inventory and retention are not provided",
+      waiting: "Waiting for local usage records", running: "Task running", disconnected: "Usage connection interrupted; reconnecting" };
   const numbers = new Intl.NumberFormat(chinese ? "zh-TW" : "en", { maximumFractionDigits: 0 });
   const compactNumbers = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
   const dates = new Intl.DateTimeFormat(chinese ? "zh-TW" : "en", { dateStyle: "short", timeStyle: "short" });
@@ -34,6 +36,7 @@
   let disposed = false;
   let rate = 0;
   let staleTimer = null;
+  let disconnected = false;
 
   const clearData = () => {
     clearTimeout(staleTimer);
@@ -41,6 +44,7 @@
     snapshot = null;
     lastReceivedAt = null;
     rate = 0;
+    disconnected = false;
   };
   const paintMotion = () => {
     if (!row) return;
@@ -58,6 +62,10 @@
   };
   const render = () => {
     if (!row) return;
+    const available = [snapshot?.totalTokens, snapshot?.cachedInputTokens].some(value => Number.isFinite(value) && value >= 0) ||
+      [snapshot?.contextRemainingPercent, snapshot?.primary?.remainingPercent, snapshot?.secondary?.remainingPercent]
+        .some(value => Number.isFinite(value) && value >= 0 && value <= 100) ||
+      (typeof snapshot?.planType === "string" && snapshot.planType.length > 0);
     const parts = [
       `${labels.total} ${compact(snapshot?.totalTokens)}`,
       `${labels.cache} ${compact(snapshot?.cachedInputTokens)}`,
@@ -66,12 +74,13 @@
     ];
     if (snapshot?.secondary) parts.push(`${windowLabel(snapshot.secondary)} ${percent(snapshot.secondary.remainingPercent)}`);
     parts.push(`${labels.plan} ${typeof snapshot?.planType === "string" && snapshot.planType ? snapshot.planType : "—"}`);
-    const value = parts.join(" · ");
+    const value = available ? parts.join(" · ") : disconnected ? labels.disconnected
+      : `${snapshot?.running ? `${labels.running} · ` : ""}${labels.waiting}`;
     if (text.textContent !== value) text.textContent = value;
     const sampledAt = Number.isFinite(snapshot?.totalTokens) ? snapshot.sampledAt : null;
-    const title = (snapshot
+    const title = (available
       ? `${labels.total} ${count(snapshot.totalTokens)} · ${labels.input} ${count(snapshot.inputTokens)} · ${labels.output} ${count(snapshot.outputTokens)} · ${labels.cache} ${count(snapshot.cachedInputTokens)} · ${labels.cacheNote}\n${labels.sampled} ${date(sampledAt)}`
-      : labels.stale
+      : value
     ) + `\n${labels.retention}`;
     if (row.title !== title) row.title = title;
     const input = snapshot?.lastInputTokens;
@@ -96,6 +105,8 @@
     if (cacheText.textContent !== cacheValue) cacheText.textContent = cacheValue;
     const cacheTitle = `${labels.hitDescription} · ${labels.input} ${count(input)} · ${labels.cache} ${count(cached)}\n${labels.write} ${count(write)} · ${labels.totalWrite} ${count(totalWrite)}\n${labels.sampled} ${date(sampledAt)}\n${labels.retention}`;
     if (cacheBar.parentElement.title !== cacheTitle) cacheBar.parentElement.title = cacheTitle;
+    cacheBar.parentElement.style.setProperty("display", available ? "" : "none");
+    row.dataset.usageState = available ? "ready" : disconnected ? "reconnecting" : "waiting";
     if (row.dataset.stale !== String(!snapshot)) row.dataset.stale = String(!snapshot);
     paintMotion();
   };
@@ -122,14 +133,15 @@
     const composer = [...document.querySelectorAll("[data-composer-body]")].find(node =>
       !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
     const anchor = composer?.closest("[data-composer-layout]") ?? composer;
-    if (!anchor || home) {
+    if (!anchor || !threadId) {
       row?.remove();
       row = text = cacheBar = cacheFill = cacheText = null;
       clearData();
-      return { threadId, visible: false };
+      return { threadId, visible: false, installation };
     }
     if (!row) {
       changed = true;
+      installation = window.crypto.randomUUID();
       row = document.createElement("div");
       row.id = ID;
       row.className = "dream-skin-usage";
@@ -167,7 +179,7 @@
       return true;
     }
     if (!next || next.threadId !== threadId || !Number.isFinite(next.sampledAt) ||
-      next.sampledAt > Date.now() + 5000 || (snapshot && next.sampledAt < snapshot.sampledAt)) return false;
+      next.sampledAt > Date.now() + 5000 || (Number.isFinite(snapshot?.totalTokens) && next.sampledAt < snapshot.sampledAt)) return false;
     if (snapshot?.running && next.running && next.sampledAt > snapshot.sampledAt &&
       Number.isFinite(next.totalTokens) && Number.isFinite(snapshot.totalTokens) &&
       next.totalTokens > snapshot.totalTokens) {
@@ -176,9 +188,10 @@
       rate = 0;
     }
     snapshot = next;
+    disconnected = false;
     lastReceivedAt = Date.now();
     clearTimeout(staleTimer);
-    staleTimer = setTimeout(() => { clearData(); render(); }, 15000);
+    staleTimer = setTimeout(() => { clearData(); disconnected = true; render(); }, 15000);
     render();
     return true;
   };
@@ -194,6 +207,7 @@
   state.usageOverlay = {
     request, update, dispose,
     status: () => ({ threadId, mounted: Boolean(row?.isConnected), stale: !snapshot, tokensPerSecond: rate,
+      availability: row?.dataset.usageState ?? "hidden",
       spinning: row?.dataset.spinning === "true", sampledAt: snapshot?.sampledAt ?? null, lastReceivedAt }),
   };
   document.addEventListener("visibilitychange", request);

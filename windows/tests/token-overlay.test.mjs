@@ -147,8 +147,12 @@ assert.equal(f.row.parentElement, f.anchor.parentElement, "The overlay precedes 
 assert.equal(f.row.nextElementSibling, f.anchor);
 assert.equal(f.anchor.nextElementSibling, f.toolbar, "The native footer remains immediately after the input");
 assert.equal(f.overlay.request().threadId, THREAD, "Memory-router task identity comes from the exact local selection");
-assert.match(f.text, /Token —.*快取 —.*上下文剩餘 —.*額度剩餘 —.*方案 —/);
+assert.equal(f.text, "等待本機用量記錄");
+assert.equal(f.row.dataset.usageState, "waiting");
+assert.equal(f.cacheBar.parentElement.style.getPropertyValue("display"), "none", "No empty cache meter is shown before usage exists");
 assert.equal(f.overlay.update(f.sample()), true);
+assert.equal(f.row.dataset.usageState, "ready");
+assert.equal(f.cacheBar.parentElement.style.getPropertyValue("display"), "");
 assert.match(f.text, /Token 1,000.*快取 600.*上下文剩餘 75\.4%.*5時 額度剩餘 86\.2%.*7天 額度剩餘 92%.*方案 pro/);
 assert.match(f.row.title, /輸入 800.*輸出 200.*快取包含在輸入內/);
 assert.equal(f.overlay.status().spinning, false, "Loading history must not animate as new consumption");
@@ -184,13 +188,14 @@ assert.equal(f.overlay.status().spinning, false, "Completion stops the fan immed
 assert.equal(f.overlay.status().tokensPerSecond, 0);
 f.advance(15000);
 assert.equal(f.overlay.status().stale, true);
-assert.match(f.text, /Token —/);
+assert.match(f.text, /用量連線暫時中斷/);
+assert.equal(f.overlay.status().availability, "reconnecting");
 assert.equal(f.timers.size, 0);
 
 f.overlay.update(f.sample());
 f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${OTHER}`);
 assert.equal(f.overlay.request().threadId, OTHER);
-assert.match(f.text, /Token —/, "Switching task with the same composer clears old counts immediately");
+assert.equal(f.text, "等待本機用量記錄", "Switching task clears old counts and shows one waiting label");
 assert.equal(f.overlay.update(f.sample()), false, "An in-flight response for the old task is rejected");
 assert.equal(f.overlay.update(f.sample({ threadId: OTHER })), true);
 assert.equal(f.overlay.update(f.sample({ threadId: OTHER, sampledAt: f.overlay.status().sampledAt - 1,
@@ -215,6 +220,7 @@ assert.equal(f.row.children.length, 3);
 f.data.home = false;
 f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "remote");
 assert.equal(f.overlay.request().threadId, null, "A remote UUID must never read coincident local usage");
+assert.equal(f.row, null, "A thread that cannot be identified locally has no empty metrics row");
 f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "local");
 f.data.selected = [f.selected, f.selected];
 assert.equal(f.overlay.request().threadId, null, "Ambiguous selections never guess the conversation");
@@ -238,6 +244,7 @@ f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:client-new-t
 f.data.conversationId = "../../auth.json";
 assert.equal(f.overlay.request().threadId, null);
 f.data.conversationId = null;
+f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${THREAD}`);
 
 const installation = JSON.parse(JSON.stringify(f.overlay.request())).installation;
 assert.equal(typeof installation, "string");
@@ -248,7 +255,9 @@ f.data.composerVisible = false;
 assert.equal(f.overlay.request().visible, false);
 assert.equal(f.row, null);
 f.data.composerVisible = true;
-f.overlay.request();
+assert.notEqual(f.overlay.request().installation, installation, "Remounting requests an immediate host refresh");
+const remounted = f.overlay.request().installation;
+assert.equal(f.overlay.request().installation, remounted, "The remounted identity stays stable across serialized polls");
 const old = f.overlay;
 f.install();
 assert.notEqual(f.overlay.request().installation, installation, "Reinstallation changes the primitive identity");
@@ -265,7 +274,7 @@ assert.equal(f.listeners.size, 0);
 assert.equal(f.motionListeners.size, 0);
 
 const english = fixture({ lang: "en" });
-assert.match(english.text, /Tokens —.*Cached —.*Context left —.*Plan —/);
+assert.equal(english.text, "Waiting for local usage records");
 english.overlay.update(english.sample({ totalTokens: -1, cachedInputTokens: NaN, contextRemainingPercent: 101 }));
 assert.match(english.text, /Tokens —.*Cached —.*Context left —/);
 const history = fixture();
@@ -284,12 +293,19 @@ assert.equal(history.overlay.status().stale, true, "Only a missing host heartbea
 history.overlay.update(historical);
 assert.equal(history.overlay.update(null), true);
 assert.equal(history.overlay.status().stale, true, "An unavailable host result clears current data immediately");
-assert.match(history.text, /Token —/);
+assert.equal(history.text, "等待本機用量記錄");
 const starting = fixture();
 assert.equal(starting.overlay.update({ threadId: THREAD, sampledAt: 1000000, running: true }), true);
 assert.equal(starting.overlay.status().spinning, true, "The first turn can animate before any token count exists");
-assert.match(starting.text, /Token —/);
-assert.match(starting.row.title, /Token 事件更新 —/, "A lifecycle event never displays an invented token sample time");
+assert.equal(starting.text, "任務執行中 · 等待本機用量記錄");
+assert.doesNotMatch(starting.row.title, /Token 事件更新/, "A lifecycle-only event never displays an invented token sample time");
+assert.equal(starting.overlay.update(starting.sample({ sampledAt: 999000, running: true })), true,
+  "An earlier token timestamp is not an out-of-order sample when the previous snapshot only had lifecycle data");
+assert.match(starting.text, /Token 1,000/);
+starting.advance(15000);
+assert.equal(starting.overlay.status().availability, "reconnecting");
+starting.overlay.update({ threadId: THREAD, sampledAt: 1015000, running: true });
+assert.equal(starting.overlay.status().availability, "waiting", "A healthy lifecycle heartbeat clears the reconnecting message even before counts arrive");
 starting.overlay.dispose();
 const cache = fixture();
 assert.match(cache.cacheText, /最近快取 —/);

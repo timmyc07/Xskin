@@ -49,6 +49,10 @@
   --ds-immersive-chrome: rgb(var(--ds-panel-rgb) / .28);
   --ds-immersive-composer: rgb(var(--ds-panel-rgb) / .44);
   --ds-composer-surface: rgb(var(--ds-panel-rgb) / .58);
+  --ds-surface: rgb(var(--ds-panel-rgb) / .24);
+  --ds-raised-surface: rgb(var(--ds-panel-rgb) / .42);
+  --ds-dialog-surface: rgb(var(--ds-panel-rgb) / .46);
+  --ds-floating-surface: rgb(var(--ds-panel-rgb) / .72);
   --ds-immersive-line: rgb(var(--ds-muted-rgb) / .42);
   --ds-task-immersive-edge: rgb(var(--ds-bg-rgb) / .82);
   --ds-task-immersive-mid: rgb(var(--ds-bg-rgb) / .74);
@@ -94,6 +98,10 @@ html.codex-dream-skin[data-dream-shell="light"] {
   --ds-immersive-chrome: rgb(var(--ds-panel-rgb) / .34);
   --ds-immersive-composer: rgb(var(--ds-panel-rgb) / .46);
   --ds-composer-surface: rgb(var(--ds-panel-rgb) / .70);
+  --ds-surface: rgb(var(--ds-panel-rgb) / .44);
+  --ds-raised-surface: rgb(var(--ds-panel-rgb) / .60);
+  --ds-dialog-surface: rgb(var(--ds-panel-rgb) / .64);
+  --ds-floating-surface: rgb(var(--ds-panel-rgb) / .84);
   --ds-immersive-line: rgb(var(--ds-accent-rgb) / .24);
   --ds-task-immersive-edge: rgb(var(--ds-panel-rgb) / .86);
   --ds-task-immersive-mid: rgb(var(--ds-panel-rgb) / .78);
@@ -229,6 +237,45 @@ html.codex-dream-skin[data-dream-surface="work"] #page-header {
 html.codex-dream-skin[data-dream-surface="work"] #stage-slideover-sidebar {
   --sidebar-surface-primary: transparent !important;
   background: transparent !important;
+}
+
+/* Route-local theme scopes otherwise restore opaque utility-page surfaces. */
+html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]),
+html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) :is(body, #root, #main, .dark, .light, [data-theme]) {
+  --bg-primary: transparent !important;
+  --bg-secondary: var(--ds-surface) !important;
+  --bg-secondary-surface: var(--ds-surface) !important;
+  --bg-tertiary: var(--ds-raised-surface) !important;
+  --bg-elevated-primary: var(--ds-dialog-surface) !important;
+  --bg-elevated-secondary: var(--ds-raised-surface) !important;
+  --main-surface-primary: transparent !important;
+  --main-surface-secondary: var(--ds-surface) !important;
+  --main-surface-tertiary: var(--ds-raised-surface) !important;
+  --sidebar-surface: var(--ds-dialog-surface) !important;
+  --sidebar-surface-primary: transparent !important;
+  --sidebar-surface-secondary: var(--ds-surface) !important;
+  --surface: transparent !important;
+  --menu-background: var(--ds-floating-surface) !important;
+  --menu-foreground: var(--ds-text) !important;
+  --text-primary: var(--ds-text) !important;
+  --text-secondary: var(--ds-muted) !important;
+  --text-tertiary: var(--ds-muted) !important;
+}
+
+html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) :is([role="menu"], [role="listbox"], [popover], [role="dialog"]) {
+  background: var(--ds-floating-surface) !important;
+  color: var(--ds-text) !important;
+  border-color: var(--ds-line) !important;
+  backdrop-filter: blur(16px) saturate(108%);
+}
+
+html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) [role="dialog"] {
+  background: var(--ds-dialog-surface) !important;
+}
+
+/* Primary-background colors also label inverted buttons; keep those readable. */
+html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) .text-token-bg-primary {
+  color: var(--ds-bg) !important;
 }
 
 /* Keep the desktop transparent; the single Dot video is clipped to its cards. */
