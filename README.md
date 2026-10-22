@@ -64,9 +64,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-Keep your current background and any pending import on your computer. Turn on **Apply on Codex launch** once. On macOS, open the original official Codex app from Finder, Spotlight, or the Dock; the background service gracefully reopens a fresh ordinary launch once to connect your background. On Windows, use **Codex (Xskin)** on Desktop/Start. Xskin does not need to stay open.
+Keep your current background and any pending import on your computer. Turn on **Apply on Codex launch** once. On macOS, open the original official Codex app from Finder, Spotlight, or the Dock. Windows 1.6.0 source builds also support the original app from Start, Desktop or the taskbar. The background monitor gracefully reopens a fresh ordinary launch once to connect your background. Xskin does not need to stay open.
 
-On Windows, right-click **Codex (Xskin)** → **Show more options** → **Pin to taskbar**, then unpin the original Codex entry. The shortcut uses the official Codex icon and retains the background launcher. Opening the original Store entry directly does not auto-apply. An already-open ordinary Codex session needs one confirmed restart through manual Apply to enable the background connection.
+In Windows 1.6.0, enable the option once in the updated panel to replace the old shortcut-based setup, and use or pin the official Codex app. Existing windows, explicit debug launches and refused closes are left alone. The monitor starts at login without opening Codex; Pause/Restore stop it. The published Windows 1.5.5 ZIP still requires its **Codex (Xskin)** shortcut. An already-open ordinary Codex session needs one confirmed restart through manual Apply to enable the background connection.
 
 ### Keep streaming updates light
 

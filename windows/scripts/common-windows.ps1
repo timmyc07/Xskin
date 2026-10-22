@@ -1,11 +1,12 @@
 . (Join-Path $PSScriptRoot 'config-utf8.ps1')
 
 function Enter-DreamSkinOperationLock {
+  param([int]$TimeoutMilliseconds = 0)
   $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   $mutex = [System.Threading.Mutex]::new($false, "Local\CodexDreamSkin.$sid.Operation")
   $acquired = $false
   try {
-    $acquired = $mutex.WaitOne(0)
+    $acquired = $mutex.WaitOne($TimeoutMilliseconds)
   } catch [System.Threading.AbandonedMutexException] {
     $acquired = $true
   }
@@ -131,6 +132,8 @@ function Install-DreamSkinRuntimeEngine {
     'assets\renderer-inject.js',
     'assets\theme.json',
     'scripts\common-windows.ps1',
+    'scripts\autostart-windows.ps1',
+    'scripts\watch-codex-launches.ps1',
     'scripts\config-utf8.ps1',
     'scripts\image-metadata.mjs',
     'scripts\injector.mjs',
@@ -164,6 +167,7 @@ function Install-DreamSkinRuntimeEngine {
   $backupRoot = Join-Path $fullStateRoot ".engine-backup-$token"
   Ensure-DreamSkinManagedDirectory -Path $stagingRoot -Root $fullStateRoot
   $resumeState = $null
+  $resumeAutostart = $false
 
   try {
     foreach ($directoryName in @('assets', 'scripts')) {
@@ -202,6 +206,10 @@ function Install-DreamSkinRuntimeEngine {
     $hasBackup = $false
     if (Test-Path -LiteralPath $engine.Root) {
       Assert-DreamSkinRuntimeTree -Path $engine.Root
+      if (Get-DreamSkinAutostartProcess -StateRoot $fullStateRoot -Strict) {
+        Stop-DreamSkinAutostart -StateRoot $fullStateRoot
+        $resumeAutostart = $true
+      }
       $previousState = Read-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json')
       if ($null -ne $previousState -and $previousState.injectorPid -and $previousState.injectorPath -and
         (Test-DreamSkinPathEqual -Left $previousState.injectorPath -Right (Join-Path $engine.Scripts 'injector.mjs')) -and
@@ -247,27 +255,31 @@ function Install-DreamSkinRuntimeEngine {
         }
       }
     }
-    if ($null -ne $resumeState) {
-      $daemon = $null
-      try {
-        $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
-          $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
-          '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
-          '--pause-file', (Join-Path $fullStateRoot 'paused'))
-        $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
-          -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
-          -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
-          -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
-        Start-Sleep -Milliseconds 500
-        if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
-        $resumeState.injectorPid = $daemon.Id
-        $resumeState.injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
-        if (-not $resumeState.injectorStartedAt) { throw 'The resumed watcher identity could not be recorded.' }
-        Write-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json') -State $resumeState
-      } catch {
-        if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
-        throw
+    try {
+      if ($null -ne $resumeState) {
+        $daemon = $null
+        try {
+          $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
+            $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
+            '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
+            '--pause-file', (Join-Path $fullStateRoot 'paused'))
+          $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
+            -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
+            -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
+          Start-Sleep -Milliseconds 500
+          if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
+          $resumeState.injectorPid = $daemon.Id
+          $resumeState.injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
+          if (-not $resumeState.injectorStartedAt) { throw 'The resumed watcher identity could not be recorded.' }
+          Write-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json') -State $resumeState
+        } catch {
+          if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
+          throw
+        }
       }
+    } finally {
+      if ($resumeAutostart) { Start-DreamSkinAutostart -StateRoot $fullStateRoot }
     }
   }
 }
@@ -844,3 +856,5 @@ function Confirm-DreamSkinRestart {
   $shell = New-Object -ComObject WScript.Shell
   return $shell.Popup($Message, 0, 'Codex Dream Skin', 52) -eq 6
 }
+
+. (Join-Path $PSScriptRoot 'autostart-windows.ps1')

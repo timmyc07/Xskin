@@ -1,5 +1,13 @@
 # Windows Changelog
 
+## Xskin Windows 1.6.0 — 2026-10-22
+
+- Apply saved backgrounds when opening the original official Codex app from Start, Desktop or the taskbar. The opt-in per-user Startup monitor works with the Xskin panel closed; dedicated Codex (Xskin) shortcuts are no longer required or created.
+- Check for new launches once per second. Verify the registered Store executable, session, PID and exact start time; only gracefully reopen an ordinary launch at most 15 seconds old. Leave existing windows and explicit debugging launches alone. Persist a 30-second handoff guard, never retry the same launch, and never force an automatic restart.
+- Pause, Restore and disabling the preference stop the monitor and remove its owned Startup entry. Enabling or disabling removes only the previous Xskin-owned Desktop/Start launch shortcuts; unrelated shortcuts and official entries remain intact. Enable the preference once in the updated panel to replace the old shortcut-based setup.
+- Stop and resume the verified monitor during managed-engine replacement and rollback. Preserve saved media, pause, preferences and the last handoff time. Login only starts the monitor; it does not open Codex.
+- Update all four interface languages and add isolated Windows tests for identity/age/session checks, refused close, duplicate/loop prevention, pause, real monitor start/stop, failed enable, runtime replacement/rollback and owned-shortcut migration. Official-app cold launch and a new Windows login still need interactive validation.
+
 ## Xskin Windows 1.5.5 — 2026-10-22
 
 - Fix a black preview when replacing one video with another. Bind each video view to its current controller so width/height subscriptions follow the new player; retain paused first-frame previews, original media and frame rate. Extend the native integration test to start with a video, replace it and require a visible texture before and after playback.

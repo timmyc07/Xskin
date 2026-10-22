@@ -3,6 +3,8 @@ param(
   [int]$Port = 9335,
   [switch]$RestartExisting,
   [switch]$PromptRestart,
+  [int]$NewLaunchPid,
+  [string]$NewLaunchStartedAt,
   [string]$ProfilePath,
   [switch]$ForegroundInjector
 )
@@ -13,12 +15,19 @@ $Injector = Join-Path $PSScriptRoot 'injector.mjs'
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
 
-$operationLock = Enter-DreamSkinOperationLock
+$lockWait = if ($NewLaunchPid) { 2000 } else { 0 }
+$operationLock = Enter-DreamSkinOperationLock -TimeoutMilliseconds $lockWait
 try {
   Assert-DreamSkinPort -Port $Port
   if ($ProfilePath) { $ProfilePath = [System.IO.Path]::GetFullPath($ProfilePath) }
   $node = Get-DreamSkinNodeRuntime
   $currentCodex = Get-DreamSkinCodexInstall
+  if ($NewLaunchPid -or $NewLaunchStartedAt) {
+    if (-not $NewLaunchPid -or -not $NewLaunchStartedAt -or
+      -not (Test-DreamSkinNewCodexLaunch -Codex $currentCodex -ProcessId $NewLaunchPid -StartedAt $NewLaunchStartedAt)) {
+      throw 'Automatic apply requires the same newly launched official Codex process.'
+    }
+  }
   $codex = $currentCodex
   $StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
@@ -84,19 +93,27 @@ try {
   }
   $closedExistingCodex = $false
   if (-not $debugReady -and $codexProcesses.Count -gt 0) {
-    $restartAuthorized = [bool]$RestartExisting
-    if (-not $restartAuthorized -and $PromptRestart) {
-      $restartAuthorized = Confirm-DreamSkinRestart -Message 'Codex must restart once to enable Dream Skin. Unsaved input may be lost. Restart now?'
-      if (-not $restartAuthorized) {
-        throw 'Dream Skin launch was cancelled; Codex was not changed.'
+    if ($NewLaunchPid) {
+      Stop-DreamSkinNewCodexLaunch -Codex $currentCodex -ProcessId $NewLaunchPid -StartedAt $NewLaunchStartedAt
+    } else {
+      $restartAuthorized = [bool]$RestartExisting
+      if (-not $restartAuthorized -and $PromptRestart) {
+        $restartAuthorized = Confirm-DreamSkinRestart -Message 'Codex must restart once to enable Dream Skin. Unsaved input may be lost. Restart now?'
+        if (-not $restartAuthorized) {
+          throw 'Dream Skin launch was cancelled; Codex was not changed.'
+        }
       }
+      if (-not $restartAuthorized) {
+        throw 'Codex is open without a verified Dream Skin CDP endpoint. Close it first or explicitly use -RestartExisting.'
+      }
+      Stop-DreamSkinCodex -Codex $codexToStop -AllowForce
     }
-    if (-not $restartAuthorized) {
-      throw 'Codex is open without a verified Dream Skin CDP endpoint. Close it first or explicitly use -RestartExisting.'
-    }
-    Stop-DreamSkinCodex -Codex $codexToStop -AllowForce
     $closedExistingCodex = $true
     $codex = $currentCodex
+  }
+
+  if ($NewLaunchPid -and -not $closedExistingCodex) {
+    throw 'The new Codex launch changed before automatic restart; it was left alone.'
   }
 
   $launchedWithCdp = $false
@@ -127,7 +144,7 @@ try {
   } catch {
     $launchError = $_
     if ($launchedWithCdp) {
-      try { Stop-DreamSkinCodex -Codex $codex -AllowForce } catch {
+      try { Stop-DreamSkinCodex -Codex $codex -AllowForce:($NewLaunchPid -eq 0) } catch {
         Write-Warning 'Launch rollback could not fully close the failed CDP session.'
       }
     }
@@ -152,7 +169,7 @@ try {
   } catch {
     if ($launchedWithCdp) {
       try {
-        Stop-DreamSkinCodex -Codex $codex -AllowForce
+        Stop-DreamSkinCodex -Codex $codex -AllowForce:($NewLaunchPid -eq 0)
         $null = Start-DreamSkinCodex -Codex $codex
       } catch {
         Write-Warning 'State validation rollback could not fully restart Codex; close Codex to ensure its CDP port is closed.'
@@ -267,7 +284,7 @@ try {
     if ($injectorStopped) { Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue }
     if ($launchedWithCdp) {
       try {
-        Stop-DreamSkinCodex -Codex $codex -AllowForce
+        Stop-DreamSkinCodex -Codex $codex -AllowForce:($NewLaunchPid -eq 0)
         $null = Start-DreamSkinCodex -Codex $codex
       } catch {
         Write-Warning 'Startup rollback could not fully restart Codex; close Codex to ensure its CDP port is closed.'

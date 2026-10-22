@@ -44,38 +44,9 @@ try {
   try { Convert-XskinImage -Source $oversized -Destination (Join-Path $temporary 'bad.jpg'); throw 'Large source was accepted.' }
   catch { if ($_.Exception.Message -notmatch '50 MiB') { throw } }
 
-  $shortcutFolder = Join-Path $temporary 'shortcuts'
-  New-Item -ItemType Directory -Path $shortcutFolder | Out-Null
-  function Get-XskinLaunchShortcutPaths { return @((Join-Path $shortcutFolder 'desktop.lnk'), (Join-Path $shortcutFolder 'start.lnk')) }
-  # Match the registered Store package layout; WSH reads icons through the system code page.
-  $codexExecutable = Join-Path $temporary 'OpenAI.Codex_fixture\app\ChatGPT.exe'
-  New-Item -ItemType Directory -Path (Split-Path -Parent $codexExecutable) | Out-Null
-  Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -Destination $codexExecutable
-  function Get-DreamSkinCodexInstall { return [pscustomobject]@{Executable=$codexExecutable} }
-  Set-XskinAutostart -Enabled $true -SkillRoot $root -StateRoot $stateRoot
-  $startup = Get-XskinAutostart -StateRoot $stateRoot
-  if (-not $startup.Enabled -or -not $startup.Loaded) { throw 'The direct-launch entry was not installed.' }
-  $foreign = (Get-XskinLaunchShortcutPaths)[0]
-  $shell = New-Object -ComObject WScript.Shell
-  foreach ($shortcut in $startup.Owned) {
-    $createdLink = $shell.CreateShortcut($shortcut)
-    if ($createdLink.IconLocation -ine "$codexExecutable,0") { throw "Incorrect launch icon: '$($createdLink.IconLocation)'; expected '$codexExecutable,0'." }
-    if ($createdLink.Arguments -notmatch '-File' -or $createdLink.TargetPath -notlike '*\powershell.exe') { throw 'Setting the icon changed the background launcher.' }
-  }
-  $link = $shell.CreateShortcut($foreign)
-  $link.Description = 'unrelated'
-  $link.Save()
-  Set-XskinAutostart -Enabled $false -SkillRoot $root -StateRoot $stateRoot
-  if (-not (Test-Path -LiteralPath $foreign)) { throw 'Disable removed an unrelated shortcut.' }
-  try { Set-XskinAutostart -Enabled $true -SkillRoot $root -StateRoot $stateRoot; throw 'Foreign shortcut was overwritten.' }
-  catch { if ($_.Exception.Message -notmatch 'unrelated shortcut') { throw } }
-  Remove-Item -LiteralPath $foreign
-  Set-XskinAutostart -Enabled $true -SkillRoot $root -StateRoot $stateRoot
-  Set-XskinAutostart -Enabled $false -SkillRoot $root -StateRoot $stateRoot
-  if ((Get-XskinAutostart -StateRoot $stateRoot).Enabled) { throw 'Disable left the direct-launch entry enabled.' }
 } finally {
   $fullPath = [IO.Path]::GetFullPath($temporary)
   if (-not $fullPath.StartsWith([IO.Path]::GetTempPath(), [StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected cleanup path.' }
   Remove-Item -LiteralPath $fullPath -Recurse -Force
 }
-Write-Host 'PASS: Mac-equivalent preferences, independent mask rollback, image/TIFF conversion, limits and direct-launch ownership.'
+Write-Host 'PASS: Mac-equivalent preferences, independent mask rollback, image/TIFF conversion and limits.'

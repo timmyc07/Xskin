@@ -1,10 +1,14 @@
-# Xskin for Windows 1.5.5 (Flutter)
+# Xskin for Windows 1.6.0 (Flutter)
 
 **[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.5/Xskin-1.5.5-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.5)
 
+The published download above is **1.5.5** and still uses dedicated launch shortcuts. **1.6.0 source builds** include original-app automatic startup described below.
+
 Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
-**New in Windows 1.5.5:** video-to-video changes create a fresh preview view, keeping its dimension subscriptions attached to the current player. Paused previews remain visible. macOS 1.6.1 native Work detection and guarded late-shell injection are also included; inactive pages stay excluded, and pending observers are cancelled on pause, expiry or shutdown.
+**New in Windows 1.6.0:** turn on **Apply on Codex launch**, then open the original official Codex app from Start, Desktop or the taskbar. A hidden per-user monitor gracefully reopens each fresh ordinary launch once to apply the saved background. The panel can stay closed; dedicated Codex (Xskin) shortcuts are no longer required. Enable the option once in this updated panel to replace the old setup.
+
+**Included since Windows 1.5.5:** video-to-video changes create a fresh preview view, keeping its dimension subscriptions attached to the current player. Paused previews remain visible. macOS 1.6.1 native Work detection and guarded late-shell injection are also included; inactive pages stay excluded, and pending observers are cancelled on pause, expiry or shutdown.
 
 **Included since Windows 1.5.4:** the main-window **Your dot** conversation, embedded ChatGPT/Work and floating Dot composer/activity cards all support the original video. The conversation keeps native message bubbles without duplicate row backgrounds, borders or blur; verification checks the inner messaging layers as well as the shell. Work follows native container visibility, and its covered Codex player pauses. Floating cards share one player clipped to their rounded bounds; the desktop outside stays transparent. Playback pauses when no cards are visible, with the existing poster fallback for loading, errors and Reduce Motion.
 
@@ -23,12 +27,14 @@ The right side shows the active background, language, automatic apply and whole-
 ## Preferences and saved backgrounds
 
 - **Overlay opacity:** 0–100%, default 62%. Release the slider to persist and update the current background. This does not import another copy or reopen the preview player. Keyboard changes are debounced.
-- **Apply on Codex launch:** creates managed **Codex (Xskin)** entries on Desktop and Start. Open Codex through those entries to apply the saved background while the Xskin panel stays closed. This is the Windows equivalent of the Mac direct-launch Dock entry. Original Microsoft Store/taskbar entries are unchanged. An already-open ordinary Codex window is left running; use manual Apply to authorize its first restart.
-- **Taskbar:** right-click the Desktop **Codex (Xskin)** shortcut → **Show more options** → **Pin to taskbar**. After confirming it launches correctly, unpin the original Codex icon. Pin this shortcut rather than the running official-app window; the shortcut retains the managed engine arguments and official Codex icon.
+- **Apply on Codex launch:** registers a hidden background monitor in the current user's Startup folder and starts it immediately. Open the official Codex app normally; the monitor checks for launches once per second, validates the registered package and exact PID/start time, then gracefully reopens a fresh ordinary launch once. It skips existing windows, other sessions and explicit debug launches. A 15-second launch-age limit, persisted 30-second restart guard and no retry for failed launches prevent repeated interruptions. Refused closes are never forced. An already-open ordinary Codex window is left running; use manual Apply to authorize its first restart.
+- **Taskbar:** pin the official Codex app normally. If an old **Codex (Xskin)** shortcut was pinned, unpin that copy and restore the official Codex pin. Enabling/disabling the option removes only the old Xskin-owned Desktop/Start shortcuts and preserves unrelated entries.
 - **Saved backgrounds:** contains launch, pause/resume, save, selection and restore controls. Selecting a saved theme prepares a draft for Apply.
-- **Pause / Restore:** disable the managed automatic-launch entries. Restore closes the managed debugging session and reopens ordinary Codex after the restart prompt.
+- **Pause / Restore:** stop the monitor and remove its owned Startup entry. Restore closes the managed debugging session and reopens ordinary Codex after the restart prompt. Login starts only the monitor; closing Codex leaves it closed.
 
 Imports, the overlay and language survive panel restarts. All media processing stays local; there is no account, API key or `.env` requirement.
+
+The official window may briefly appear before the automatic handoff. Applying the background still includes normal app startup and media decoding. The monitor requires an interactive user session, with no administrator privileges or Windows system service.
 
 ## Media
 
@@ -64,7 +70,7 @@ flutter test
 flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.5-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.5.5` release tag.
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.6.0-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries currently use the separate `windows-v1.5.5` release tag.
 
 ## Performance
 
@@ -74,6 +80,6 @@ The local 100-update benchmark reduced route scans from 104 to 1 while a 4K vide
 
 **Windows 1.5.3** also streams complete MP4 integrity checks through a 1 MiB buffer and hashes video content once. In three fresh-process runs of 30 theme loads, median process CPU time fell from **1,344 to 843 ms (37.3%)**, and peak process RSS fell from **267.27 to 146.73 MiB (45.1%)**. These are load-time results; lower GPU use or sustained playback memory has not been established. Original 4K media and frame rate are preserved.
 
-The downloadable **1.5.5 ZIP retains this optimization and includes the Dot/Work fixes above**. Extract it to a new folder and open `xskin.exe`; saved backgrounds and preferences remain in the managed store. Apply the saved background or use the new panel's launch action to update the managed engine. The update safely replaces and resumes the verified background watcher; existing **Codex (Xskin)** shortcuts keep working.
+The downloadable **1.5.5 ZIP retains this optimization and includes the Dot/Work fixes above**. The **1.6.0 source build** additionally supports official-app startup. Extract the complete build into a new folder, open `xskin.exe` and enable **Apply on Codex launch** once to update the managed engine and register the monitor. Saved backgrounds and preferences remain in the managed store. Engine updates stop/resume the verified monitor and injector, including rollback.
 
 See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.
