@@ -70,6 +70,17 @@ Windows 新任务的记录文件尚未创建时会暂时监听其确切 UUID 的
 
 实现前参考了 [codex-token-overlay](https://github.com/soleillevant0125/codex-token-overlay) 与 [codex-token-meter](https://github.com/prefect12/codex-token-meter) 的开源方案；运行时沿用项目现有脚本与浏览器平台能力，没有增加这些项目作为依赖。
 
+### 2026-10-23 overlay layout validation
+
+macOS 1.8.2 / Windows 1.8.1 move the usage strip above the input in normal flow and hide empty Home rows. The native toolbar keeps its placement, size and corners. Dark/light image surfaces use alpha 0.58/0.70; video composer and toolbar share alpha 0.38.
+
+- An independent browser fixture using the actual CSS/overlay passed at 320, 600 and 1280 px: no horizontal overflow, no overlap, 8 px separation from the input and native footer, and working toolbar clicks. Home, light and video material checks passed. Fixture screenshots contain only sample data, not private chats.
+- Full macOS tests and native 1.8.2 build passed. Updating the live Xskin connection passed its current-page self-check without restarting Codex; official process identity, selected media/theme digest and config bytes were unchanged.
+- Windows full runner, Flutter analysis, all 6 Flutter tests, release build and package passed at runtime commit `7689cb2`: [Windows CI](https://github.com/timmyc07/Xskin/actions/runs/39812525811). Local macOS Flutter analysis also passed, with 5 tests passed and the Windows bridge test skipped. Eight portable Windows regression files passed locally.
+- Formal home/task visual inspection in the official app remains pending because native computer-use access was denied. Browser fixtures and self-checks do not replace that inspection or physical Windows verification. No alternate app capture/navigation bypass was used.
+
+The GitHub workflow summary lagged behind its completed job; the result above was checked against the complete job log and finalized artifact, rather than the summary badge. [GitHub status](https://www.githubstatus.com/api/v2/summary.json) reported degraded Actions performance during this run.
+
 ## 自适应图像主题契约
 
 同一套主题配置在两个渲染器中使用相同的外观约定。只需要提供一张背景图，注入层就会在本机分析图像并生成协调的颜色、焦点和页面布局；不会上传图片，也不依赖外部 AI/API。
