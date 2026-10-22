@@ -65,7 +65,7 @@ enum XskinLocalization {
     .importMedia: ["Import", "匯入素材", "导入素材", "読み込む"],
     .importMenu: ["Import background…", "匯入背景素材…", "导入背景素材…", "背景素材を読み込む…"],
     .autostartLabel: ["Apply on Codex launch", "啟動時自動套用", "启动时自动应用", "Codex 起動時に適用"],
-    .autostartHint: ["Sets up a Codex Dock shortcut that applies your background in one launch. Xskin can stay closed.", "設定 Codex Dock 入口，單次啟動即可套用；Xskin 不必常駐。", "设置 Codex Dock 入口，单次启动即可应用；Xskin 无需常驻。", "Codex Dock ショートカットから一度の起動で背景を適用。Xskin の常駐は不要です。"],
+    .autostartHint: ["Open the official Codex app to apply your background. A new session reopens once; already-open windows stay open. Xskin can stay closed.", "直接開啟官方 Codex 即可套用背景。新啟動的程式會自動重新開啟一次；已開啟的視窗不受影響，Xskin 不必常駐。", "直接打开官方 Codex 即可应用背景。新启动的程序会自动重新打开一次；已打开的窗口不受影响，Xskin 无需常驻。", "公式 Codex を開くと背景を適用します。新しい起動時に一度だけ開き直します。既存のウィンドウは維持され、Xskin の常駐は不要です。"],
     .activeBackground: ["In use", "正在使用", "正在使用", "使用中"],
     .notConfigured: ["Not set", "尚未設定", "尚未设置", "未設定"],
     .autostartUnavailable: ["Automatic startup is not ready", "自動套用服務尚未就緒", "自动应用服务尚未就绪", "自動適用の準備ができていません"],

@@ -64,9 +64,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-Keep your current background and any pending import on your computer. Turn on **Apply on Codex launch** once, then use the managed entry: **Codex (Xskin)** on Windows Desktop/Start, or the Dock entry on macOS. Your background loads with Codex; Xskin does not need to stay open.
+Keep your current background and any pending import on your computer. Turn on **Apply on Codex launch** once. On macOS, open the original official Codex app from Finder, Spotlight, or the Dock; the background service gracefully reopens a fresh ordinary launch once to connect your background. On Windows, use **Codex (Xskin)** on Desktop/Start. Xskin does not need to stay open.
 
-On Windows, right-click **Codex (Xskin)** → **Show more options** → **Pin to taskbar**, then unpin the original Codex entry. The shortcut uses the official Codex icon and retains the background launcher. Opening the original Store entry directly does not auto-apply. On either platform, an already-open ordinary Codex session needs one confirmed restart through manual Apply to enable the background connection.
+On Windows, right-click **Codex (Xskin)** → **Show more options** → **Pin to taskbar**, then unpin the original Codex entry. The shortcut uses the official Codex icon and retains the background launcher. Opening the original Store entry directly does not auto-apply. An already-open ordinary Codex session needs one confirmed restart through manual Apply to enable the background connection.
 
 ### Keep streaming updates light
 
@@ -114,7 +114,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
 - Releases are platform-specific: **windows-v1.5.4** for Windows x64 and **v1.5.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
-- Automatic startup prepares a separate managed entry at `~/Applications/Codex (Xskin).app` and connects it to the Dock; the official app bundle remains unchanged. Opening the original official `.app` path directly leaves it running without an automatic background. Use the managed Dock entry for background-enabled launches.
+- macOS automatic startup supports the original official app. Each fresh ordinary launch is gracefully reopened once, with an identity/age check and a 30-second loop guard; existing sessions are skipped and refused quits are never forced. Enabling it restores previously managed Dock entries to the official app. The official bundle remains unchanged.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
 - 4K decoding and playback load depend on frame rate, codec, and hardware. Preserving original quality does not guarantee identical resource use across files.
@@ -140,7 +140,7 @@ cd macos
 npm test
 ```
 
-An initial manual Apply may ask for one confirmed restart when Codex was opened without the background connection. Later managed Dock launches do not restart it. Include system, Codex, and Xskin versions with reproducible steps when contributing. Do not submit private chats, media, or credentials.
+An initial manual Apply may ask for one confirmed restart when Codex was opened without the background connection. On macOS, later ordinary launches use one automatic graceful handoff; already-open windows are skipped. Include system, Codex, and Xskin versions with reproducible steps when contributing. Do not submit private chats, media, or credentials.
 
 </details>
 

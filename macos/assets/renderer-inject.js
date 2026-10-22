@@ -1,7 +1,11 @@
 ((cssText, artDataUrl, themeConfig) => {
+  const SURFACE = (__DREAM_SKIN_DETECT_SURFACE__)();
   const STATE_KEY = "__CODEX_DREAM_SKIN_STATE__";
+  const HOST_VISIBLE_KEY = "__CODEX_DREAM_SKIN_HOST_VISIBLE__";
+  const HOST_VISIBILITY_EVENT = "codex-dream-skin-host-visibility";
   const DISABLED_KEY = "__CODEX_DREAM_SKIN_DISABLED__";
   const STYLE_ID = "codex-dream-skin-style";
+  const DOT_CARDS = '[data-avatar-overlay-native-surface-id="composer"], [data-avatar-overlay-native-surface-id^="activity-"]';
   const CHROME_ID = "codex-dream-skin-chrome";
   const SHELL_ATTR = "data-dream-shell";
   const ART_ATTRS = [
@@ -13,7 +17,7 @@
   const VERSION = __DREAM_SKIN_VERSION_JSON__;
   const STYLE_REVISION = __DREAM_SKIN_STYLE_REVISION_JSON__;
   const THEME = themeConfig && typeof themeConfig === "object" ? themeConfig : {};
-  const WALLPAPER = Boolean(THEME.video || THEME.layout === "wallpaper");
+  const WALLPAPER = SURFACE !== "dot" && Boolean(THEME.video || THEME.layout === "wallpaper");
   const ART = THEME.art && typeof THEME.art === "object" ? THEME.art : {};
   const ART_METADATA = THEME.artMetadata && typeof THEME.artMetadata === "object"
     ? THEME.artMetadata : null;
@@ -59,6 +63,60 @@
   window[DISABLED_KEY] = false;
 
   const previous = window[STATE_KEY];
+  previous?.disposeHost?.();
+  let workVisible = false;
+  const workViews = new Map();
+  let hostObserver = null;
+  const syncWorkViews = () => {
+    if (SURFACE !== "codex") return;
+    hostObserver?.disconnect();
+    const current = new Set(document.querySelectorAll("webview"));
+    for (const [view, record] of workViews) {
+      if (!current.has(view)) {
+        view.removeEventListener("did-finish-load", record.loaded);
+        workViews.delete(view);
+      }
+    }
+    let visibleWork = false;
+    for (const view of current) {
+      try {
+        if (new URL(view.getURL()).origin !== "https://chatgpt.com") continue;
+        if (!hostObserver) {
+          hostObserver = new MutationObserver(syncWorkViews);
+          document.addEventListener("visibilitychange", syncWorkViews);
+        }
+        for (let node = view; node; node = node.parentElement) {
+          hostObserver.observe(node, { attributes: true, attributeFilter: ["style", "class", "hidden"] });
+        }
+        const visible = !document.hidden && view.checkVisibility({ visibilityProperty: true, opacityProperty: true });
+        const box = view.getBoundingClientRect();
+        visibleWork ||= visible && box.width >= innerWidth * 0.95 && box.height >= innerHeight * 0.9;
+        let record = workViews.get(view);
+        if (!record) {
+          record = { visible: null, loaded: () => { record.visible = null; syncWorkViews(); } };
+          view.addEventListener("did-finish-load", record.loaded);
+          workViews.set(view, record);
+        }
+        if (record.visible === visible) continue;
+        record.visible = visible;
+        view.executeJavaScript(`(() => {
+          if (location.origin !== "https://chatgpt.com") return;
+          window.${HOST_VISIBLE_KEY} = ${visible};
+          window.dispatchEvent(new Event("${HOST_VISIBILITY_EVENT}"));
+        })()`).catch(() => { record.visible = null; });
+      } catch {}
+    }
+    if (workVisible !== visibleWork) {
+      workVisible = visibleWork;
+      videoController?.syncPlayback();
+    }
+  };
+  const disposeHost = () => {
+    hostObserver?.disconnect();
+    document.removeEventListener("visibilitychange", syncWorkViews);
+    for (const [view, record] of workViews) view.removeEventListener("did-finish-load", record.loaded);
+    workViews.clear();
+  };
   const blobUrlFor = (dataUrl) => {
     const comma = dataUrl.indexOf(",");
     const mime = /^data:([^;,]+)/.exec(dataUrl)?.[1] || "image/png";
@@ -100,7 +158,63 @@
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let disposed = false;
     let failed = false;
-    const suspended = () => document.hidden || motionQuery.matches;
+    let dotVisible = false;
+    let dotFrame = null;
+    let observedCards = [];
+    const dotObserver = SURFACE === "dot" ? new MutationObserver(() => syncDotLayout()) : null;
+    const dotResize = SURFACE === "dot" ? new ResizeObserver(() => syncDotLayout()) : null;
+    const syncDotLayout = () => {
+      if (disposed || SURFACE !== "dot") return;
+      dotObserver.disconnect();
+      const cards = [...document.querySelectorAll(DOT_CARDS)];
+      if (cards.length !== observedCards.length || cards.some((card,index) => card !== observedCards[index])) {
+        dotResize.disconnect();
+        for (const card of cards) dotResize.observe(card);
+        observedCards = cards;
+      }
+      const rects = cards.filter(card => card.checkVisibility({visibilityProperty:true,opacityProperty:true}))
+        .map(card => ({card, box:card.getBoundingClientRect(), style:getComputedStyle(card)}))
+        .filter(({card,box}) => card.offsetWidth > 0 && card.offsetHeight > 0 && box.width > 0 && box.height > 0 && box.right > 0 && box.bottom > 0 &&
+          box.left < innerWidth && box.top < innerHeight);
+      for (const card of cards) {
+        for (let node = card; node; node = node.parentElement) {
+          dotObserver.observe(node, {attributes:true,attributeFilter:["style","class","hidden"]});
+        }
+      }
+      const left = rects.length ? Math.min(...rects.map(({box}) => box.left)) : 0;
+      const top = rects.length ? Math.min(...rects.map(({box}) => box.top)) : 0;
+      const width = rects.length ? Math.max(...rects.map(({box}) => box.right)) - left : 1;
+      const height = rects.length ? Math.max(...rects.map(({box}) => box.bottom)) - top : 1;
+      const path = rects.map(({card,box,style}) => {
+        const x = box.left - left, y = box.top - top, w = box.width, h = box.height;
+        const radii = ["borderTopLeftRadius","borderTopRightRadius","borderBottomRightRadius","borderBottomLeftRadius"]
+          .map(name => {
+            const [rx,ry=rx] = style[name].split(/\s+/);
+            return [rx,ry].map((value,axis) => value.endsWith("%") ? parseFloat(value)*[w,h][axis]/100 :
+              (parseFloat(value)||0)*[w/card.offsetWidth,h/card.offsetHeight][axis]);
+          });
+        const scale = Math.min(1,w/(radii[0][0]+radii[1][0]),w/(radii[3][0]+radii[2][0]),
+          h/(radii[0][1]+radii[3][1]),h/(radii[1][1]+radii[2][1]));
+        const [[tlX,tlY],[trX,trY],[brX,brY],[blX,blY]] = radii.map(radius => radius.map(value => value*scale));
+        return `M${x+tlX} ${y}H${x+w-trX}A${trX} ${trY} 0 0 1 ${x+w} ${y+trY}` +
+          `V${y+h-brY}A${brX} ${brY} 0 0 1 ${x+w-brX} ${y+h}H${x+blX}` +
+          `A${blX} ${blY} 0 0 1 ${x} ${y+h-blY}V${y+tlY}A${tlX} ${tlY} 0 0 1 ${x+tlX} ${y}Z`;
+      }).join(" ") || "M0 0Z";
+      for (const [name,value] of Object.entries({inset:"auto",left:`${left}px`,top:`${top}px`,
+        width:`${width}px`,height:`${height}px`,"clip-path":`path("${path}")`})) {
+        setStyleProperty(video,name,value);
+      }
+      const wasVisible = dotVisible;
+      dotVisible = rects.length > 0;
+      if (wasVisible !== dotVisible) syncPlayback();
+      if (dotFrame === null && document.getAnimations().some(animation => animation.playState === "running" &&
+        cards.some(card => animation.effect?.target?.contains(card)))) {
+        dotFrame = requestAnimationFrame(() => { dotFrame = null; syncDotLayout(); });
+      }
+    };
+    const hostHidden = () => SURFACE === "work" && window[HOST_VISIBLE_KEY] === false;
+    const suspended = () => document.hidden || motionQuery.matches || workVisible ||
+      (SURFACE === "work" && window[HOST_VISIBLE_KEY] !== true) || (SURFACE === "dot" && !dotVisible);
     const hide = () => {
       document.documentElement.removeAttribute("data-dream-video-ready");
       document.documentElement.style.setProperty("--dream-skin-art", `url("${artUrl}")`);
@@ -124,7 +238,7 @@
       if (motionQuery.matches || failed) {
         hide();
         video.pause();
-      } else if (document.hidden) {
+      } else if (suspended()) {
         video.pause();
         revealFrame();
       } else {
@@ -135,21 +249,37 @@
     video.addEventListener("loadeddata", revealFrame);
     video.addEventListener("error", onError);
     document.addEventListener("visibilitychange", syncPlayback);
+    window.addEventListener(HOST_VISIBILITY_EVENT, syncPlayback);
     motionQuery.addEventListener("change", syncPlayback);
     (document.body || document.documentElement).appendChild(video);
     video.src = videoUrl;
+    if (SURFACE === "dot") {
+      document.addEventListener("transitionrun", syncDotLayout);
+      document.addEventListener("animationstart", syncDotLayout);
+      syncDotLayout();
+    }
     syncPlayback();
     return {
       status: () => ({
         ready: !failed && video.readyState >= 2 && !video.paused,
         decoded: !failed && video.readyState >= 2,
         suspended: !failed && Boolean(suspended()),
+        hostHidden: hostHidden(),
+        cardsVisible: SURFACE === "dot" ? dotVisible : undefined,
         failed, paused: video.paused, currentTime: video.currentTime,
         width: video.videoWidth, height: video.videoHeight,
       }),
+      syncPlayback,
+      syncLayout: syncDotLayout,
       dispose: () => {
         disposed = true;
+        dotObserver?.disconnect();
+        dotResize?.disconnect();
+        if (dotFrame !== null) cancelAnimationFrame(dotFrame);
+        document.removeEventListener("transitionrun", syncDotLayout);
+        document.removeEventListener("animationstart", syncDotLayout);
         document.removeEventListener("visibilitychange", syncPlayback);
+        window.removeEventListener(HOST_VISIBILITY_EVENT, syncPlayback);
         motionQuery.removeEventListener("change", syncPlayback);
         video.removeEventListener("playing", revealFrame);
         video.removeEventListener("loadeddata", revealFrame);
@@ -634,6 +764,7 @@
     metrics.rootPasses += 1;
     ensureStyle(root);
     const shell = resolvedShell();
+    setAttribute(root, "data-dream-surface", SURFACE);
     setAttribute(root, SHELL_ATTR, shell);
     setStyleProperty(root, "--dream-skin-art", root.getAttribute("data-dream-video-ready") === "true"
       ? "none" : `url("${artUrl}")`);
@@ -652,7 +783,14 @@
     const root = document.documentElement;
     if (!root) return;
     shell ||= root.getAttribute(SHELL_ATTR) || resolvedShell();
-    const shellMain = document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
+    if (SURFACE === "dot") return;
+    const shellMain = document.querySelector(SURFACE === "work" ? 'main#main' :
+      '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
+    if (SURFACE === "work") {
+      for (let node = document.querySelector('#thread'); node && node !== document.body; node = node.parentElement) {
+        node.classList.add("dream-skin-work-surface");
+      }
+    }
     const page = document.querySelector('[data-app-shell-active-page="true"]');
     const homeIndicator = page?.querySelector('[data-testid="home-icon"]') ??
       page?.querySelector('[data-feature="game-source"]') ??
@@ -733,6 +871,8 @@
     if (window[DISABLED_KEY]) return;
     const root = document.documentElement;
     if (!root) return;
+    syncWorkViews();
+    videoController?.syncLayout();
     metrics.ensureCalls += 1;
     const shell = rootPass ? applyRootState(root) : null;
     if (route) syncRouteState(shell, { layout });
@@ -742,9 +882,12 @@
     const state = window[STATE_KEY];
     if (state?.installToken !== installToken) return false;
     window[DISABLED_KEY] = true;
+    disposeHost();
     state?.disposeVideo?.();
     document.documentElement?.classList.remove("codex-dream-skin");
     document.documentElement?.removeAttribute(SHELL_ATTR);
+    document.documentElement?.removeAttribute("data-dream-surface");
+    for (const node of document.querySelectorAll('.dream-skin-work-surface')) node.classList.remove('dream-skin-work-surface');
     for (const name of ART_ATTRS) document.documentElement?.removeAttribute(name);
     document.documentElement?.style.removeProperty("--dream-skin-art");
     for (const name of THEME_VARIABLES) document.documentElement?.style.removeProperty(name);
@@ -797,7 +940,16 @@
       scheduler.timeout = setTimeout(flushScheduledEnsure, 64);
     }
   };
-  const observer = new MutationObserver(() => scheduleEnsure({ route: true }));
+  const routeMarkers = '[data-app-shell-active-page], main[data-app-shell-main-surface], [role="main"], ' +
+    '[data-testid="home-icon"], [data-feature="game-source"], [class~="group/home-suggestions"], [class*="_homeUtilityBar_"], ' +
+    `#${CHROME_ID}, #thread, main#main, #prompt-textarea, webview, [data-avatar-overlay-native-surface-id]`;
+  const observer = new MutationObserver((records) => {
+    // Message streaming changes content, not the shell or home-route markers.
+    const routeChanged = records.some((record) => record.type === "attributes" ||
+      [...record.addedNodes, ...record.removedNodes].some((node) => node.nodeType === 1 &&
+        (node.matches(routeMarkers) || node.querySelector(routeMarkers))));
+    if (routeChanged) scheduleEnsure({ route: true });
+  });
   rootObserver = new MutationObserver(() => {
     if (samplingNativeShell) return;
     scheduleEnsure({ root: true, route: true });
@@ -827,12 +979,14 @@
     mediaQuery,
     mediaHandler,
     artUrl,
+    surface: SURFACE,
     videoKey: THEME.videoKey,
     wallpaper: WALLPAPER,
     videoStatus: THEME.video ? () => videoController?.status() ?? {
       ready: false, suspended: false, failed: false, paused: true, currentTime: 0,
     } : undefined,
     disposeVideo: () => videoController?.dispose(),
+    disposeHost,
     setVideo(file) {
       if (!THEME.video || file?.name !== THEME.video || file.size !== THEME.videoBytes) {
         throw new Error("Video file does not match the selected theme");
@@ -857,6 +1011,8 @@
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
+    attributes: true,
+    attributeFilter: ["data-app-shell-active-page"],
   });
   rootObserver.observe(document.documentElement, {
     attributes: true,

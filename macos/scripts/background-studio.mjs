@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { loadTheme } from "./injector.mjs";
-import { readVideo, MAX_VIDEO_BYTES } from "./video-file.mjs";
+import { copyVideo, MAX_VIDEO_BYTES } from "./video-file.mjs";
 import { readImageMetadata, MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS } from "./image-metadata.mjs";
 
 const script = fileURLToPath(import.meta.url);
@@ -100,7 +100,7 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.5.1",
+    version: "1.6.0",
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,
@@ -129,13 +129,13 @@ async function withLock(args) {
   }
 }
 
-async function readSource(file, limit) {
+async function readSource(file) {
   let handle;
   try { handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
   catch { throw fail("invalid_local_file"); }
   try {
     const before = await handle.stat();
-    if (!before.isFile() || before.size < 1 || before.size > limit) throw fail(limit === MAX_VIDEO_BYTES ? "video_size_limit" : "image_size_limit");
+    if (!before.isFile() || before.size < 1 || before.size > 50 * 1024 * 1024) throw fail("image_size_limit");
     const bytes = Buffer.alloc(before.size);
     let offset = 0;
     while (offset < bytes.length) {
@@ -155,18 +155,27 @@ async function importMedia(file) {
   const extension = path.extname(name).toLowerCase();
   const video = extension === ".mp4";
   if (!video && !imageExtensions.has(extension)) throw fail("unsupported_format");
-  const bytes = await readSource(file, video ? MAX_VIDEO_BYTES : 50 * 1024 * 1024);
+  if (video) {
+    let stat;
+    try { stat = await fs.lstat(file); } catch { throw fail("invalid_local_file"); }
+    if (stat.isSymbolicLink()) throw fail("invalid_local_file");
+    if (!stat.isFile() || stat.size < 1 || stat.size > MAX_VIDEO_BYTES) throw fail("video_size_limit");
+  }
+  const bytes = video ? null : await readSource(file);
   const id = randomUUID();
   const directory = path.join(studioRoot, `import-${id}`);
   await fs.mkdir(directory, { mode: 0o700 });
   try {
     const uploaded = path.join(directory, `source${extension}`);
-    await fs.writeFile(uploaded, bytes, { flag: "wx", mode: 0o600 });
+    if (video) {
+      try { await copyVideo(file, uploaded); } catch { throw fail("invalid_video"); }
+    } else {
+      await fs.writeFile(uploaded, bytes, { flag: "wx", mode: 0o600 });
+    }
     const { raw, extension: posterExtension, imagePath } = await loadTheme(themeRoot);
     const imageName = `background-studio-${id}${video ? posterExtension : ".jpg"}`;
     const config = { ...raw, id: `custom-studio-${id}`, name: Array.from(name.slice(0, -extension.length)).slice(0, 80).join(""), image: imageName, appearance: "dark", layout: "wallpaper", art: { safeArea: "none", taskMode: "ambient", focusX: 0.5, focusY: 0.5 } };
     if (video) {
-      try { await readVideo(uploaded); } catch { throw fail("invalid_video"); }
       config.video = `background-studio-${id}.mp4`;
       await fs.rename(uploaded, path.join(directory, config.video));
       await fs.copyFile(imagePath, path.join(directory, imageName));

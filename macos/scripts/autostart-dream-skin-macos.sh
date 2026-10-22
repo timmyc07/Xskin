@@ -14,7 +14,6 @@ check_autostart_agent() {
 }
 
 disable_autostart() {
-  local restore_entry="${1:-true}"
   check_autostart_agent
   if [ -f "$AUTOSTART_AGENT_PATH" ]; then
     if ! /bin/launchctl bootout "$AUTOSTART_TARGET" 2>/dev/null; then
@@ -28,7 +27,7 @@ disable_autostart() {
     done
     /bin/rm -f "$AUTOSTART_AGENT_PATH"
   fi
-  if [ "$restore_entry" = "true" ] && [ -f "$STATE_ROOT/direct-launch-dock.plist" ]; then
+  if [ -f "$STATE_ROOT/direct-launch-dock.plist" ]; then
     "$PROJECT_ROOT/bin/CodexLauncher" --unlink-dock
   fi
 }
@@ -39,7 +38,7 @@ enable_autostart() {
   ensure_state_root
   [ "$PROJECT_ROOT" = "$INSTALL_ROOT" ] || fail "Enable automatic startup from the installed runtime."
   "$NODE" "$INJECTOR" --check-payload --theme-dir "$THEME_DIR" >/dev/null
-  disable_autostart false
+  disable_autostart
   /bin/mkdir -p "$(dirname "$AUTOSTART_AGENT_PATH")"
   local temporary
   temporary="$(/usr/bin/mktemp "$AUTOSTART_AGENT_PATH.XXXXXX")"
@@ -65,12 +64,11 @@ enable_autostart() {
   fi
   /bin/launchctl print "$AUTOSTART_TARGET" >/dev/null \
     || fail "Automatic startup registration could not be verified."
-  if ! "$PROJECT_ROOT/bin/CodexLauncher" --install "$CODEX_BUNDLE" >/dev/null ||
-    ! "$PROJECT_ROOT/bin/CodexLauncher" --link-dock "$CODEX_BUNDLE" >/dev/null; then
-    disable_autostart
-    fail "Could not configure the direct-launch Dock entry; automatic startup was disabled."
-  fi
-  printf 'The Codex Dock shortcut is ready. Xskin does not need to remain open.\n'
+  printf 'Opening the official Codex app now applies the saved background automatically. Xskin can stay closed.\n'
+}
+
+apply_new_launch() {
+  "$SCRIPT_DIR/start-dream-skin-macos.sh" --restart-new-launch "$1" "$2"
 }
 
 autostart_step() {
@@ -83,7 +81,18 @@ autostart_step() {
     return 0
   fi
   case "$command_line" in *--remote-debugging-port=*) return 0 ;; esac
-  printf 'Codex was opened directly and was left running. Use the Codex (Xskin) Dock shortcut for automatic backgrounds.\n' >&2
+  if [ $((SECONDS - AUTOSTART_LAST_HANDOFF)) -lt 30 ]; then
+    printf 'Automatic handoff skipped to prevent a restart loop.\n' >&2
+    return 0
+  fi
+  local started_at
+  started_at="$(process_started_at "$pid")"
+  new_codex_launch_matches "$pid" "$started_at" || return 0
+  AUTOSTART_LAST_HANDOFF="$SECONDS"
+  if ! apply_new_launch "$pid" "$started_at"; then
+    printf 'Automatic apply failed; this launch will not be retried.\n' >&2
+  fi
+  AUTOSTART_PREVIOUS_PID="$(codex_main_pids | /usr/bin/head -n 1)"
 }
 
 watch_normal_launches() {
@@ -92,13 +101,16 @@ watch_normal_launches() {
   ensure_state_root
   # Installation and login must not interrupt a window that is already open.
   AUTOSTART_PREVIOUS_PID="$(codex_main_pids | /usr/bin/head -n 1)"
+  AUTOSTART_LAST_HANDOFF=-30
   trap 'exit 0' INT TERM
   printf '%s automatic startup is watching normal launches.\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
   while :; do
     local pid command_line
     pid="$(codex_main_pids | /usr/bin/head -n 1)"
     command_line=""
-    [ -z "$pid" ] || command_line="$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)"
+    if [ -n "$pid" ] && [ "$pid" != "$AUTOSTART_PREVIOUS_PID" ]; then
+      command_line="$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)"
+    fi
     autostart_step "$pid" "$command_line"
     /bin/sleep 1
   done

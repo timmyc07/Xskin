@@ -22,30 +22,72 @@ case "$PORT" in ''|*[!0-9]*) fail "Invalid port: $PORT" ;; esac
 deploy_project() {
   local temporary="$INSTALL_ROOT.installing.$$"
   local previous="$INSTALL_ROOT.previous.$$"
+  local resume_watcher="false" resume_port="" startup_enabled="false"
+  trap '/bin/rm -rf "$INSTALL_ROOT.installing.$$"' EXIT
   /bin/rm -rf "$temporary"
   /bin/mkdir -p "$temporary"
   /usr/bin/rsync -a \
     --exclude '.git/' \
     --exclude '.DS_Store' \
+    --exclude '.env' --exclude '.env.*' \
     --exclude '/release/' \
     --exclude '/runtime/' \
     "$PROJECT_ROOT/" "$temporary/"
   /bin/chmod 700 "$temporary"/*.command "$temporary"/scripts/*.sh 2>/dev/null || true
+  discover_codex_app
+  require_macos_runtime
+  ensure_state_root
+  if [ -f "$THEME_DIR/theme.json" ]; then
+    "$NODE" "$temporary/scripts/injector.mjs" --check-payload --theme-dir "$THEME_DIR" >/dev/null
+  fi
+  if [ -f "$AUTOSTART_AGENT_PATH" ]; then
+    startup_enabled="true"
+    local target="gui/$(/usr/bin/id -u)/$AUTOSTART_JOB_LABEL"
+    if ! /bin/launchctl bootout "$target" 2>/dev/null; then
+      ! /bin/launchctl print "$target" >/dev/null 2>&1 || fail "Could not stop automatic startup for the update."
+    fi
+  fi
+  if [ -f "$STATE_PATH" ]; then
+    resume_port="$(state_field port)"
+    if [ "$(state_field session)" != "paused" ] && verified_cdp_endpoint "$resume_port"; then
+      resume_watcher="true"
+    fi
+    if ! stop_recorded_injector; then
+      [ "$startup_enabled" != "true" ] || "$INSTALL_ROOT/scripts/autostart-dream-skin-macos.sh" enable
+      fail "Could not stop the recorded injector; the installed runtime was preserved."
+    fi
+  fi
   if [ -e "$INSTALL_ROOT" ]; then /bin/mv "$INSTALL_ROOT" "$previous"; fi
-  if ! /bin/mv "$temporary" "$INSTALL_ROOT"; then
+  local install_args=(--in-place --port "$PORT" --no-launch)
+  [ "$CREATE_LAUNCHERS" = "true" ] || install_args+=(--no-launchers)
+  if /bin/mv "$temporary" "$INSTALL_ROOT" &&
+    "$INSTALL_ROOT/scripts/install-dream-skin-macos.sh" "${install_args[@]}" &&
+    { [ "$resume_watcher" != "true" ] || "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$resume_port"; }; then
+    /bin/rm -rf "$previous"
+  else
+    if [ -f "$STATE_PATH" ]; then
+      stop_recorded_injector || fail "Update failed and the new injector could not stop; both runtimes were preserved."
+    fi
+    if [ "$startup_enabled" = "true" ]; then
+      if ! /bin/launchctl bootout "$target" 2>/dev/null; then
+        ! /bin/launchctl print "$target" >/dev/null 2>&1 || fail "Update failed and automatic startup could not stop; both runtimes were preserved."
+      fi
+    fi
+    /bin/rm -rf "$INSTALL_ROOT"
     [ -e "$previous" ] && /bin/mv "$previous" "$INSTALL_ROOT"
+    [ "$startup_enabled" != "true" ] || "$INSTALL_ROOT/scripts/autostart-dream-skin-macos.sh" enable
+    [ "$resume_watcher" != "true" ] || "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$resume_port"
     fail "Could not install the project at $INSTALL_ROOT"
   fi
-  /bin/rm -rf "$previous"
+  if [ "$LAUNCH_AFTER_INSTALL" = "true" ] && [ "$resume_watcher" != "true" ]; then
+    "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$PORT" --prompt-restart
+  fi
 }
 
 if [ "$IN_PLACE" = "false" ] && [ "$PROJECT_ROOT" != "$INSTALL_ROOT" ]; then
   /bin/mkdir -p "$(dirname "$INSTALL_ROOT")"
   deploy_project
-  install_args=(--in-place --port "$PORT")
-  [ "$CREATE_LAUNCHERS" = "true" ] || install_args+=(--no-launchers)
-  [ "$LAUNCH_AFTER_INSTALL" = "true" ] || install_args+=(--no-launch)
-  exec "$INSTALL_ROOT/scripts/install-dream-skin-macos.sh" "${install_args[@]}"
+  exit 0
 fi
 
 discover_codex_app

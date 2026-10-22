@@ -77,3 +77,33 @@ if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" >/dev/null 2>&1; the
 printf 'PASS: one launch tolerates delayed PID discovery; only verified direct-launch failures activate the official app.\n'
 
 ! /usr/bin/grep -F '/usr/bin/open -na' "$ROOT/scripts/start-dream-skin-macos.sh" >/dev/null
+
+# Automatic handoffs run the same real starter, with a strict fresh-process gate.
+/bin/rm -f "$TEMPORARY/scripts/state/state.json" "$TEMPORARY/scripts/fallback-open-calls"
+cat >> "$TEMPORARY/scripts/common-macos.sh" <<'FIXTURE'
+AUTOSTART_AGENT_PATH="$SCRIPT_DIR/enabled"
+NODE=/usr/bin/true
+INJECTOR=/fixture/injector.mjs
+THEME_DIR=/fixture/theme
+verified_cdp_endpoint() { return 1; }
+codex_is_running() { return 0; }
+new_codex_launch_matches() {
+  printf '%s %s\n' "$1" "$2" >> "$SCRIPT_DIR/identity-calls"
+  [ ! -e "$SCRIPT_DIR/reject-identity" ]
+}
+stop_codex() { printf '%s\n' "$1" >> "$SCRIPT_DIR/stop-calls"; return 1; }
+FIXTURE
+: > "$TEMPORARY/scripts/enabled"
+if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --restart-new-launch 700 FixtureStart >/dev/null 2>&1; then exit 1; fi
+[ "$(/bin/cat "$TEMPORARY/scripts/stop-calls")" = false ]
+[ ! -e "$TEMPORARY/scripts/fallback-open-calls" ]
+[ "$(/usr/bin/wc -l < "$TEMPORARY/scripts/identity-calls" | /usr/bin/tr -d ' ')" = 2 ]
+/bin/rm "$TEMPORARY/scripts/stop-calls"
+: > "$TEMPORARY/scripts/reject-identity"
+if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --restart-new-launch 700 ReusedPID >/dev/null 2>&1; then exit 1; fi
+[ ! -e "$TEMPORARY/scripts/stop-calls" ]
+[ ! -e "$TEMPORARY/scripts/fallback-open-calls" ]
+/bin/rm "$TEMPORARY/scripts/enabled"
+if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --restart-new-launch 700 FixtureStart >/dev/null 2>&1; then exit 1; fi
+[ ! -e "$TEMPORARY/scripts/stop-calls" ]
+printf 'PASS: the real automatic starter rechecks launch identity, requires enabled startup, and never force-quits a refused handoff.\n'

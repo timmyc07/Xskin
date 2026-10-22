@@ -222,6 +222,34 @@ html.codex-dream-skin[data-dream-video-ready="true"] #codex-dream-skin-video {
   display: block;
 }
 
+html.codex-dream-skin[data-dream-surface="work"] .dream-skin-work-surface,
+html.codex-dream-skin[data-dream-surface="work"] #thread > .composer-parent,
+html.codex-dream-skin[data-dream-surface="work"] #page-header {
+  background: transparent !important;
+}
+
+html.codex-dream-skin[data-dream-surface="work"] #stage-slideover-sidebar {
+  --sidebar-surface-primary: transparent !important;
+  background: transparent !important;
+}
+
+/* Keep the desktop transparent; the single Dot video is clipped to its cards. */
+html.codex-dream-skin[data-dream-surface="dot"],
+html.codex-dream-skin[data-dream-surface="dot"] body {
+  background: transparent !important;
+  isolation: isolate;
+}
+
+html.codex-dream-skin[data-dream-surface="dot"] [data-avatar-overlay-native-surface-id="composer"],
+html.codex-dream-skin[data-dream-surface="dot"] [data-avatar-overlay-native-surface-id^="activity-"] {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  background-image: linear-gradient(rgb(0 0 0 / var(--dream-skin-mask-opacity, .62)),
+    rgb(0 0 0 / var(--dream-skin-mask-opacity, .62))), var(--dream-skin-art) !important;
+  background-size: cover !important;
+  background-position: var(--ds-art-position, center) !important;
+}
+
 html.codex-dream-skin[data-dream-wallpaper="true"] [data-app-shell-page-surface] {
   background: transparent !important;
 }
@@ -231,6 +259,11 @@ html.codex-dream-skin[data-dream-wallpaper="true"] #root main[data-app-shell-mai
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
+}
+
+html.codex-dream-skin[data-dream-wallpaper="true"] main[data-app-shell-main-surface] .messaging-root.messaging-embedded,
+html.codex-dream-skin[data-dream-wallpaper="true"] main[data-app-shell-main-surface] .messaging-root.messaging-embedded .thread-pane {
+  background: transparent !important;
 }
 
 html.codex-dream-skin[data-dream-wallpaper="true"] #root [class*="_MainContentTopFade_"],
@@ -498,14 +531,14 @@ html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface
   text-shadow: none;
 }
 
-html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
+html.codex-dream-skin main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article:not(.message-row) {
   border: 1px solid rgb(var(--ds-muted-rgb) / .12);
   background: rgb(var(--ds-panel-rgb) / .44);
   box-shadow: 0 8px 24px rgb(var(--ds-bg-rgb) / .10);
   backdrop-filter: blur(7px) saturate(105%);
 }
 
-html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article {
+html.codex-dream-skin[data-dream-shell="light"] main[data-app-shell-main-surface]:not(.dream-skin-home-shell) article:not(.message-row) {
   background: rgb(var(--ds-panel-rgb) / .72);
 }
 
@@ -1116,7 +1149,7 @@ html.codex-dream-skin button[class~="bg-token-foreground"] {
   box-shadow: 0 5px 14px rgb(var(--ds-accent-rgb) / .20) !important;
 }
 
-html.codex-dream-skin article,
+html.codex-dream-skin article:not(.message-row),
 html.codex-dream-skin [data-message-author-role] { border-radius: 16px; }
 
 @media (max-width: 1120px) {

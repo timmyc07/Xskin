@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
-import { readVideo, validateVideoName } from "./video-file.mjs";
+import { copyVideo, validateVideoName } from "./video-file.mjs";
 
 const [sourceDirArg, stageDirArg] = process.argv.slice(2);
 if (!sourceDirArg || !stageDirArg) {
@@ -99,8 +99,8 @@ async function main() {
   assertContained(sourceRoot, imagePath, "Theme image");
   const image = await readStableFile(imagePath, "Theme image", MAX_IMAGE_BYTES);
   if (image.bytes.length < 1) throw new Error("Theme image is empty");
-  const video = theme.video === undefined ? null
-    : await readVideo(path.join(sourceRoot, validateVideoName(theme.video)));
+  const videoPath = theme.video === undefined ? null
+    : path.join(sourceRoot, validateVideoName(theme.video));
 
   const stageRoot = await fs.realpath(stageDirArg);
   const stageStat = await fs.stat(stageRoot);
@@ -108,11 +108,15 @@ async function main() {
   assertContained(stageRoot, path.join(stageRoot, "theme.json"), "Staged theme config");
   assertContained(stageRoot, path.join(stageRoot, theme.image), "Staged theme image");
 
-  // Write both files from the already-open, stable descriptors. The caller
-  // publishes the image first and theme.json last, so the watcher only ever
-  // observes a complete pair; subsequent source edits cannot race the copy.
+  // Publish the configuration only after every staged file has been verified.
   await writeExclusive(path.join(stageRoot, theme.image), image.bytes);
-  if (video) await writeExclusive(path.join(stageRoot, theme.video), video);
+  if (videoPath) {
+    const temporary = path.join(stageRoot, `.video-${process.pid}.tmp.mp4`);
+    try {
+      await copyVideo(videoPath, temporary);
+      await fs.rename(temporary, path.join(stageRoot, theme.video));
+    } finally { await fs.rm(temporary, { force: true }); }
+  }
   await writeExclusive(path.join(stageRoot, "theme.json"), config.bytes);
   process.stdout.write(theme.image);
 }

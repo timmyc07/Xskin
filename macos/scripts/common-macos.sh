@@ -28,7 +28,7 @@ INJECTOR_JOB_LABEL="com.openai.codex-dream-skin-studio.injector"
 AUTOSTART_JOB_LABEL="com.openai.codex-dream-skin-studio.autostart"
 AUTOSTART_AGENT_PATH="$HOME/Library/LaunchAgents/$AUTOSTART_JOB_LABEL.plist"
 EXPECTED_CODEX_TEAM_ID="${CODEX_EXPECTED_TEAM_ID:-2DC432GLL2}"
-SKIN_VERSION="1.5.1"
+SKIN_VERSION="1.6.0"
 
 fail() {
   local message="$*"
@@ -173,6 +173,16 @@ codex_main_pids() {
 
 codex_is_running() {
   [ -n "$(codex_main_pids)" ]
+}
+
+new_codex_launch_matches() {
+  local pid="$1" expected_start="$2" elapsed
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ -n "$expected_start" ] && [ "$(process_started_at "$pid")" = "$expected_start" ] || return 1
+  [ "$(codex_main_pids)" = "$pid" ] || return 1
+  [ "$(/bin/ps -p "$pid" -o comm= 2>/dev/null)" = "$CODEX_EXE" ] || return 1
+  elapsed="$(/bin/ps -p "$pid" -o etime= 2>/dev/null | /usr/bin/awk '{$1=$1; print}')"
+  case "$elapsed" in 00:0[0-9]|00:1[0-4]) return 0 ;; *) return 1 ;; esac
 }
 
 process_started_at() {
@@ -514,6 +524,7 @@ launch_injector_daemon() {
     const stderr = fs.openSync(errorLog, "a");
     const child = spawn(process.execPath, [injector, "--watch", "--port", port, "--theme-dir", theme], {
       detached: true,
+      cwd: require("node:path").dirname(log),
       stdio: ["ignore", stdout, stderr],
     });
     fs.closeSync(stdout);

@@ -13,6 +13,7 @@ trap '/bin/rm -rf "$TMP"' EXIT
 /usr/bin/rsync -a \
   --exclude '.git/' \
   --exclude '.DS_Store' \
+  --exclude '.env' --exclude '.env.*' \
   --exclude '/release/' \
   --exclude '/runtime/' \
   "$ROOT/" "$ENGINE/"
@@ -44,7 +45,7 @@ fi
   > "$CLIENT_ROOT/安装 Codex 主题编辑器.command"
 
 /usr/bin/printf '%s\n' \
-  'Codex 主题编辑器 1.5.1' \
+  'Codex 主题编辑器 1.6.0' \
   '' \
   '推荐方式：把这个完整 ZIP、你喜欢的图片和“给 Codex 的部署提示词.md”一起发给自己的 Codex。' \
   '' \

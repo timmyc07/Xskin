@@ -8,9 +8,9 @@ Xskin is a native macOS app for importing, previewing, and applying local images
 
 Use the system file picker or drag a local image or MP4 into the app, inspect its native preview, and apply when ready. The mask-depth slider updates all surfaces together (0–100%, default 62%); release it to apply, or adjust it with the keyboard. Mask depth, pending imports, and your language preference persist locally. English is the default interface, with Traditional Chinese, Simplified Chinese, and Japanese available in the app.
 
-Enable **Apply on Codex launch** once, then use the Codex Dock shortcut Xskin prepares. It enables the background connection on the first launch and applies the media and full-window mask as the workspace loads. It does not quit and relaunch Codex. Xskin does not need to remain open. Disabling the option restores the original Dock entry.
+Enable **Apply on Codex launch** once, then open the original official Codex app from Finder, Spotlight, or the Dock. The background service gracefully reopens a newly launched ordinary session once to connect the saved background. Existing sessions are skipped, refused quits are never forced, and a 30-second guard prevents restart loops. Xskin does not need to remain open.
 
-The Dock shortcut points to a separate managed entry at `~/Applications/Codex (Xskin).app`; it does not modify the official app bundle or signature. Opening the original official `.app` path directly leaves it running without an automatic background; use the managed Dock entry for background-enabled launches. A cold start still needs application loading and media decoding; no fixed startup time is guaranteed.
+Enabling the option restores any Dock entry previously managed by Xskin to its original official app. The official bundle and signature remain unchanged. A cold start still requires application loading and media decoding. Turn the option off, Pause, or Restore to stop automatic handoffs. An already-open ordinary session still requires one confirmed manual Apply.
 
 See the [product README](../README.md) and [native app user guide](../docs/background-panel.md) for current features, formats, installation, and startup limitations. The sections below document the advanced engine and retained command-line workflows.
 

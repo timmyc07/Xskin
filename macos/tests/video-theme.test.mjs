@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
+import { createHash } from "node:crypto";
 import vm from "node:vm";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { MAX_VIDEO_BYTES, readVideo, validateVideoName } from "../scripts/video-file.mjs";
+import { MAX_VIDEO_BYTES, inspectVideo, copyVideo, validateVideoName } from "../scripts/video-file.mjs";
 import { attachVideoToSession, loadPayload, waitForVerifiedSession } from "../scripts/injector.mjs";
 
 const run = promisify(execFile);
@@ -16,20 +17,63 @@ const mp4 = Buffer.from("000000186674797069736f6d0000020069736f6d6d703431", "hex
 try {
   const source = path.join(temporary, "source.mp4");
   await fs.writeFile(source, mp4);
-  assert.deepEqual(await readVideo(source), mp4);
+  assert.deepEqual(await inspectVideo(source), { size: mp4.length, key: createHash("sha256").update(mp4).digest("hex") });
+  const chunked = path.join(temporary, "chunked.mp4");
+  const chunkedBytes = Buffer.concat([mp4, Buffer.alloc(2 * 1024 * 1024 + 123, 0x37)]);
+  await fs.writeFile(chunked, chunkedBytes);
+  assert.deepEqual(await inspectVideo(chunked), { size: chunkedBytes.length, key: createHash("sha256").update(chunkedBytes).digest("hex") }, "Hash every chunk, including the partial tail, without retaining the video.");
+  const originalOpen = fs.open;
+  try {
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      const read = handle.read.bind(handle);
+      handle.read = (buffer, offset, length, position) => read(buffer, offset, Math.min(7, length), position);
+      return handle;
+    };
+    assert.equal((await inspectVideo(source)).key, createHash("sha256").update(mp4).digest("hex"), "Partial file reads must not invalidate a valid MP4 header or hash.");
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      const read = handle.read.bind(handle);
+      handle.read = async (...readArgs) => {
+        const result = await read(...readArgs);
+        if (readArgs[3] === 0) await fs.appendFile(chunked, "changed");
+        return result;
+      };
+      return handle;
+    };
+    await assert.rejects(inspectVideo(chunked), /changed while being read/, "Streaming must retain the full-read mutation guard.");
+  } finally {
+    fs.open = originalOpen;
+  }
   for (const name of ["../outside.mp4", "nested/movie.mp4", "x\\movie.mp4", "x\n.mp4", "movie.webm", "", null]) {
     assert.throws(() => validateVideoName(name), /MP4 filename/);
   }
   const link = path.join(temporary, "link.mp4");
   await fs.symlink(source, link);
-  await assert.rejects(readVideo(link), /ELOOP/);
+  await assert.rejects(inspectVideo(link), /ELOOP/);
   const invalid = path.join(temporary, "invalid.mp4");
   await fs.writeFile(invalid, "this is not an MP4 video file");
-  await assert.rejects(readVideo(invalid), /not an MP4/);
+  await assert.rejects(inspectVideo(invalid), /not an MP4/);
   const oversized = path.join(temporary, "oversized.mp4");
   await fs.writeFile(oversized, mp4);
   await fs.truncate(oversized, MAX_VIDEO_BYTES + 1);
-  await assert.rejects(readVideo(oversized), /256 MiB/);
+  await assert.rejects(inspectVideo(oversized), /256 MiB/);
+
+  const copiedVideo = path.join(temporary, "copied.mp4");
+  await copyVideo(source, copiedVideo);
+  assert.deepEqual(await fs.readFile(copiedVideo), mp4, "Copy preserves the exact original video bytes");
+  await assert.rejects(copyVideo(source, copiedVideo), /EEXIST/);
+  assert.deepEqual(await fs.readFile(copiedVideo), mp4, "A failed exclusive copy preserves the existing destination");
+  const originalCopy = fs.copyFile;
+  try {
+    fs.copyFile = async (...args) => {
+      await originalCopy(...args);
+      await fs.appendFile(args[1], "changed");
+    };
+    const changedCopy = path.join(temporary, "changed-copy.mp4");
+    await assert.rejects(copyVideo(source, changedCopy), /changed while being copied/);
+    await assert.rejects(fs.access(changedCopy), /ENOENT/, "A mismatched copy cannot be published");
+  } finally { fs.copyFile = originalCopy; }
 
   const themeDir = path.join(temporary, "theme");
   const stage = path.join(temporary, "stage");
@@ -128,6 +172,7 @@ try {
         if (selector === 'aside.app-shell-left-panel' || selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return node;
         return null;
       },
+      querySelectorAll() { return []; },
       getElementById(id) { return id === "codex-dream-skin-video" ? videoNode : node; },
     },
     getComputedStyle: (element, pseudo) => ({

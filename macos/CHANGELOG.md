@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0 — 2026-10-22
+
+- Port Windows 1.5.4 background coverage to embedded Work, native Your dot conversations, and transparent Dot composer/activity cards. Keep one original-quality player per surface, clip Dot video to its cards, and pause hidden or covered players.
+- Avoid whole-document routing scans during ordinary message streaming; retain shell activation, resize, and periodic repair.
+- Inspect complete MP4 files through a 1 MiB buffer, reuse their digest, and verify byte-identical local copies without retaining entire videos in memory. Keep file-change, size, symlink, and playback checks.
+- Apply backgrounds when the original official Codex app opens. An enabled per-user service gracefully reopens each fresh ordinary launch once, skips existing or explicit debug sessions, and enforces a 30-second loop guard. Restore previously managed Dock entries to the official app.
+- Stop and resume verified background services around engine upgrades, roll back failed replacements, preserve paused state and local media, and keep the watcher working directory outside the engine.
+- Extend renderer, surface, streamed-video, startup identity, and upgrade regression coverage; retain the native four-language macOS studio.
+
 ## 1.5.1 — 2026-10-21
 
 - Fix Dock entries whose visible URL pointed to Xskin while their bookmark and bundle identity still launched the original app.

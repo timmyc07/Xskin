@@ -1,5 +1,18 @@
 # Startup verification
 
+## 1.6.0 — Windows parity and original-app automatic apply
+
+Validated on 2026-10-22 on Apple Silicon with official Codex 26.1016.51333 and its signed Node.js v24.21.0.
+
+- Full macOS regression suite passes, including fresh-launch PID/start-time/age checks, the 30-second loop guard, skipped existing/debug sessions, refused graceful quits, active/paused engine upgrades, and failed-upgrade rollback.
+- The installed 1.6.0 engine and `doctor --require-live` pass. A live Dot surface decodes and advances the original 3840 × 2160 video, with visible card clipping and the selected mask verified. The hidden Codex surface retains a decoded paused frame; the preloaded hidden Work surface is explicitly host-suspended without decoding. Native inner messaging layers are clear.
+- The enabled LaunchAgent is loaded, and previously managed Dock entries now point to the original official app and its bundle identity. Replacing the engine retained the same running official application process.
+- Configuration, theme JSON, poster, and original video remain byte-identical across the upgrade. The official application signature remains valid.
+
+The fresh-launch flow is covered by executable fixtures; this session did not close and cold-reopen the user’s active Codex app. Computer Use refused to control the Codex application, so Home/task visual navigation and visible Work activation were not manually inspected. Hidden Work verification is evidence of correct suspension, not proof of visible Work video playback. Windows-only PowerShell, Flutter, Store activation, and GPU-accounting changes were not run on this Mac. No continuous-playback resource reduction or fixed startup latency is claimed.
+
+## Historical 1.5.x measurements
+
 Tested on 2026-10-21 with macOS 26.6.2 on Apple Silicon and official Codex 26.1013.40934.
 
 ## 1.5.1 — Dock launch regression
@@ -30,7 +43,7 @@ The full macOS suite and live Home/task route verification passed, including sta
 
 The previous test opened the managed app file directly and therefore missed the stale Dock bookmark. It verified media application but did **not** establish correct Dock routing. Its first decoded 4K frame was observed at 7.048 seconds and independent verification finished at 8.136 seconds.
 
-## Limits and other checks
+## Historical 1.5.x limits and other checks
 
 These measurements come from one cold application launch per version on this Mac, not a performance guarantee. Application loading and media decoding still take time; no instantaneous first frame is claimed.
 

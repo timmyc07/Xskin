@@ -4,7 +4,7 @@ Xskin is a standalone native macOS app. Import local images or MP4s, inspect a n
 
 ## Install and open
 
-[Download Xskin 1.5.0](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
+[Download Xskin](https://github.com/timmyc07/Xskin/releases), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
 
 The release uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Confirm that the download came from this project's Release page before opening it.
 
@@ -35,23 +35,17 @@ Mask depth persists locally. The mask is a visual overlay: it does not re-encode
 
 English is the default. Use the in-app language selector to switch to **Traditional Chinese**, **Simplified Chinese**, or **Japanese**. Your selection is saved locally and restored the next time Xskin opens.
 
-## Set up normal Dock launches once
+## Apply whenever the official Codex app opens
 
 1. Apply the background you want to keep.
-2. Enable **Apply on Codex launch**. Xskin prepares and connects a Codex launch shortcut in the Dock.
-3. Open Codex from that Dock shortcut for subsequent sessions. **Xskin does not need to stay open.**
+2. Enable **Apply on Codex launch**.
+3. Open the original official Codex app from Finder, Spotlight, or the Dock. **Xskin does not need to stay open.**
 
-The Dock entry enables the background connection on the first launch and applies the background and full-window mask as the workspace loads. It does not close and relaunch Codex.
+The background service gracefully reopens each new ordinary session once to establish its background connection. Existing windows are skipped, refused quits are never forced, and a 30-second guard prevents restart loops. Avoid entering unsent text during that startup handoff. Signing in or quitting Codex never opens it automatically.
 
-Turn **Apply on Codex launch** off to restore the original Dock entry. An initial manual Apply can ask for a confirmed restart if Codex was opened without the background connection.
+Previously managed Dock entries are restored to the official app when this option is enabled. Official application files and signatures remain unchanged. Disable the option, Pause, or Restore to stop future automatic handoffs; disabling it alone leaves the current background playing. An already-open ordinary session still needs one confirmed manual Apply.
 
-### Which Codex entry should I use?
-
-Use the Dock shortcut prepared by Xskin. It points to a separate managed entry at `~/Applications/Codex (Xskin).app`; the official application files and code signature remain unchanged.
-
-Double-clicking the original official `.app` file directly leaves it running without an automatic background. Xskin no longer closes and reopens such launches. Use the managed Dock shortcut for background-enabled launches.
-
-A cold start still requires application loading and media decoding. Startup time depends on app state, source media, and hardware; no fixed latency is guaranteed.
+A cold start requires application loading and media decoding; no fixed latency is guaranteed.
 
 ## Media and playback limits
 
@@ -67,7 +61,7 @@ Imports create local copies and leave original files intact. MP4 playback depend
 - Media is processed locally; Xskin does not upload your imported files to the cloud.
 - No additional account or OpenAI API key is required. Codex account credentials, API keys, and model provider settings are not changed.
 - The background engine uses a loopback-only debugging connection and does not modify the official app bundle or signature. Avoid untrusted local software while it is active.
-- v1.5.0 ships an arm64 macOS app, not a Windows native app or Intel Mac prebuilt binary.
+- The macOS release ships an arm64 macOS app, not a Windows native app or Intel Mac prebuilt binary.
 - Codex updates may affect appearance or launch compatibility. Disable automatic apply and report version details if problems occur.
 - Xskin is independent and is not endorsed by or affiliated with OpenAI or Apple.
 

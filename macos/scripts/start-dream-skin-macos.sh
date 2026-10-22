@@ -18,13 +18,18 @@ RESTART_EXISTING="false"
 PROMPT_RESTART="false"
 FOREGROUND_INJECTOR="false"
 DIRECT_LAUNCH="false"
+STARTUP_PID=""
+STARTUP_STARTED_AT=""
+AUTOMATIC_HANDOFF="false"
+HANDOFF_COMPLETED="false"
 RUNTIME_VERIFIED="false"
 VERIFY_OUTPUT=""
 REQUESTED_AT="$(/bin/date +%s)"
 finish_start() {
   local code="$?"
   [ -z "$VERIFY_OUTPUT" ] || /bin/rm -f "$VERIFY_OUTPUT"
-  if [ "$code" -ne 0 ] && [ "$DIRECT_LAUNCH" = "true" ] && [ "$RUNTIME_VERIFIED" = "true" ]; then
+  if [ "$code" -ne 0 ] && [ "$DIRECT_LAUNCH" = "true" ] && [ "$RUNTIME_VERIFIED" = "true" ] &&
+    { [ "$AUTOMATIC_HANDOFF" != "true" ] || [ "$HANDOFF_COMPLETED" = "true" ]; }; then
     /usr/bin/open -a "$CODEX_BUNDLE" >/dev/null 2>&1 || true
   fi
 }
@@ -36,11 +41,16 @@ while [ "$#" -gt 0 ]; do
     --prompt-restart) PROMPT_RESTART="true"; shift ;;
     --foreground-injector) FOREGROUND_INJECTOR="true"; shift ;;
     --direct-launch) DIRECT_LAUNCH="true"; shift ;;
+    --restart-new-launch) STARTUP_PID="${2:-}"; STARTUP_STARTED_AT="${3:-}"; AUTOMATIC_HANDOFF="true"; DIRECT_LAUNCH="true"; shift 3 ;;
     *) fail "Unknown start argument: $1" ;;
   esac
 done
 case "$PORT" in ''|*[!0-9]*) fail "Invalid port: $PORT" ;; esac
 [ "$PORT" -ge 1024 ] && [ "$PORT" -le 65535 ] || fail "Port must be between 1024 and 65535."
+if [ "$AUTOMATIC_HANDOFF" = "true" ]; then
+  case "$STARTUP_PID" in ''|*[!0-9]*) fail "Invalid automatic startup process." ;; esac
+  [ -n "$STARTUP_STARTED_AT" ] || fail "Missing automatic startup process identity."
+fi
 
 discover_codex_app
 require_macos_runtime
@@ -55,7 +65,17 @@ fi
 DEBUG_READY="false"
 if verified_cdp_endpoint "$PORT"; then DEBUG_READY="true"; fi
 
-if codex_is_running && [ "$DEBUG_READY" = "false" ]; then
+if [ -n "$STARTUP_PID" ] && [ "$DEBUG_READY" = "false" ]; then
+  [ -f "$AUTOSTART_AGENT_PATH" ] || fail "Automatic apply is disabled."
+  new_codex_launch_matches "$STARTUP_PID" "$STARTUP_STARTED_AT" \
+    || fail "Automatic apply skipped: Codex is no longer a new, matching launch."
+  "$NODE" "$INJECTOR" --check-payload --theme-dir "$THEME_DIR" >/dev/null
+  # The enabled startup option authorizes one graceful handoff, never a forced quit.
+  new_codex_launch_matches "$STARTUP_PID" "$STARTUP_STARTED_AT" \
+    || fail "Automatic apply skipped: Codex changed during validation."
+  stop_codex false
+  HANDOFF_COMPLETED="true"
+elif codex_is_running && [ "$DEBUG_READY" = "false" ]; then
   if [ "$PROMPT_RESTART" = "true" ] && [ "$RESTART_EXISTING" = "false" ]; then
     language="$(/usr/bin/defaults read com.xskin.studio xskin.language 2>/dev/null || true)"
     case "$language" in

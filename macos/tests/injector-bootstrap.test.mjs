@@ -8,18 +8,16 @@ import { setTimeout as delay } from "node:timers/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { earlyPayloadFor, isValidCdpPageTarget, nextDiscoveryDelayMs, discoveryLogIntervalMs } from "../scripts/injector.mjs";
+import { earlyPayloadFor, isValidCdpTarget, nextDiscoveryDelayMs, discoveryLogIntervalMs } from "../scripts/injector.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const injectorPath = path.resolve(here, "../scripts/injector.mjs");
 const source = await fs.readFile(injectorPath, "utf8");
 
 const mainTarget = { type: "page", id: "main", url: "app://-/index.html", webSocketDebuggerUrl: "ws://127.0.0.1:9341/devtools/page/main" };
-assert.equal(isValidCdpPageTarget(mainTarget, 9341), true);
-for (const url of ["app://-/index.html?initialRoute=%2Favatar-overlay", "app://-/detached-window.html?initialRoute=%2Fdetached-window"]) {
-  assert.equal(isValidCdpPageTarget({ ...mainTarget, url }, 9341), false, "Auxiliary windows must not be repeatedly connected and probed as main windows.");
-}
-assert.equal(isValidCdpPageTarget({ ...mainTarget, webSocketDebuggerUrl: "ws://example.com:9341/devtools/page/main" }, 9341), false);
+assert.equal(isValidCdpTarget(mainTarget, 9341), true);
+assert.equal(isValidCdpTarget({ ...mainTarget, url: "app://-/index.html?initialRoute=%2Favatar-overlay" }, 9341), true, "Dot targets still require their complete surface markers before injection.");
+assert.equal(isValidCdpTarget({ ...mainTarget, webSocketDebuggerUrl: "ws://example.com:9341/devtools/page/main" }, 9341), false);
 assert.equal(nextDiscoveryDelayMs(100, 0), 160);
 assert.equal(nextDiscoveryDelayMs(500, 9000), 500);
 assert.equal(nextDiscoveryDelayMs(5000, 10000), 5000);
@@ -37,6 +35,7 @@ function createFixture() {
   const markers = { shell: false, sidebar: false };
   const context = {
     window: { installs: [] },
+    location: new URL("app://-/index.html"), URLSearchParams,
     document: {
       documentElement: {},
       querySelector(selector) {
@@ -150,11 +149,14 @@ async function shutdownFixture(mode) {
     nextDiscoveryDelayMs() { return 30000; },
     discoveryLogIntervalMs() { return 2000; },
     earlyPayloadFor() { return ""; },
-    async connectTarget() { return session; },
+    async connectTarget() { calls.push("connect"); return session; },
+    async probeSession() { return mode === "auxiliary" ? { codex: false, readyState: "complete" } : { codex: true }; },
     async waitForCodexProbe() { return { codex: true }; },
     async applyToSession() { calls.push("apply"); },
     async attachVideoToSession() { calls.push("video"); },
     delay(ms, value, options) {
+      if (mode === "auxiliary" && calls.filter(call => call === "poll").length === 1) setImmediate(stop);
+      if (mode === "auxiliary") calls.push("poll");
       if (mode === "backoff" && ms === 30000) setImmediate(stop);
       return delay(ms, value, options);
     },
@@ -169,7 +171,7 @@ async function shutdownFixture(mode) {
     },
   };
   vm.createContext(context);
-  context.listAppTargets = mode === "active" ? async () => [{ id: "main" }] : vm.runInContext(`(${listSource})`, context);
+  context.listAppTargets = ["active", "auxiliary"].includes(mode) ? async () => [{ id: "main" }] : vm.runInContext(`(${listSource})`, context);
   const run = vm.runInContext(`(${watchSource})`, context);
   const running = run({ port: 19341 }).then(() => { finished = true; });
   if (mode === "active") {
@@ -181,12 +183,17 @@ async function shutdownFixture(mode) {
   }
   await running;
   assert.ok(performance.now() - stoppedAt < 500, `${mode} shutdown must not wait on discovery/backoff`);
+  if (mode === "auxiliary") {
+    assert.equal(calls.filter(call => call === "connect").length, 1, "Completed auxiliary windows are retried with a cooldown");
+    assert.ok(!calls.includes("Page.addScriptToEvaluateOnNewDocument"), "Unrecognized completed windows must not receive an early script");
+  }
   if (mode === "active") {
     assert.ok(calls.indexOf("Page.removeScriptToEvaluateOnNewDocument") < calls.indexOf("close"));
     assert.equal(calls.filter((value) => value === "Page.addScriptToEvaluateOnNewDocument").length, 1);
   }
 }
 await shutdownFixture("active");
+await shutdownFixture("auxiliary");
 await shutdownFixture("fetch");
 await shutdownFixture("backoff");
 

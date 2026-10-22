@@ -46,10 +46,12 @@ fi
 "$NODE" "$ROOT/tests/image-metadata.test.mjs"
 "$NODE" "$ROOT/tests/injector-bootstrap.test.mjs"
 "$NODE" "$ROOT/tests/renderer-inject.test.mjs"
+"$NODE" "$ROOT/tests/surface-targets.test.mjs"
 "$NODE" "$ROOT/tests/theme-stage.test.mjs"
 "$NODE" "$ROOT/tests/video-theme.test.mjs"
 "$NODE" "$ROOT/tests/background-studio.test.mjs"
 /bin/bash "$ROOT/tests/autostart.test.sh"
+/bin/bash "$ROOT/tests/install-upgrade.test.sh"
 /bin/bash "$ROOT/tests/native-code.test.sh"
 
 # Every bundled preset must be a valid, injectable theme pack with a preset-* id.
@@ -794,7 +796,7 @@ CRLF_BACKUP="$TMP/config-crlf-backup.json"
 "$NODE" "$ROOT/scripts/theme-config.mjs" restore "$CRLF_CONFIG" "$CRLF_BACKUP" >/dev/null
 /usr/bin/cmp -s "$CRLF_CONFIG" "$TMP/original-crlf.toml"
 
-/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.5.1" ]' _ "$ROOT"
+/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.6.0" ]' _ "$ROOT"
 "$ROOT/scripts/doctor-macos.sh" >/dev/null
 
 printf 'PASS: syntax, payload, bundled presets, preset seeding, runtime-state safety, custom-theme, config round-trips, HOME recovery, signature, and doctor checks.\n'

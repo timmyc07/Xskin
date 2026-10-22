@@ -4,13 +4,13 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readImageMetadata } from "./image-metadata.mjs";
-import { readVideo, validateVideoName } from "./video-file.mjs";
+import { inspectVideo, validateVideoName } from "./video-file.mjs";
 import { setTimeout as delay } from "node:timers/promises";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.5.1";
+const SKIN_VERSION = "1.6.0";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
@@ -62,20 +62,32 @@ function validatedDebuggerUrl(target, port) {
   return url.href;
 }
 
-export function isValidCdpPageTarget(item, port) {
-  if (
-    item?.type !== "page" || !item.url?.startsWith("app://")
-    || typeof item.id !== "string" || !CDP_ID_PATTERN.test(item.id)
-    || !item.webSocketDebuggerUrl
-  ) return false;
+export function isValidCdpTarget(item, port) {
+  if (typeof item?.url !== "string" || typeof item.id !== "string" ||
+      !CDP_ID_PATTERN.test(item.id) || !item.webSocketDebuggerUrl) return false;
   try {
     const pageUrl = new URL(item.url);
-    if (pageUrl.searchParams.get("initialRoute") === "/avatar-overlay" || pageUrl.pathname === "/detached-window.html") return false;
+    const appPage = item.type === "page" && pageUrl.protocol === "app:";
+    const workView = item.type === "webview" && pageUrl.origin === "https://chatgpt.com";
+    if ((!appPage && !workView) || pageUrl.username || pageUrl.password) return false;
     const debuggerUrl = new URL(validatedDebuggerUrl(item, port));
     return debuggerUrl.pathname === `/devtools/page/${item.id}`;
   } catch {
     return false;
   }
+}
+
+export function detectSurface() {
+  const app = location.protocol === "app:";
+  const work = location.origin === "https://chatgpt.com";
+  if (!app && !work) return null;
+  if (app && document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') &&
+    document.querySelector('aside.app-shell-left-panel')) return "codex";
+  if (work && document.querySelector('main#main #thread') && document.querySelector('#prompt-textarea')) return "work";
+  if (app && new URLSearchParams(location.search).get('initialRoute') === '/avatar-overlay' &&
+    document.querySelector('.codex-avatar-root') &&
+    document.querySelector('[data-avatar-overlay-native-surface-id="composer"]')) return "dot";
+  return null;
 }
 
 class CdpSession {
@@ -206,7 +218,8 @@ async function listAppTargets(port, signal) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const targets = await response.json();
     if (!Array.isArray(targets)) throw new Error("CDP target list was not an array");
-    return targets.filter((item) => isValidCdpPageTarget(item, port));
+    return targets.filter((item) => isValidCdpTarget(item, port))
+      .sort((left, right) => Number(left.type === "webview") - Number(right.type === "webview"));
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);
@@ -215,6 +228,7 @@ async function listAppTargets(port, signal) {
 
 async function probeSession(session) {
   return session.evaluate(`(() => {
+    const surface = (${detectSurface.toString()})();
     const markers = {
       shell: Boolean(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
       sidebar: Boolean(document.querySelector('aside.app-shell-left-panel')),
@@ -222,10 +236,10 @@ async function probeSession(session) {
       main: Boolean(document.querySelector('[role="main"]')),
     };
     return {
-      title: document.title,
-      href: location.href,
       markers,
-      codex: markers.shell && markers.sidebar,
+      surface,
+      readyState: document.readyState,
+      codex: Boolean(surface),
     };
   })()`);
 }
@@ -408,9 +422,9 @@ export async function loadTheme(themeDir) {
     theme.video = validateVideoName(raw.video);
     const videoPath = path.join(assetsRoot, theme.video);
     const stamp = videoStamp(await fs.lstat(videoPath));
-    video = await readVideo(videoPath);
+    video = await inspectVideo(videoPath);
     if (videoStamp(await fs.lstat(videoPath)) !== stamp) throw new Error("Video changed while loading");
-    videoSource = { path: videoPath, stamp, size: video.length };
+    videoSource = { path: videoPath, stamp, size: video.size };
   }
   let imagePath;
   try {
@@ -490,14 +504,15 @@ export async function loadPayload(themeDir) {
   theme.artMetadata = artMetadata;
   theme.artKey = artKey;
   if (video) {
-    theme.videoKey = createHash("sha256").update(video).digest("hex").slice(0, 20);
-    theme.videoBytes = video.length;
+    theme.videoKey = video.key.slice(0, 20);
+    theme.videoBytes = video.size;
     loaded.videoSource.key = theme.videoKey;
   }
   const mime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
     : extension === ".webp" ? "image/webp" : "image/png";
   const artDataUrl = `data:${mime};base64,${art.toString("base64")}`;
   const payload = template
+    .replace("__DREAM_SKIN_DETECT_SURFACE__", () => detectSurface.toString())
     .replace("__DREAM_SKIN_CSS_JSON__", () => JSON.stringify(css))
     .replace("__DREAM_SKIN_ART_JSON__", () => JSON.stringify(artDataUrl))
     .replace("__DREAM_SKIN_THEME_JSON__", () => JSON.stringify(theme))
@@ -512,7 +527,7 @@ export async function loadPayload(themeDir) {
     .slice(0, 20);
   return {
     imageBytes: art.length,
-    videoBytes: video?.length ?? 0,
+    videoBytes: video?.size ?? 0,
     videoSource: loaded.videoSource,
     payload,
     revision,
@@ -550,7 +565,8 @@ export async function attachVideoToSession(session, source) {
       awaitPromise: true,
       returnByValue: true,
     });
-    if (result.exceptionDetails || result.result?.value !== true) throw new Error("Renderer rejected the video file");
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
+    if (result.result?.value !== true) throw new Error("Renderer rejected the video file");
   } finally {
     await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
   }
@@ -586,6 +602,7 @@ async function verifyRemovedSession(session) {
 
 async function verifySession(session) {
   return session.evaluate(`(() => {
+    const surface = window.__CODEX_DREAM_SKIN_STATE__?.surface ?? 'codex';
     const box = (node) => {
       if (!node) return null;
       const r = node.getBoundingClientRect();
@@ -607,9 +624,11 @@ async function verifySession(session) {
     const visibleCards = cardBoxes.filter((item) => item?.visible);
     const hero = box(home?.firstElementChild?.firstElementChild?.firstElementChild);
     const projectButton = box(home?.querySelector('[class~="group/project-selector"] > button'));
-    const shell = box(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]'));
+    const mainSelector = surface === 'work' ? 'main#main' : '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]';
+    const sidebarSelector = surface === 'work' ? '#stage-slideover-sidebar' : 'aside.app-shell-left-panel';
+    const shell = box(document.querySelector(mainSelector));
     const composer = box(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]'));
-    const sidebar = box(document.querySelector('aside.app-shell-left-panel'));
+    const sidebar = box(document.querySelector(sidebarSelector));
     const chrome = document.getElementById('codex-dream-skin-chrome');
     const videoElement = document.getElementById('codex-dream-skin-video');
     const maskStyle = getComputedStyle(document.body, '::before');
@@ -624,11 +643,43 @@ async function verifySession(session) {
       fullViewport: maskStyle.position === 'fixed' &&
         ['top', 'right', 'bottom', 'left'].every(edge => maskStyle[edge] === '0px'),
       pointerEvents: maskStyle.pointerEvents,
-      mainClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
-      sidebarClear: clearSurface(document.querySelector('aside.app-shell-left-panel')),
+      mainClear: clearSurface(document.querySelector(mainSelector)),
+      sidebarClear: clearSurface(document.querySelector(sidebarSelector)),
       headerClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] header.app-header-tint')),
+      messagingClear: [...document.querySelectorAll(mainSelector + ' .messaging-root.messaging-embedded, ' +
+        mainSelector + ' .messaging-root.messaging-embedded .thread-pane')].every(clearSurface),
     };
+    const dotNodes = surface === 'dot' ? [...document.querySelectorAll(
+      '[data-avatar-overlay-native-surface-id="composer"], [data-avatar-overlay-native-surface-id^="activity-"]'
+    )].filter(node => node.checkVisibility({visibilityProperty:true,opacityProperty:true}) && box(node)?.visible &&
+      node.getBoundingClientRect().right > 0 && node.getBoundingClientRect().bottom > 0 &&
+      node.getBoundingClientRect().left < innerWidth && node.getBoundingClientRect().top < innerHeight) : [];
+    const clip = videoElement ? /^path\\("(.*)"\\)$/.exec(getComputedStyle(videoElement).clipPath) : null;
+    const clipContext = clip ? document.createElement('canvas').getContext('2d') : null;
+    const clipPath = clip ? new Path2D(clip[1]) : null;
+    const videoBounds = videoElement?.getBoundingClientRect();
+    const dotClipVerified = surface === 'dot' && Boolean(clipContext) && dotNodes.every(node => {
+      const r = node.getBoundingClientRect();
+      return clipContext.isPointInPath(clipPath,r.left+r.width/2-videoBounds.left,r.top+r.height/2-videoBounds.top);
+    }) && Array.from({length:81},(_,index) => ({
+      x:videoBounds.left+(index%9+0.5)*videoBounds.width/9,
+      y:videoBounds.top+(Math.floor(index/9)+0.5)*videoBounds.height/9,
+    })).every(point => dotNodes.some(node => {
+      const r = node.getBoundingClientRect();
+      return point.x >= r.left && point.x <= r.right && point.y >= r.top && point.y <= r.bottom;
+    }) || !clipContext.isPointInPath(clipPath,point.x-videoBounds.left,point.y-videoBounds.top));
+    const dotCards = dotNodes.map(node => {
+      const background = getComputedStyle(node).backgroundImage;
+      const alpha = /rgba?\\(0,\\s*0,\\s*0(?:,\\s*([\\d.]+))?\\)/.exec(background);
+      return { poster: background.includes('blob:') && background.includes('linear-gradient'),
+        video: dotClipVerified && document.documentElement.getAttribute('data-dream-video-ready') === 'true' &&
+          !background.includes('blob:') && getComputedStyle(node).backgroundColor === 'rgba(0, 0, 0, 0)',
+        opacity: alpha ? Number(alpha[1] ?? 1) : null };
+    });
     const result = {
+      surface,
+      dotCards,
+      dotClipVerified,
       installed: document.documentElement.classList.contains('codex-dream-skin'),
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
       themeId: window.__CODEX_DREAM_SKIN_STATE__?.themeId ?? null,
@@ -662,8 +713,12 @@ async function verifySession(session) {
       },
     };
     const basePass = result.installed && result.version === ${JSON.stringify(SKIN_VERSION)} &&
-      result.stylePresent && result.chromePresent && result.chromePointerEvents === 'none' &&
-      Boolean(result.shell?.visible) && Boolean(result.sidebar?.visible) && !result.documentOverflow.x;
+      result.stylePresent && !result.documentOverflow.x && (surface === 'dot'
+        ? clearSurface(document.body) && maskStyle.content === 'none' &&
+          (dotCards.length > 0 ? dotCards.every(card => card.video || card.poster) :
+            dotClipVerified && result.video?.cardsVisible === false && result.video.suspended)
+        : result.chromePresent && result.chromePointerEvents === 'none' &&
+          Boolean(result.shell?.visible) && (surface === 'work' || Boolean(result.sidebar?.visible)));
     // Project selector markup varies across Codex builds — soft requirement.
     const homePass = !result.homeRoute || (
       result.homePresent && (result.video || result.wallpaperLayout ? result.composer?.visible :
@@ -671,7 +726,8 @@ async function verifySession(session) {
     );
     const maskPass = !result.wallpaperLayout || (
       wallpaperMask.opacity !== null && wallpaperMask.uniform && wallpaperMask.fullViewport &&
-      wallpaperMask.pointerEvents === 'none' && wallpaperMask.mainClear && wallpaperMask.sidebarClear && wallpaperMask.headerClear
+      wallpaperMask.pointerEvents === 'none' && wallpaperMask.mainClear && wallpaperMask.sidebarClear &&
+      wallpaperMask.headerClear && wallpaperMask.messagingClear
     );
     result.pass = Boolean(basePass && homePass && maskPass && (!result.video || result.video.suspended || (result.video.ready && result.videoBox?.visible && result.videoPointerEvents === 'none')));
     result.softNotes = {
@@ -694,11 +750,21 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
-    if (prepareFirstFrame && expectedTheme.video) {
+    if (prepareFirstFrame && expectedTheme.video &&
+      !(lastResult.surface === 'work' && lastResult.video?.hostHidden === true) &&
+      !(lastResult.surface === 'dot' && lastResult.video?.cardsVisible === false && lastResult.dotCards.length === 0)) {
       lastResult.pass &&= lastResult.video?.decoded === true;
     }
     if (lastResult.wallpaperLayout) {
       lastResult.maskMatches = Math.abs(lastResult.wallpaperMask.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005;
+      lastResult.pass &&= lastResult.maskMatches;
+    }
+    if (lastResult.surface === 'dot') {
+      if (expectedTheme.video && lastResult.dotCards.length > 0) {
+        lastResult.pass &&= lastResult.dotClipVerified && lastResult.dotCards.every(card => card.video);
+      }
+      lastResult.maskMatches = lastResult.dotCards.every(card =>
+        card.opacity !== null && Math.abs(card.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005);
       lastResult.pass &&= lastResult.maskMatches;
     }
     if (lastResult.video && !lastResult.video.suspended) {
@@ -764,7 +830,7 @@ async function runOneShot(options) {
       const result = options.mode === "remove"
         ? await verifyRemovedSession(session)
         : await waitForVerifiedSession(session, options.timeoutMs, loaded.theme, options.prepareFirstFrame);
-      results.push({ targetId: target.id, title: target.title, url: target.url, probe, result });
+      results.push({ targetId: target.id, surface: probe.surface, result });
 
       if (options.screenshot && !screenshotCaptured) {
         await capture(session, options.screenshot);
@@ -797,9 +863,7 @@ export function earlyPayloadFor(payload, revision) {
     const install = () => {
       if (window[generationKey] !== generation) { stop(); return true; }
       if (!document.documentElement) return false;
-      const shell = document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
-      const sidebar = document.querySelector('aside.app-shell-left-panel');
-      if (!shell || !sidebar) return false;
+      if (!(${detectSurface.toString()})()) return false;
       stop();
       ${payload};
       window[appliedKey] = generation;
@@ -854,7 +918,7 @@ export function discoveryLogIntervalMs(delayMs) {
 async function runWatch(options) {
   let current = await loadPayload(options.themeDir);
   const sessions = new Map();
-  const rejected = new Set();
+  const rejected = new Map();
   let stopping = false;
   let reloadTimer = null;
   let reloadChain = Promise.resolve();
@@ -945,6 +1009,9 @@ async function runWatch(options) {
       if (stopping) break;
 
       const activeIds = new Set(targets.map((target) => target.id));
+      for (const id of rejected.keys()) {
+        if (!activeIds.has(id)) rejected.delete(id);
+      }
       for (const [id, record] of sessions) {
         if (!activeIds.has(id) || record.session.closed) {
           record.session.close();
@@ -955,11 +1022,18 @@ async function runWatch(options) {
       for (const target of targets) {
         if (stopping) break;
         if (sessions.has(target.id)) continue;
+        if ((rejected.get(target.id) ?? 0) > Date.now()) continue;
         let session;
         let record;
         try {
           session = await connectTarget(target, options.port);
           if (stopping) { session.close(); break; }
+          const initialProbe = await probeSession(session);
+          if (!initialProbe?.codex && initialProbe?.readyState === "complete") {
+            rejected.set(target.id, Date.now() + 5000);
+            session.close();
+            continue;
+          }
           record = { session, earlyScriptId: null, needsLoadFallback: false };
           try {
             record.earlyScriptId = await registerEarly(session, current.payload, current.revision);
@@ -976,8 +1050,8 @@ async function runWatch(options) {
             session.close();
             if (!rejected.has(target.id)) {
               console.error(`[dream-skin] rejected non-Codex app target ${target.id}`);
-              rejected.add(target.id);
             }
+            rejected.set(target.id, Date.now() + 5000);
             continue;
           }
           rejected.delete(target.id);
@@ -1006,7 +1080,7 @@ async function runWatch(options) {
             await attachVideoToSession(session, current.videoSource);
           }
           sessions.set(target.id, record);
-          console.log(`[dream-skin] injected verified Codex target ${target.id} (${target.title || target.url})`);
+          console.log(`[dream-skin] injected verified ${probe.surface} target ${target.id}`);
         } catch (error) {
           if (record) await removeEarly(record);
           session?.close();
