@@ -5,6 +5,7 @@
 - Move usage into a slim translucent strip above the input, in normal flow, so it cannot cover the native footer. Wrap long metrics on narrow windows and hide the empty strip on Home.
 - Reveal the wallpaper through dark/light composer and home-toolbar surfaces. Video uses matching translucent material for both. Preserve native toolbar placement, size and corners instead of forcing an older top-cap layout.
 - Keep macOS official-app monitoring and Windows shortcut-only startup unchanged; retain saved media/preferences and all usage/fan behavior.
+- Publish matching native app/plugin packages and checksums; update download, upgrade and recovery guidance. Full macOS tests/build and Windows CI checks passed. Physical three-start, login/Store and full official Home/task visual validation remain pending; CDP/CSS authorization remains unconfirmed.
 
 ## 1.8.1 — 2026-10-22 (source; physical startup validation pending)
 

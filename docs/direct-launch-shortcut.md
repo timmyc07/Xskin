@@ -1,6 +1,6 @@
-# Windows 1.8.0 / macOS 1.8.1: migration and validation
+# Windows 1.8.1 / macOS 1.8.2: migration and validation
 
-Source baseline: `945b90f` on `codex/fix-windows-startup-overlay`. Windows work: `codex/direct-launch-shortcut`; macOS follow-up: `codex/macos-native-launch`. Updated 2026-10-22, Asia/Taipei. These source versions are not published releases. The user subsequently authorized one automatic graceful reopen on macOS only, retaining its official-app entry; Windows remains shortcut-only without automatic reopen.
+Source baseline: `945b90f` on `codex/fix-windows-startup-overlay`. Windows work: `codex/direct-launch-shortcut`; macOS follow-up: `codex/macos-native-launch`; overlay follow-up: `codex/overlay-layout-transparency`. Updated 2026-10-23, Asia/Taipei for [Windows 1.8.1](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1) and [macOS 1.8.2](https://github.com/timmyc07/Xskin/releases/tag/v1.8.2). The user authorized one automatic graceful reopen on macOS only, retaining its official-app entry; Windows remains shortcut-only without automatic reopen. Physical startup and visual checks below remain pending after publication.
 
 ## Authorization boundary
 
@@ -59,7 +59,9 @@ Windows-only tests include an inherited-stream reproduction with a live Node gra
 
 ## Install and restore
 
-Build from this branch; do not assume older release ZIPs contain these versions. Windows: run `Install Xskin.exe` from the 1.8.0 package, or `scripts/install-dream-skin.ps1 -StateRoot <existing-root>`. macOS: build 1.8.1 with `macos/scripts/build-native-studio.sh`, then install its runtime with `install-dream-skin-macos.sh --no-launch`. An enabled 1.8.0 preference installs the native observer; disabled/paused preferences remain disabled/paused. Existing Codex stays open. On the next fresh launch, use the official app normally; an ordinary session gracefully reopens once. Both platforms retain existing media/preferences. Fully quit ordinary Codex yourself before using the optional direct Codex (Xskin) entry.
+The overlay follow-up moves usage above the input, wraps on narrow windows and hides empty Home rows. Composer and native toolbar surfaces reveal the image/video. Full macOS tests/native build and Windows runner/Flutter/package checks passed; [current results and limits](platforms.md#2026-10-23-overlay-layout-validation) supplement the historical startup results above.
+
+Download the matching release and keep the complete old package for rollback. Windows: run `Install Xskin.exe` from the 1.8.1 package, or `scripts/install-dream-skin.ps1 -StateRoot <existing-root>`. macOS: close Xskin and replace Xskin.app with 1.8.2; applying updates the managed runtime. A source install can build with `macos/scripts/build-native-studio.sh`, then run `install-dream-skin-macos.sh --no-launch`. An enabled 1.8.0 preference installs the native observer; disabled/paused preferences remain disabled/paused. Existing Codex stays open. On the next fresh macOS launch, use the official app normally; an ordinary session gracefully reopens once. Both platforms retain existing media/preferences. Fully quit ordinary Codex yourself before using the direct Codex (Xskin) entry.
 
 To stop using the skin, Pause or turn off automatic backgrounds. macOS Pause keeps the observer/preference but its paused state blocks handoffs; explicit Apply resumes. Disable/Restore stops only the owned observer. Use the official app normally after fully exiting the current session. To uninstall entry points, use the platform Restore command with `-Uninstall` / `--uninstall`; only owned entry points are removed and saved media/preferences remain. Full base-theme restoration uses the existing recoverable appearance-key backup and remains a separately requested action. Preserve the state directory when troubleshooting; do not delete auth.json or account data. Engine transaction backups are retained if a rollback cannot complete safely.
 

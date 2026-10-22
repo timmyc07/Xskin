@@ -4,7 +4,7 @@ Xskin is a standalone native macOS app. Import local images or MP4s, inspect a n
 
 ## Install and open
 
-[Download Xskin](https://github.com/timmyc07/Xskin/releases), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
+[Download Xskin 1.8.2 for macOS](https://github.com/timmyc07/Xskin/releases/tag/v1.8.2), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.1 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
 
 The release uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Confirm that the download came from this project's Release page before opening it.
 

@@ -1,6 +1,6 @@
 # Xskin for Windows 1.8.1
 
-本文件對應 1.8.1 原始碼；既有 [1.6.0 下載](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.6.0) 不包含這次啟動改動。
+[下載 Windows 1.8.1](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.1/Xskin-1.8.1-windows-x64.zip) · [發行說明與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1) · [English](README.en.md)
 
 ## 安裝與使用
 
@@ -30,9 +30,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\restore-dream-sk
 
 圖片支援 PNG/JPEG/WebP/HEIC/TIFF；來源上限 50 MiB、16384px／50MP，轉換為最多 4096px JPEG。MP4 上限 256 MiB，保留原始影片位元與幀率，靜音循環播放；隱藏或 Reduce Motion 時暫停。遮罩 0–100%，預設 62%；支援英、繁中、簡中、日文。
 
-任務輸入框上方狀態列 僅讀取目前本機對話的 session 記錄。新對話仍使用暫時側欄 ID 時，改由目前輸入框取得正式 ID；風扇依任務開始、完成與中斷事件控制。長紀錄首次必要時向前尋找任務狀態，後續只讀新增範圍。session 新建／替換、切換、資料隔離及序列化訂閱均有回歸測試。不讀取 `auth.json`、不推測方案或虛構用量。
+任務用量列位於輸入框上方，窄視窗自動換行，首頁不顯示空白用量列。輸入框與原生專案／檔案／外掛工具列採用一致的半透明材質，顯示圖片或影片背景，保留原生位置、圓角與操作。
 
-CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](https://github.com/timmyc07/Xskin/blob/ae38da7de89471045364de9864ace47aee6772b9/docs/direct-launch-shortcut.md)。
+狀態列僅讀取目前本機對話的 session 記錄。新對話仍使用暫時側欄 ID 時，改由目前輸入框取得正式 ID；風扇依任務開始、完成與中斷事件控制。長紀錄首次必要時向前尋找任務狀態，後續只讀新增範圍。session 新建／替換、切換、資料隔離及序列化訂閱均有回歸測試。不讀取 `auth.json`、不推測方案或虛構用量。
+
+CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](https://github.com/timmyc07/Xskin/blob/windows-v1.8.1/docs/direct-launch-shortcut.md)。
+
+Windows runner、Flutter 分析、6 項測試與打包已通過 CI；實機三次冷啟動、重新登入、Store 更新及首頁／任務頁目視檢查仍待完成。升級請解壓至新資料夾並保留舊套件；若要回復舊版，先關閉背景套用與面板，再從舊套件重新安裝，保留資料目錄。
 
 ## 建置與測試
 

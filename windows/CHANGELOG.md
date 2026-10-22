@@ -5,6 +5,7 @@
 - Place usage above the input, with natural wrapping and no empty Home row, keeping native footer controls unobstructed.
 - Use translucent composer/toolbar materials for images and video while preserving native placement and corners. Retain usage isolation, subscriptions and fan behavior.
 - Startup remains Codex (Xskin) shortcut-only and never automatically closes/reopens Codex. Flutter package metadata is 1.8.1+13.
+- Update Chinese/English download, upgrade and recovery guidance. Windows runner, Flutter analysis, all six tests and packaging passed CI. Physical three-start, login/Store and official Home/task visual checks remain pending; CDP/CSS authorization remains unconfirmed.
 
 ## 1.8.0 — 2026-10-22 (source; Windows validation pending)
 
