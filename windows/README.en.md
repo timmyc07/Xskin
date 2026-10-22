@@ -8,7 +8,7 @@ Fully exit Codex, including its tray process, then open **Codex (Xskin)** from D
 
 Paused or disabled shortcut backgrounds open ordinary Codex without clearing pause. Explicit Resume or Apply restores the skin; first exit an ordinary session manually. Restore is a separate explicit operation and may ask to close/reopen Codex; to remove the debug port yourself, fully exit Codex. Uninstall removes only owned entry points and keeps media/preferences.
 
-Upgrade migrates only verified legacy monitors/tasks, keeps the actual Unicode/custom/MSIX StateRoot, and refuses to overwrite unrelated same-name shortcuts. A per-user locator is saved before removing the old task. The quiet host stops waiting when its PowerShell child exits even if a Node grandchild still owns the redirected streams; migration stops the verified injector before the legacy monitor. Failed engine swaps restore and resume the prior runtime.
+Upgrade migrates only verified legacy monitors/tasks, keeps the actual Unicode/custom/MSIX StateRoot, and refuses to overwrite unrelated same-name shortcuts. A per-user `%USERPROFILE%\.xskin-state-root.json` locator outside AppData is saved before removing the old task, avoiding MSIX file/registry virtualization. The quiet host stops waiting when its PowerShell child exits even if a Node grandchild still owns the redirected streams; migration stops the verified injector before the legacy monitor. Failed engine swaps restore and resume the prior runtime.
 
 The four-language panel retains local preview, pending imports, saved themes and independent opacity. The overlay retains exact-conversation usage, draft-to-final IDs, lifecycle-driven fan animation, incremental long-log reads and new-file tracking.
 

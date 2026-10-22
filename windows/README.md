@@ -14,7 +14,7 @@
 
 ## 升級、資料目錄與還原
 
-舊登入監控排程與 Startup 捷徑僅在完整身分吻合時移除。受管 `Codex (Xskin)` 捷徑包含實際 `-StateRoot`，可使用中文、emoji、空格與自訂路徑；同名外來捷徑不會被覆寫或刪除。預設資料位於 `%LOCALAPPDATA%\CodexDreamSkin`；MSIX 重新導向時沿用實際儲存位置，並在移除舊排程前保存使用者層級的目錄索引。不要手動搬走該目錄。
+舊登入監控排程與 Startup 捷徑僅在完整身分吻合時移除。受管 `Codex (Xskin)` 捷徑包含實際 `-StateRoot`，可使用中文、emoji、空格與自訂路徑；同名外來捷徑不會被覆寫或刪除。預設資料位於 `%LOCALAPPDATA%\CodexDreamSkin`；MSIX 重新導向時沿用實際儲存位置，並在移除舊排程前保存 `%USERPROFILE%\.xskin-state-root.json` 目錄索引（位於 AppData 外，避免檔案／登錄隔離）。不要手動搬走該目錄。
 
 引擎更新先停止驗證過的 injector，再停止舊 PowerShell／quiet host，避免其子程序持有串流導致無法更新。新 quiet host 以 PowerShell 退出為準，不等待孫程序釋放輸出串流。升級保留既有 bundled Node；交換失敗時復原舊引擎並恢復 injector，不終止其他 Node 或 Codex。
 

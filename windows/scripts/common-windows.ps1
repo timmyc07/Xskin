@@ -49,14 +49,29 @@ function Test-DreamSkinPathWithin {
   }
 }
 
+function Get-DreamSkinStateRootLocatorPath {
+  return Join-Path ([Environment]::GetFolderPath('UserProfile')) '.xskin-state-root.json'
+}
+
 function Resolve-DreamSkinStateRoot {
   param([Parameter(Mandatory = $true)][string]$StateRoot)
   $root = [IO.Path]::GetFullPath($StateRoot)
   if (Test-DreamSkinPathEqual -Left $root -Right (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')) {
     $managedRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $locator = Get-ItemProperty -LiteralPath 'HKCU:\Software\Xskin' -ErrorAction SilentlyContinue
-    $candidate = if ((Split-Path -Leaf (Split-Path -Parent $PSScriptRoot)) -ieq 'engine') { $managedRoot }
-      elseif ($locator.StateRoot) { [string]$locator.StateRoot } else { $null }
+    $locator = $null
+    $candidate = $null
+    if ((Split-Path -Leaf (Split-Path -Parent $PSScriptRoot)) -ieq 'engine') {
+      $candidate = $managedRoot
+    } else {
+      $locatorPath = Get-DreamSkinStateRootLocatorPath
+      Assert-DreamSkinNoReparseComponents -Path $locatorPath
+      if (Test-Path -LiteralPath $locatorPath) {
+        if ((Get-Item -LiteralPath $locatorPath).Length -gt 256KB) { throw 'The Xskin store locator exceeds its size limit.' }
+        $locator = (Read-DreamSkinUtf8File -Path $locatorPath) | ConvertFrom-Json
+        if ($locator.owner -cne 'Xskin' -or $locator.stateRoot -isnot [string] -or -not $locator.stateRoot) { throw 'The Xskin store locator is invalid; it was preserved.' }
+        $candidate = [string]$locator.stateRoot
+      }
+    }
     if ($candidate) {
       if (-not [IO.Path]::IsPathRooted($candidate)) { throw 'The saved Xskin state root is not absolute.' }
       Assert-DreamSkinNoReparseComponents -Path $candidate
@@ -65,18 +80,20 @@ function Resolve-DreamSkinStateRoot {
       }
       $root = [IO.Path]::GetFullPath($candidate)
     }
-    $task = Get-DreamSkinAutostartTask
-    if (-not $candidate -and $task -and $task.Definition.Actions.Count -eq 1) {
-      $candidate = "$($task.Definition.Actions.Item(1).WorkingDirectory)"
-      if ($candidate -and [IO.Path]::IsPathRooted($candidate) -and
-        (Test-DreamSkinAutostartTask -Task $task -StateRoot $candidate)) {
-        $launcher = Join-Path $candidate 'engine\scripts\xskin-quiet.exe'
-        Assert-DreamSkinNoReparseComponents -Path $launcher
-        if ((Test-Path -LiteralPath $launcher) -and -not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
-          throw 'The Xskin quiet launcher is not an ordinary file.'
+    if (-not $candidate) {
+      $task = Get-DreamSkinAutostartTask
+      if ($task -and $task.Definition.Actions.Count -eq 1) {
+        $candidate = "$($task.Definition.Actions.Item(1).WorkingDirectory)"
+        if ($candidate -and [IO.Path]::IsPathRooted($candidate) -and
+          (Test-DreamSkinAutostartTask -Task $task -StateRoot $candidate)) {
+          $launcher = Join-Path $candidate 'engine\scripts\xskin-quiet.exe'
+          Assert-DreamSkinNoReparseComponents -Path $launcher
+          if ((Test-Path -LiteralPath $launcher) -and -not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
+            throw 'The Xskin quiet launcher is not an ordinary file.'
+          }
+          # Recover the physical MSIX store before retiring its old login task.
+          $root = [IO.Path]::GetFullPath($candidate)
         }
-        # A standalone process must reuse the store selected from inside the Codex MSIX container.
-        $root = [IO.Path]::GetFullPath($candidate)
       }
     }
   }

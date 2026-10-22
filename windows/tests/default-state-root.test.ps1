@@ -2,8 +2,8 @@
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\xskin-theme.ps1')
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('xskin-default-root-' + [guid]::NewGuid().ToString('N'))
 $previousLocalAppData = $env:LOCALAPPDATA
-$script:locatorFixture = $null
-function Get-ItemProperty { return $script:locatorFixture }
+$realLocatorPath = (Get-Command Get-DreamSkinStateRootLocatorPath).ScriptBlock
+function Get-DreamSkinStateRootLocatorPath { return Join-Path $temporary 'locator.json' }
 $realGetTask = (Get-Command Get-DreamSkinAutostartTask).ScriptBlock
 try {
   $env:LOCALAPPDATA = Join-Path $temporary 'ordinary-local'
@@ -91,18 +91,25 @@ try {
   $action.WorkingDirectory = $physicalRoot
   $action.Path = Join-Path $physicalRoot 'engine\scripts\xskin-quiet.exe'
   $action.Arguments = Get-DreamSkinAutostartArguments -StateRoot $physicalRoot
-  $script:locatorFixture = @{ StateRoot = $physicalRoot }
+  Save-XskinStateRoot -StateRoot $physicalRoot
   $taskFixture = $null
+  function Get-DreamSkinAutostartTask { throw 'A persisted store must not depend on the retired scheduler task.' }
   if (-not (Test-DreamSkinPathEqual -Left (Resolve-DreamSkinStateRoot -StateRoot $defaultRoot) -Right $physicalRoot)) {
     throw 'Removing the login task lost the physical store locator.'
   }
-  $script:locatorFixture = $null
+  Remove-Item -LiteralPath (Get-DreamSkinStateRootLocatorPath)
+  Write-DreamSkinUtf8FileAtomically -Path (Get-DreamSkinStateRootLocatorPath) -Content '{"owner":"foreign"}'
+  try { Save-XskinStateRoot -StateRoot $physicalRoot; throw 'An unrelated locator was overwritten.' }
+  catch { if ($_.Exception.Message -notmatch 'unrelated store locator') { throw } }
+  if ((Read-DreamSkinUtf8File -Path (Get-DreamSkinStateRootLocatorPath)) -cne '{"owner":"foreign"}') { throw 'Unrelated locator bytes changed.' }
+  Remove-Item -LiteralPath (Get-DreamSkinStateRootLocatorPath)
+  function Get-DreamSkinAutostartTask { return $null }
   $taskFixture = $null
   if (-not (Test-DreamSkinPathEqual -Left (Resolve-DreamSkinStateRoot -StateRoot $defaultRoot) -Right $defaultRoot)) {
     throw 'A default store without an existing task changed unexpectedly.'
   }
 } finally {
-  Remove-Item Function:\Get-ItemProperty
+  Set-Item Function:\Get-DreamSkinStateRootLocatorPath -Value $realLocatorPath
   Set-Item Function:\Get-DreamSkinAutostartTask -Value $realGetTask
   $env:LOCALAPPDATA = $previousLocalAppData
   $fullPath = [IO.Path]::GetFullPath($temporary)

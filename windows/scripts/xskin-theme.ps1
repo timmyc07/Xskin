@@ -171,8 +171,14 @@ function Remove-XskinLegacyShortcuts {
 
 function Save-XskinStateRoot {
   param([string]$StateRoot)
-  $null = New-Item -Path 'HKCU:\Software\Xskin' -Force
-  $null = New-ItemProperty -LiteralPath 'HKCU:\Software\Xskin' -Name StateRoot -Value $StateRoot -PropertyType String -Force
+  $path = Get-DreamSkinStateRootLocatorPath
+  Assert-DreamSkinNoReparseComponents -Path $path
+  if (Test-Path -LiteralPath $path) {
+    if ((Get-Item -LiteralPath $path).Length -gt 256KB) { throw 'The Xskin store locator exceeds its size limit.' }
+    $previous = (Read-DreamSkinUtf8File -Path $path) | ConvertFrom-Json
+    if ($previous.owner -cne 'Xskin') { throw 'Refusing to overwrite an unrelated store locator.' }
+  }
+  Write-DreamSkinUtf8FileAtomically -Path $path -Content (@{ owner = 'Xskin'; stateRoot = $StateRoot } | ConvertTo-Json)
 }
 
 function Get-XskinAutostart {
