@@ -104,7 +104,7 @@ function Stop-DreamSkinNewCodexLaunch {
     -not (Test-DreamSkinPathEqual -Left $process.Path -Right $Codex.Executable)) {
     throw 'The Codex process changed before automatic restart.'
   }
-  if (-not $process.CloseMainWindow()) { throw 'Codex refused to close; automatic restart was skipped.' }
+  Request-DreamSkinCodexQuit -Process $process
   if (-not $process.WaitForExit(15000)) { throw 'Codex did not close; automatic restart will not force it.' }
   $deadline = [datetime]::UtcNow.AddSeconds(5)
   while ((Get-DreamSkinCodexProcesses -Codex $Codex).Count -gt 0) {

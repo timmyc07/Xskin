@@ -5,7 +5,7 @@ $temporary = Join-Path ([IO.Path]::GetTempPath()) ('xskin-autostart-' + [guid]::
 $stateRoot = Join-Path $temporary ('state ' + [char]0x4E2D + [char]0x6587)
 New-Item -ItemType Directory -Path (Join-Path $stateRoot 'engine\scripts') -Force | Out-Null
 $realFunctions = @{}
-foreach ($name in @('Get-CimInstance','Get-Process','Get-DreamSkinCodexInstall','Get-DreamSkinProcessStartedAt','Get-DreamSkinCodexProcesses')) {
+foreach ($name in @('Get-CimInstance','Get-Process','Get-DreamSkinCodexInstall','Get-DreamSkinProcessStartedAt','Get-DreamSkinCodexProcesses','Request-DreamSkinCodexQuit')) {
   $command = Get-Command $name
   if ($command.CommandType -eq 'Function') { $realFunctions[$name] = $command.ScriptBlock }
 }
@@ -42,7 +42,13 @@ try {
   $closeResult = $true
   $exitResult = $true
   $closeCalls = 0
-  $fakeProcess | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $script:closeCalls++; return $script:closeResult }
+  $fakeProcess | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { throw 'Closing a window does not quit the tray app.' }
+  function Request-DreamSkinCodexQuit {
+    param([object]$Process)
+    if ($Process.Id -ne 12345 -or $Process.StartTime.ToUniversalTime().ToString('o') -cne $startedAt) { throw 'Wrong shutdown identity.' }
+    $script:closeCalls++
+    if (-not $script:closeResult) { throw 'Codex refused the graceful shutdown request.' }
+  }
   $fakeProcess | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { return $script:exitResult }
   function Get-Process { return $fakeProcess }
   $remaining = @($launchInfo)

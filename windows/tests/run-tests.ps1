@@ -923,6 +923,7 @@ try {
   & (Join-Path $PSScriptRoot 'xskin-theme.test.ps1')
   & (Join-Path $PSScriptRoot 'xskin-parity.test.ps1')
   & (Join-Path $PSScriptRoot 'autostart.test.ps1')
+  & (Join-Path $PSScriptRoot 'graceful-quit.test.ps1')
   & (Join-Path $PSScriptRoot 'injector-process.test.ps1')
   Write-Host 'PASS: config transactions, restore scoping, state safety, argument quoting, loopback CDP and video.'
 } finally {

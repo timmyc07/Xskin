@@ -823,12 +823,74 @@ function Get-DreamSkinCodexProcesses {
     })
 }
 
+function Request-DreamSkinCodexQuit {
+  param([Parameter(Mandatory = $true)][object]$Process)
+  if (-not ('CodexDreamSkin.RestartManager' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace CodexDreamSkin {
+  public static class RestartManager {
+    [StructLayout(LayoutKind.Sequential)]
+    private struct UniqueProcess {
+      public uint Id;
+      public System.Runtime.InteropServices.ComTypes.FILETIME StartedAt;
+    }
+
+    [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+    private static extern int RmStartSession(out uint session, uint flags, StringBuilder key);
+    [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+    private static extern int RmRegisterResources(uint session, uint files, string[] paths,
+      uint applications, UniqueProcess[] processes, uint services, string[] names);
+    [DllImport("rstrtmgr.dll")]
+    private static extern int RmShutdown(uint session, uint flags, IntPtr callback);
+    [DllImport("rstrtmgr.dll")]
+    private static extern int RmEndSession(uint session);
+
+    private static void Check(int result) {
+      if (result != 0) throw new Win32Exception(result);
+    }
+
+    public static void Quit(uint id, long startedAt) {
+      uint session;
+      Check(RmStartSession(out session, 0, new StringBuilder(33)));
+      try {
+        var process = new UniqueProcess {
+          Id = id,
+          StartedAt = new System.Runtime.InteropServices.ComTypes.FILETIME {
+            dwLowDateTime = unchecked((int)startedAt),
+            dwHighDateTime = (int)(startedAt >> 32)
+          }
+        };
+        Check(RmRegisterResources(session, 0, null, 1, new[] { process }, 0, null));
+        // WM_CLOSE only hides Codex; request session-end without RmForceShutdown.
+        Check(RmShutdown(session, 0, IntPtr.Zero));
+      } finally {
+        RmEndSession(session);
+      }
+    }
+  }
+}
+'@
+  }
+  [CodexDreamSkin.RestartManager]::Quit([uint32]$Process.Id, $Process.StartTime.ToUniversalTime().ToFileTimeUtc())
+}
+
 function Stop-DreamSkinCodex {
   param([Parameter(Mandatory = $true)][object]$Codex, [switch]$AllowForce)
   $processes = Get-DreamSkinCodexProcesses -Codex $Codex
   if ($processes.Count -eq 0) { return }
-  foreach ($item in $processes) {
-    try { [void](Get-Process -Id $item.ProcessId -ErrorAction Stop).CloseMainWindow() } catch {}
+  foreach ($item in $processes | Where-Object { $_.CommandLine -and $_.CommandLine -notmatch '(?i)(?:^|[\s"])--type(?:[=\s"]|$)' }) {
+    $process = Get-Process -Id $item.ProcessId -ErrorAction SilentlyContinue
+    if ($process -and $process.SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId -and
+      (Test-DreamSkinPathEqual -Left $process.Path -Right $Codex.Executable)) {
+      try { Request-DreamSkinCodexQuit -Process $process } catch {
+        if (-not $AllowForce) { throw }
+      }
+    }
   }
 
   $deadline = (Get-Date).AddSeconds(15)
