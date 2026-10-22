@@ -123,7 +123,17 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt)
   Remove-Item -LiteralPath (Join-Path $stateRoot 'autostart.json')
   Set-XskinAutostart -Enabled $true -SkillRoot $source -StateRoot $stateRoot
   $startup = Get-XskinAutostart -StateRoot $stateRoot
-  if (-not $startup.Enabled -or -not $startup.Loaded) { throw 'The real background monitor was not registered and ready.' }
+  if (-not $startup.Enabled -or -not $startup.Loaded) {
+    $link = $shell.CreateShortcut($startupShortcut)
+    $diagnostic = [pscustomobject]@{
+      startup = $startup; target = $link.TargetPath; description = $link.Description
+      arguments = $link.Arguments; expectedArguments = Get-DreamSkinAutostartArguments -StateRoot $stateRoot
+      state = Read-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json')
+      log = [IO.File]::ReadAllText((Join-Path $stateRoot 'autostart.log'))
+      error = [IO.File]::ReadAllText((Join-Path $stateRoot 'autostart-error.log'))
+    }
+    throw "The real background monitor was not registered and ready: $($diagnostic | ConvertTo-Json -Depth 4 -Compress)"
+  }
   if ((Test-Path -LiteralPath $legacyPaths[0]) -or -not (Test-Path -LiteralPath $legacyPaths[1])) { throw 'Migration did not remove only the old owned shortcut.' }
   $before = Get-DreamSkinAutostartProcess -StateRoot $stateRoot
   Start-DreamSkinAutostart -StateRoot $stateRoot

@@ -5,7 +5,8 @@ New-Item -ItemType Directory -Path $temporary | Out-Null
 $fixtures = @()
 try {
   $fixturePath = Join-Path $temporary 'fixture.exe'
-  Add-Type -OutputAssembly $fixturePath -OutputType WindowsApplication -ReferencedAssemblies System.Windows.Forms -TypeDefinition @'
+  $fixtureSource = Join-Path $temporary 'fixture.cs'
+  [IO.File]::WriteAllText($fixtureSource, @'
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -27,7 +28,10 @@ public static class QuitFixture {
     Application.Run(form);
   }
 }
-'@
+'@)
+  $compiler = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+  & $compiler /nologo /target:winexe /reference:System.Windows.Forms.dll "/out:$fixturePath" $fixtureSource
+  if ($LASTEXITCODE -ne 0) { throw 'Could not compile the Windows GUI quit fixture.' }
   foreach ($name in @('accept', 'refuse')) {
     $ready = Join-Path $temporary "$name.ready"
     $events = Join-Path $temporary "$name.events"
