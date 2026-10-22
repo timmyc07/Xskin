@@ -2,108 +2,74 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 TEMPORARY="$(/usr/bin/mktemp -d /tmp/xskin-native-tests.XXXXXX)"
-trap '/bin/rm -rf "$TEMPORARY"' EXIT
-/usr/bin/xcrun swiftc -parse-as-library -swift-version 5 -D LOCALIZATION_SELF_CHECK \
-  "$ROOT/native/Localization.swift" -o "$TEMPORARY/localization-check"
+trap 'if [ -f "$TEMPORARY/scripts/daemon-pids" ]; then while read -r daemon; do /bin/kill -TERM "$daemon" 2>/dev/null || true; done < "$TEMPORARY/scripts/daemon-pids"; fi; /bin/rm -rf "$TEMPORARY"' EXIT
+/usr/bin/xcrun swiftc -parse-as-library -swift-version 5 -D LOCALIZATION_SELF_CHECK "$ROOT/native/Localization.swift" -o "$TEMPORARY/localization-check"
 "$TEMPORARY/localization-check"
-/usr/bin/xcrun swiftc -parse-as-library -swift-version 5 -framework AppKit \
-  "$ROOT/native/DirectLauncher.swift" "$ROOT/native/Localization.swift" -o "$TEMPORARY/launcher-check"
+/usr/bin/xcrun swiftc -parse-as-library -swift-version 5 -framework AppKit "$ROOT/native/DirectLauncher.swift" "$ROOT/native/Localization.swift" -o "$TEMPORARY/launcher-check"
 "$TEMPORARY/launcher-check" --self-check
-/bin/mkdir -p "$TEMPORARY/scripts"
-/bin/cp "$ROOT/scripts/direct-launch-macos.sh" "$TEMPORARY/scripts/"
-/bin/cat > "$TEMPORARY/scripts/common-macos.sh" <<'SH'
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-AUTOSTART_AGENT_PATH="$SCRIPT_DIR/enabled"
-discover_codex_app() { :; }
-codex_is_running() { [ -f "$SCRIPT_DIR/running" ]; }
-activate_codex() { printf 'activate\n'; }
-launch_codex_normally() { printf 'normal\n'; }
-SH
-/bin/cat > "$TEMPORARY/scripts/start-dream-skin-macos.sh" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*"
-SH
-/bin/chmod +x "$TEMPORARY/scripts/start-dream-skin-macos.sh"
-[ "$(/bin/bash "$TEMPORARY/scripts/direct-launch-macos.sh")" = normal ]
-: > "$TEMPORARY/scripts/enabled"
-[ "$(/bin/bash "$TEMPORARY/scripts/direct-launch-macos.sh")" = --direct-launch ]
-: > "$TEMPORARY/scripts/running"
-[ "$(/bin/bash "$TEMPORARY/scripts/direct-launch-macos.sh")" = activate ]
-printf 'PASS: direct launch activates an existing app, respects disabled startup, and prepares one new instance.\n'
-
-# A successful LaunchServices request can precede PID visibility.
-/usr/bin/env HOME="$TEMPORARY" /bin/bash -c '
-  set -euo pipefail
-  . "$1/scripts/common-macos.sh"
-  APP_LOG="$2/single.log"
-  APP_ERROR_LOG="$2/single-error.log"
-  CODEX_BUNDLE=/fixture/Official.app
-  release_codex_launchd_job() { :; }
-  function /usr/bin/open() { printf "%s\n" "$*" >> "$OPEN_CALLS"; }
-  codex_is_running() { : > "$PID_PROBE"; return 1; }
-  OPEN_CALLS="$2/single-open-calls"
-  PID_PROBE="$2/single-pid-probe"
-  launch_codex_with_cdp 19341
-  [ ! -e "$PID_PROBE" ]
-  [ "$(/usr/bin/wc -l < "$OPEN_CALLS" | /usr/bin/tr -d " ")" = 1 ]
-  /usr/bin/grep -F -q -- "-na /fixture/Official.app --args" "$OPEN_CALLS"
-' _ "$ROOT" "$TEMPORARY"
-
-# Execute the real start script with local stubs and fail before any app launch.
-/bin/cp "$ROOT/scripts/start-dream-skin-macos.sh" "$TEMPORARY/scripts/"
-/bin/cat > "$TEMPORARY/scripts/common-macos.sh" <<'SH'
+mkdir -p "$TEMPORARY/scripts/state"
+cp "$ROOT/scripts/direct-launch-macos.sh" "$ROOT/scripts/start-dream-skin-macos.sh" "$TEMPORARY/scripts/"
+cat > "$TEMPORARY/scripts/common-macos.sh" <<'STUB'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 STATE_ROOT="$SCRIPT_DIR/state"
 STATE_PATH="$STATE_ROOT/state.json"
-START_ERROR_LOG="$STATE_ROOT/start-error.log"
-discover_codex_app() { CODEX_BUNDLE=/fixture/Official.app; }
-require_macos_runtime() { [ ! -e "$SCRIPT_DIR/signature-invalid" ]; }
-ensure_state_root() { /bin/mkdir -p "$STATE_ROOT"; }
-state_field() { return 1; }
-fail() { printf '%s\n' "$*" >&2; exit 1; }
-function /usr/bin/open() { printf '%s\n' "$*" >> "$SCRIPT_DIR/fallback-open-calls"; }
-SH
-/bin/mkdir -p "$TEMPORARY/scripts/state"
-: > "$TEMPORARY/scripts/state/state.json"
-if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --direct-launch >/dev/null 2>&1; then exit 1; fi
-[ "$(/bin/cat "$TEMPORARY/scripts/fallback-open-calls")" = '-a /fixture/Official.app' ]
-/bin/rm "$TEMPORARY/scripts/fallback-open-calls"
-: > "$TEMPORARY/scripts/signature-invalid"
-if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --direct-launch >/dev/null 2>&1; then exit 1; fi
-[ ! -e "$TEMPORARY/scripts/fallback-open-calls" ]
-/bin/rm "$TEMPORARY/scripts/signature-invalid"
-if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" >/dev/null 2>&1; then exit 1; fi
-[ ! -e "$TEMPORARY/scripts/fallback-open-calls" ]
-printf 'PASS: one launch tolerates delayed PID discovery; only verified direct-launch failures activate the official app.\n'
-
-! /usr/bin/grep -F '/usr/bin/open -na' "$ROOT/scripts/start-dream-skin-macos.sh" >/dev/null
-
-# Automatic handoffs run the same real starter, with a strict fresh-process gate.
-/bin/rm -f "$TEMPORARY/scripts/state/state.json" "$TEMPORARY/scripts/fallback-open-calls"
-cat >> "$TEMPORARY/scripts/common-macos.sh" <<'FIXTURE'
-AUTOSTART_AGENT_PATH="$SCRIPT_DIR/enabled"
-NODE=/usr/bin/true
+START_ERROR_LOG="$STATE_ROOT/error.log"
+INJECTOR_ERROR_LOG="$STATE_ROOT/injector-error.log"
+APP_LOG="$STATE_ROOT/app.log"
+APP_ERROR_LOG="$STATE_ROOT/app-error.log"
 INJECTOR=/fixture/injector.mjs
 THEME_DIR=/fixture/theme
-verified_cdp_endpoint() { return 1; }
-codex_is_running() { return 0; }
-new_codex_launch_matches() {
-  printf '%s %s\n' "$1" "$2" >> "$SCRIPT_DIR/identity-calls"
-  [ ! -e "$SCRIPT_DIR/reject-identity" ]
-}
-stop_codex() { printf '%s\n' "$1" >> "$SCRIPT_DIR/stop-calls"; return 1; }
-FIXTURE
-: > "$TEMPORARY/scripts/enabled"
-if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --restart-new-launch 700 FixtureStart >/dev/null 2>&1; then exit 1; fi
-[ "$(/bin/cat "$TEMPORARY/scripts/stop-calls")" = false ]
-[ ! -e "$TEMPORARY/scripts/fallback-open-calls" ]
-[ "$(/usr/bin/wc -l < "$TEMPORARY/scripts/identity-calls" | /usr/bin/tr -d ' ')" = 2 ]
-/bin/rm "$TEMPORARY/scripts/stop-calls"
-: > "$TEMPORARY/scripts/reject-identity"
-if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --restart-new-launch 700 ReusedPID >/dev/null 2>&1; then exit 1; fi
-[ ! -e "$TEMPORARY/scripts/stop-calls" ]
-[ ! -e "$TEMPORARY/scripts/fallback-open-calls" ]
-/bin/rm "$TEMPORARY/scripts/enabled"
-if /bin/bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --restart-new-launch 700 FixtureStart >/dev/null 2>&1; then exit 1; fi
-[ ! -e "$TEMPORARY/scripts/stop-calls" ]
-printf 'PASS: the real automatic starter rechecks launch identity, requires enabled startup, and never force-quits a refused handoff.\n'
+SKIN_VERSION=fixture
+NODE="$SCRIPT_DIR/node"
+discover_codex_app() { :; }
+require_macos_runtime() { :; }
+ensure_state_root() { :; }
+fail() { printf '%s\n' "$*" >&2; exit 1; }
+state_field() { case "$1" in port) printf 19341 ;; session) if [ -f "$SCRIPT_DIR/paused" ]; then printf paused; else printf active; fi ;; esac; }
+codex_is_running() { [ -f "$SCRIPT_DIR/running" ]; }
+verified_cdp_endpoint() { [ -f "$SCRIPT_DIR/running" ] && [ ! -f "$SCRIPT_DIR/no-cdp" ]; }
+activate_codex() { printf 'activate\n' >> "$SCRIPT_DIR/events"; }
+launch_codex_normally() { printf 'normal\n' >> "$SCRIPT_DIR/events"; touch "$SCRIPT_DIR/running"; }
+select_available_port() { printf 19341; }
+launch_codex_with_cdp() { printf 'launch\n' >> "$SCRIPT_DIR/events"; touch "$SCRIPT_DIR/running"; }
+launch_injector_daemon() { printf 'inject\n' >> "$SCRIPT_DIR/events"; /bin/sleep 120 >/dev/null 2>&1 & local daemon=$!; printf '%s\n' "$daemon" >> "$SCRIPT_DIR/daemon-pids"; printf '%s' "$daemon"; }
+wait_for_cdp() { [ ! -f "$SCRIPT_DIR/no-cdp" ]; }
+process_started_at() { printf FixtureStart; }
+codex_main_pids() { printf '%s' "$PPID"; }
+write_state() { printf '{}' > "$STATE_PATH"; }
+stop_recorded_injector() { printf 'stop-injector\n' >> "$SCRIPT_DIR/events"; }
+stop_codex() { printf 'Unexpected official quit\n' >&2; exit 99; }
+STUB
+cat > "$TEMPORARY/scripts/node" <<'NODE'
+#!/bin/bash
+[ "$1" != -e ] || exit 0
+printf '{"targets":[{"result":{"pass":true}}]}\n'
+NODE
+chmod +x "$TEMPORARY/scripts/node"
+launch="$TEMPORARY/scripts/direct-launch-macos.sh"
+# Disabled and paused launchers keep their preference and use ordinary Codex.
+bash "$launch"
+[ "$(cat "$TEMPORARY/scripts/events")" = normal ]
+touch "$TEMPORARY/scripts/state/shortcut-enabled" "$TEMPORARY/scripts/paused"
+printf '{}' > "$TEMPORARY/scripts/state/state.json"
+rm "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/events"
+bash "$launch"
+[ "$(cat "$TEMPORARY/scripts/events")" = normal ]
+[ -f "$TEMPORARY/scripts/paused" ]
+rm "$TEMPORARY/scripts/paused"
+# Three isolated cold-start fixtures, with a repeated click after each launch.
+for attempt in 1 2 3; do
+  rm -f "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/events" "$TEMPORARY/scripts/state/state.json"
+  bash "$launch"
+  bash "$launch"
+  [ "$(cat "$TEMPORARY/scripts/events")" = $'launch\ninject\nactivate' ]
+done
+# Ordinary existing windows and failed cold starts are never closed or reopened.
+touch "$TEMPORARY/scripts/no-cdp"
+rm "$TEMPORARY/scripts/events"
+if bash "$launch" >/dev/null 2>&1; then exit 1; fi
+[ ! -e "$TEMPORARY/scripts/events" ]
+rm "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/state/state.json"
+if bash "$launch" >/dev/null 2>&1; then exit 1; fi
+[ "$(cat "$TEMPORARY/scripts/events")" = $'launch\ninject' ]
+printf 'PASS: three cold-start fixtures launch once each; repeated, paused, disabled and failed launches never close/reopen official Codex.\n'

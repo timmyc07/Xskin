@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
   [ValidateSet('source', 'install', 'tray', 'start', 'start-authorized', 'verify', 'restore', 'restore-authorized', 'recover-config', 'uninstall', 'test')]
@@ -79,13 +79,13 @@ switch ($Action) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   }
   'start' {
-    $arguments = @('-Port', $Port, '-PromptRestart')
+    $arguments = @('-Port', $Port, '-Resume')
     if ($ProfilePath) { $arguments += @('-ProfilePath', $ProfilePath) }
     if ($ForegroundInjector) { $arguments += '-ForegroundInjector' }
     Invoke-RuntimeScript 'start-dream-skin.ps1' $arguments
   }
   'start-authorized' {
-    $arguments = @('-Port', $Port, '-RestartExisting')
+    $arguments = @('-Port', $Port, '-Resume')
     if ($ProfilePath) { $arguments += @('-ProfilePath', $ProfilePath) }
     if ($ForegroundInjector) { $arguments += '-ForegroundInjector' }
     Invoke-RuntimeScript 'start-dream-skin.ps1' $arguments

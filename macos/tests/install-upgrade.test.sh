@@ -45,6 +45,8 @@ cat > "$PROJECT_ROOT/scripts/injector.mjs" <<'JS'
 JS
 printf '{}' > "$THEME_DIR/theme.json"
 printf original > "$fixture/preferences"
+printf 'check_autostart_agent() { :; }\n' > "$PROJECT_ROOT/scripts/autostart-dream-skin-macos.sh"
+chmod +x "$PROJECT_ROOT/scripts/autostart-dream-skin-macos.sh"
 case "$2" in
   active|rollback|unknown) : > "$STATE_PATH"; : > "$AUTOSTART_AGENT_PATH" ;;
   paused) : > "$STATE_PATH" ;;
@@ -53,6 +55,8 @@ esac
 discover_codex_app() { :; }
 require_macos_runtime() { :; }
 ensure_state_root() { :; }
+check_autostart_agent() { :; }
+SCRIPT_DIR="$PROJECT_ROOT/scripts"
 state_field() { case "$1" in port) printf 19341 ;; session) if [ -e "$fixture/paused" ]; then printf paused; else printf active; fi ;; esac; }
 [ "$2" != paused ] || : > "$fixture/paused"
 verified_cdp_endpoint() { [ "$1" = 19341 ]; }

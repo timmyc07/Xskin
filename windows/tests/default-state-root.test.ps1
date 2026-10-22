@@ -1,7 +1,9 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\xskin-theme.ps1')
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('xskin-default-root-' + [guid]::NewGuid().ToString('N'))
 $previousLocalAppData = $env:LOCALAPPDATA
+$script:locatorFixture = $null
+function Get-ItemProperty { return $script:locatorFixture }
 $realGetTask = (Get-Command Get-DreamSkinAutostartTask).ScriptBlock
 try {
   $env:LOCALAPPDATA = Join-Path $temporary 'ordinary-local'
@@ -86,11 +88,21 @@ try {
     try { $null = Resolve-DreamSkinStateRoot -StateRoot $defaultRoot; throw 'An owned-looking task selected a reparse state root.' }
     catch { if ($_.Exception.Message -notmatch 'junction or symbolic link') { throw } }
   } finally { [IO.Directory]::Delete($junction) }
+  $action.WorkingDirectory = $physicalRoot
+  $action.Path = Join-Path $physicalRoot 'engine\scripts\xskin-quiet.exe'
+  $action.Arguments = Get-DreamSkinAutostartArguments -StateRoot $physicalRoot
+  $script:locatorFixture = @{ StateRoot = $physicalRoot }
+  $taskFixture = $null
+  if (-not (Test-DreamSkinPathEqual -Left (Resolve-DreamSkinStateRoot -StateRoot $defaultRoot) -Right $physicalRoot)) {
+    throw 'Removing the login task lost the physical store locator.'
+  }
+  $script:locatorFixture = $null
   $taskFixture = $null
   if (-not (Test-DreamSkinPathEqual -Left (Resolve-DreamSkinStateRoot -StateRoot $defaultRoot) -Right $defaultRoot)) {
     throw 'A default store without an existing task changed unexpectedly.'
   }
 } finally {
+  Remove-Item Function:\Get-ItemProperty
   Set-Item Function:\Get-DreamSkinAutostartTask -Value $realGetTask
   $env:LOCALAPPDATA = $previousLocalAppData
   $fullPath = [IO.Path]::GetFullPath($temporary)

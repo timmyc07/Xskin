@@ -72,7 +72,10 @@ internal static class QuietLauncher {
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        process.WaitForExit();
+        // Infinite WaitForExit also joins readers; a grandchild may still own those pipes.
+        if (!process.WaitForExit(int.MaxValue)) throw new TimeoutException("The Xskin operation did not exit.");
+        process.CancelOutputRead();
+        process.CancelErrorRead();
         exitCode = process.ExitCode;
       }
       if (exitCode != 0) {

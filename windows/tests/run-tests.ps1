@@ -146,6 +146,8 @@ try {
       throw 'Runtime update did not resume its watcher with a newly selected available Node runtime.'
     }
 
+    Copy-Item -LiteralPath $fixtureNode.Path -Destination (Join-Path $engine.Scripts 'node.exe')
+    $bundledHash = (Get-FileHash -LiteralPath (Join-Path $engine.Scripts 'node.exe')).Hash
     [IO.File]::AppendAllText($fixtureInjector, ' // staged update')
     function Move-Item {
       [CmdletBinding()]
@@ -161,6 +163,7 @@ try {
       $rolledBackState = Read-DreamSkinState -Path $fixtureStatePath
       if (-not $rollbackRejected -or $rolledBackState.injectorPid -eq $resumedState.injectorPid -or
         -not (Get-Process -Id $rolledBackState.injectorPid -ErrorAction SilentlyContinue) -or
+        (Get-FileHash -LiteralPath (Join-Path $engine.Scripts 'node.exe')).Hash -cne $bundledHash -or
         (Read-DreamSkinUtf8File -Path $fixtureScript) -cne 'setInterval(() => {}, 1000);' -or
         (Read-DreamSkinUtf8File -Path (Join-Path $runtimeStateRoot 'paused')) -cne 'paused' -or
         (Read-DreamSkinUtf8File -Path (Join-Path $runtimeStateRoot 'studio.json')) -cne '{"language":"ja"}') {
@@ -810,11 +813,6 @@ try {
     throw 'Tray menu metadata enumeration still performs full image parsing on every open.'
   }
   $restoreSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\restore-dream-skin.ps1')
-  foreach ($source in @($traySource, $restoreSource)) {
-    if (-not $source.Contains('Set-XskinAutostart -Enabled $false')) {
-      throw 'Pause/restore must disable the owned automatic launch entries.'
-    }
-  }
   if (-not $restoreSource.Contains('Stop-DreamSkinTrayProcess')) {
     throw 'Complete restore does not stop a separately launched tray process.'
   }
@@ -823,9 +821,8 @@ try {
     throw 'Restore still executes the WindowsApps path instead of activating the registered package.'
   }
   $startSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\start-dream-skin.ps1')
-  if (-not $startSource.Contains("throw 'Dream Skin launch was cancelled; Codex was not changed.'")) {
-    throw 'Cancelled startup must fail Apply so the pending theme is preserved and the previous theme restored.'
-  }
+  if ($startSource.Contains('Stop-DreamSkinCodex') -or $startSource.Contains('NewLaunchPid') -or
+    $startSource.Contains('Confirm-DreamSkinRestart')) { throw 'Startup still closes an official Codex process.' }
   if ($startSource.Contains('Start-Process -FilePath $codex.Executable') -or
     -not $startSource.Contains('Start-DreamSkinCodex -Codex $codex')) {
     throw 'Start still executes the WindowsApps path instead of activating the registered package.'

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [int]$Port = 9335,
   [switch]$Uninstall,
@@ -17,13 +17,16 @@ $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 
 function Stop-DreamSkinTrayProcess {
-  $trayScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'tray-dream-skin.ps1'))
+  $trayScript = Join-Path $StateRoot 'engine\scripts\tray-dream-skin.ps1'
+  $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   try {
     $processes = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'pwsh.exe'" `
       -ErrorAction Stop
     foreach ($process in $processes) {
       if ($process.ProcessId -eq $PID -or -not $process.CommandLine) { continue }
-      if ($process.CommandLine.IndexOf($trayScript, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+      if ($process.SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId -and
+        (Test-DreamSkinPathEqual -Left (Get-DreamSkinProcessExecutablePath -ProcessInfo $process) -Right $shell) -and
+        (Test-DreamSkinCommandLineToken -CommandLine $process.CommandLine -Token $trayScript)) {
         Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
       }
     }
@@ -39,7 +42,8 @@ try {
   }
   Assert-DreamSkinPort -Port $Port
 
-  Set-XskinAutostart -Enabled $false -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+  Remove-DreamSkinLegacyAutostart -StateRoot $StateRoot
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ shortcutSkinEnabled = $false }
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root
   $StatePath = Join-Path $StateRoot 'state.json'
@@ -149,17 +153,9 @@ try {
     }
 
     Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Join-Path $StateRoot 'paused') -Force -ErrorAction SilentlyContinue
+    $null = Set-DreamSkinPaused -Paused $true -StateRoot $StateRoot
     if ($Uninstall) {
-      $desktop = [Environment]::GetFolderPath('Desktop')
-      $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-      @(
-        (Join-Path $desktop 'Codex Dream Skin.lnk'),
-        (Join-Path $desktop 'Codex Dream Skin - Restore.lnk'),
-        (Join-Path $desktop 'Codex Dream Skin - Tray.lnk'),
-        (Join-Path $startMenu 'Codex Dream Skin.lnk'),
-        (Join-Path $startMenu 'Codex Dream Skin - Tray.lnk')
-      ) | ForEach-Object { Remove-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue }
+      Set-XskinLaunchShortcuts -StateRoot $StateRoot -Remove
     }
 
     if ($shouldCloseCodex -and -not $NoRelaunch) {

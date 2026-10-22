@@ -14,11 +14,10 @@ void main() {
         );
       }
     }
-    expect(localizedText('autostartHint', 'en'), contains('official Codex app'));
-    expect(localizedText('autostartHint', 'en'), contains('reopens'));
     for (final language in languages.keys) {
-      expect(localizedText('autostartHint', language), isNot(contains('(Xskin)')));
-      expect(localizedText('autostartEnabled', language), isNot(contains('(Xskin)')));
+      expect(localizedText('autostartHint', language), contains('Codex'));
+      expect(localizedText('autostartHint', language), isNot(contains('reopens')));
+      expect(localizedText('autostartEnabled', language), contains('Codex'));
     }
   });
 }

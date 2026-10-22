@@ -64,9 +64,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-Keep your current background and any pending import on your computer. Turn on **Apply on Codex launch** once. Open the original official Codex app from Start, Desktop or the taskbar on Windows, or Finder, Spotlight or the Dock on macOS. The background monitor gracefully reopens a fresh ordinary launch once to connect your background. Xskin does not need to stay open.
+Source 1.8.0 uses **Codex (Xskin)** on both platforms. Fully exit Codex, then open this managed entry to apply your saved background and overlay. The Xskin panel can stay closed. Windows provides Desktop/Start shortcuts; macOS provides `~/Applications/Codex (Xskin).app`. Pin it using the normal system UI.
 
-In Windows 1.6.0, enable the option once in the updated panel to replace the old shortcut-based setup, and use or pin the official Codex app. Dedicated **Codex (Xskin)** shortcuts are no longer required. Existing windows, explicit debug launches and refused shutdowns are left alone. The monitor starts at login without opening Codex; Pause/Restore stop it. An already-open ordinary Codex session needs one confirmed restart through manual Apply to enable the background connection.
+Upgrades remove only verified legacy launch monitors and preserve your data and preferences. Existing ordinary Codex sessions are left running; exit them manually before using the shortcut. Paused shortcuts open ordinary Codex without resuming. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
 
 ### Keep streaming updates light
 
@@ -116,7 +116,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
 - Releases are platform-specific: **windows-v1.6.0** for Windows x64 and **v1.6.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
-- Automatic startup supports the original official app on both platforms. Each fresh ordinary launch is gracefully reopened once, with an identity/age check and a 30-second loop guard; existing sessions are skipped and refused shutdowns are never forced. Enabling it restores previously managed Dock entries on macOS and removes owned legacy Desktop/Start launch shortcuts on Windows. Official app files remain unchanged.
+- Managed Codex (Xskin) entries start the official app once, reuse an existing verified connection and never close/reopen ordinary launches. Published older downloads retain their historical behavior.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
 - 4K decoding and playback load depend on frame rate, codec, and hardware. Preserving original quality does not guarantee identical resource use across files.
@@ -142,7 +142,7 @@ cd macos
 npm test
 ```
 
-An initial manual Apply may ask for one confirmed restart when Codex was opened without the background connection. Later ordinary launches use one automatic graceful handoff on both platforms; already-open windows are skipped. Include system, Codex, and Xskin versions with reproducible steps when contributing. Do not submit private chats, media, or credentials.
+Source 1.8.0 requires fully exiting an ordinary Codex session before opening Codex (Xskin). CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
 
 </details>
 

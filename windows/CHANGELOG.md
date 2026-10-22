@@ -1,5 +1,13 @@
 # Windows Changelog
 
+## 1.8.0 — 2026-10-22 (source; Windows validation pending)
+
+- Use Codex (Xskin) for one explicit official launch. Retire legacy launch monitoring; ordinary existing apps and failed launches are never closed/reopened by startup.
+- Preserve saved media, language, opacity and pause. Paused shortcuts open ordinary Codex. Owned-entry migration preserves foreign same-name shortcuts and existing data.
+- Preserve the running official app during runtime upgrades. Windows stops verified injector pipe holders before the legacy host, preserves bundled Node and no longer waits on grandchild output EOF.
+- macOS includes draft conversation IDs, lifecycle fan animation, long-log incremental reads and new-session overlay fixes.
+- Document CDP/CSS authorization as unconfirmed and distinguish automated checks from pending physical cold-start/login/Store verification.
+
 ## Xskin Windows 1.7.1 — 2026-10-22
 
 - Resolve new local tasks through the active composer's official conversation ID while the sidebar still holds a temporary `client-new-thread` ID. Reject ambiguous IDs and route transitions instead of showing another task's usage.

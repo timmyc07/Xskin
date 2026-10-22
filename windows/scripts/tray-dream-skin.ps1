@@ -79,12 +79,11 @@ try {
 
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '应用或重新应用' -Action {
       Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
-      Start-DreamSkinQuietOperation -Mode start -Arguments @('-Port', "$Port", '-PromptRestart')
+      Start-DreamSkinQuietOperation -Mode start -Arguments @('-Port', "$Port", '-Resume')
     }
     $pauseText = if ($paused) { '继续显示皮肤' } else { '暂停皮肤' }
     $nextPaused = -not $paused
     $pauseAction = {
-      if ($nextPaused) { Set-XskinAutostart -Enabled $false -SkillRoot $SkillRoot -StateRoot $StateRoot }
       Set-DreamSkinPaused -Paused $nextPaused -StateRoot $StateRoot | Out-Null
     }.GetNewClosure()
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text $pauseText -Action $pauseAction
@@ -152,7 +151,7 @@ try {
   $notify.add_DoubleClick({
     try {
       Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
-      Start-DreamSkinQuietOperation -Mode start -Arguments @('-Port', "$Port", '-PromptRestart')
+      Start-DreamSkinQuietOperation -Mode start -Arguments @('-Port', "$Port", '-Resume')
     } catch {
       Show-DreamSkinTrayError -Message $_.Exception.Message
     }

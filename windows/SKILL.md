@@ -12,7 +12,7 @@ Apply a reversible renderer skin through Chromium DevTools Protocol while launch
 For the Xskin Flutter panel, use `panel/` and the Windows README. The packaged `xskin.exe` invokes `scripts/xskin-command.ps1` with structured UTF-8 requests; image/MP4 imports remain pending until Apply. `xskin-theme.ps1` verifies apply transactions and rolls back image/video media and pause state on failure. Use `scripts/build-release.ps1` to test and package the complete Flutter runner, media libraries and engine. Run `flutter analyze` and `flutter test` in `panel/` after UI changes.
 
 1. Install Node.js 22 or newer, close Codex, then run `scripts/install-dream-skin.ps1` once. The installer preserves the user's native appearance settings, seeds the Arina Hashimoto theme, copies the runtime to `%LOCALAPPDATA%\CodexDreamSkin\engine`, and creates launch/restore/tray shortcuts that do not depend on the source checkout.
-2. Use the `Codex Dream Skin` shortcut, or run `%LOCALAPPDATA%\CodexDreamSkin\engine\scripts\start-dream-skin.ps1`. The shortcut asks before restarting an already-open Codex app; CLI callers must explicitly add `-RestartExisting`.
+2. Fully exit Codex and use `Codex (Xskin)`, or run the managed `start-dream-skin.ps1` with the actual `-StateRoot`. Startup never closes/reopens Codex; ordinary existing sessions require manual exit. Paused shortcuts open ordinary Codex without clearing pause.
 3. Run `scripts/verify-dream-skin.ps1 -ScreenshotPath <absolute-path>` after launch. Treat a missing continuous wallpaper, home shell, native composer, sidebar layer, or injection marker as failure. The native suggestion count is responsive and may be two to four.
 4. Inspect the screenshot against `references/qa-inventory.md`. Verify both the home screen and a normal task before signing off.
 5. Run `scripts/restore-dream-skin.ps1` to remove the live skin, close the saved CDP session, and reopen Codex normally. Add `-RestoreBaseTheme` to restore only saved appearance keys, `-RecoverConfigBackup` for explicit byte-for-byte recovery of a damaged config, or `-Uninstall` to delete shortcuts. A completed config restore archives that install's backup so a later install captures a fresh baseline.
@@ -60,3 +60,5 @@ node --check assets\renderer-inject.js
 - `references/qa-inventory.md`: required functional and visual signoff coverage.
 - `references/runtime-notes.md`: troubleshooting and update behavior.
 - `tests/run-tests.ps1`: managed runtime, configuration, state, recovery, payload, and CDP validation regression checks. Use `-EngineOnly` for the source-independence contract.
+
+CDP/CSS injection authorization remains unconfirmed; see [validation and recovery](../docs/direct-launch-shortcut.md). Do not claim that loopback or unchanged files establish permission.

@@ -1,10 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [int]$Port = 9335,
-  [switch]$RestartExisting,
-  [switch]$PromptRestart,
-  [int]$NewLaunchPid,
-  [string]$NewLaunchStartedAt,
+  [switch]$Resume,
   [string]$ProfilePath,
   [switch]$ForegroundInjector,
   [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
@@ -15,22 +12,15 @@ $StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $Injector = Join-Path $PSScriptRoot 'injector.mjs'
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
-. (Join-Path $PSScriptRoot 'theme-windows.ps1')
+. (Join-Path $PSScriptRoot 'xskin-theme.ps1')
 $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 
-$lockWait = if ($NewLaunchPid) { 2000 } else { 0 }
-$operationLock = Enter-DreamSkinOperationLock -TimeoutMilliseconds $lockWait
+$operationLock = Enter-DreamSkinOperationLock -TimeoutMilliseconds 60000
 try {
   Assert-DreamSkinPort -Port $Port
   if ($ProfilePath) { $ProfilePath = [System.IO.Path]::GetFullPath($ProfilePath) }
   $node = Get-DreamSkinNodeRuntime
   $currentCodex = Get-DreamSkinCodexInstall
-  if ($NewLaunchPid -or $NewLaunchStartedAt) {
-    if (-not $NewLaunchPid -or -not $NewLaunchStartedAt -or
-      -not (Test-DreamSkinNewCodexLaunch -Codex $currentCodex -ProcessId $NewLaunchPid -StartedAt $NewLaunchStartedAt)) {
-      throw 'Automatic apply requires the same newly launched official Codex process.'
-    }
-  }
   $codex = $currentCodex
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root
@@ -42,6 +32,8 @@ try {
   $pauseWasSet = Test-DreamSkinPaused -StateRoot $StateRoot
 
   $previousState = Read-DreamSkinState -Path $StatePath
+  $settings = Read-XskinSettings -StateRoot $StateRoot
+  if (-not $PortExplicit -and $settings.launchPort) { $Port = [int]$settings.launchPort; Assert-DreamSkinPort -Port $Port }
   if (-not $PortExplicit -and $null -ne $previousState -and $previousState.port) {
     $savedPort = [int]$previousState.port
     Assert-DreamSkinPort -Port $savedPort
@@ -93,77 +85,39 @@ try {
   } else {
     Get-DreamSkinCodexProcesses -Codex $codexToStop
   }
-  $closedExistingCodex = $false
-  $quitRequested = $false
-  $launchedWithCdp = $false
-  try {
-    if (-not $debugReady -and $codexProcesses.Count -gt 0) {
-      if ($NewLaunchPid) {
-        Stop-DreamSkinNewCodexLaunch -Codex $currentCodex -ProcessId $NewLaunchPid -StartedAt $NewLaunchStartedAt -QuitRequested ([ref]$quitRequested)
-      } else {
-        $restartAuthorized = [bool]$RestartExisting
-        if (-not $restartAuthorized -and $PromptRestart) {
-          $restartAuthorized = Confirm-DreamSkinRestart -Message 'Codex must restart once to enable Dream Skin. Unsaved input may be lost. Restart now?'
-          if (-not $restartAuthorized) {
-            throw 'Dream Skin launch was cancelled; Codex was not changed.'
-          }
-        }
-        if (-not $restartAuthorized) {
-          throw 'Codex is open without a verified Dream Skin CDP endpoint. Close it first or explicitly use -RestartExisting.'
-        }
-        $quitRequested = $true
-        Stop-DreamSkinCodex -Codex $codexToStop -AllowForce
-      }
-      $closedExistingCodex = $true
-      $codex = $currentCodex
+  if (($pauseWasSet -or (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $false) -and -not $Resume) {
+    if ($codexProcesses.Count -eq 0) { $null = Start-DreamSkinCodex -Codex $codex }
+    Write-Host 'Xskin is paused or shortcut backgrounds are disabled. Official Codex was left open without applying a skin.'
+    return
+  }
+  if (-not $debugReady -and $codexProcesses.Count -gt 0) {
+    throw 'Codex is already open without a verified Xskin connection. Fully exit Codex, then open Codex (Xskin). Your app was left running.'
+  }
+  if (-not $debugReady) {
+    if (-not (Test-DreamSkinPortAvailable -Port $Port)) {
+      if ($PortExplicit) { throw "Port $Port is occupied by an unverified listener." }
+      $Port = Select-DreamSkinPort -PreferredPort $Port
     }
-
-    if ($NewLaunchPid -and -not $closedExistingCodex) {
-      throw 'The new Codex launch changed before automatic restart; it was left alone.'
+    $arguments = @('--remote-debugging-address=127.0.0.1', "--remote-debugging-port=$Port")
+    if ($ProfilePath) {
+      New-Item -ItemType Directory -Force -Path $ProfilePath | Out-Null
+      $arguments += "--user-data-dir=$ProfilePath"
     }
-
-    if ($null -eq (Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex)) {
-      if (-not (Test-DreamSkinPortAvailable -Port $Port)) {
-        if ($PortExplicit) { throw "Port $Port is already occupied by an unverified listener. Choose another port." }
-        $Port = Select-DreamSkinPort -PreferredPort $Port
-      }
-      $arguments = @('--remote-debugging-address=127.0.0.1', "--remote-debugging-port=$Port")
-      if ($ProfilePath) {
-        New-Item -ItemType Directory -Force -Path $ProfilePath | Out-Null
-        $arguments += "--user-data-dir=$ProfilePath"
-      }
-      $null = Start-DreamSkinCodex -Codex $codex -Arguments $arguments
-      $launchedWithCdp = $true
+    $null = Start-DreamSkinCodex -Codex $codex -Arguments $arguments
+  }
+  $deadline = (Get-Date).AddSeconds(45)
+  $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
+  while ($null -eq $cdpIdentity) {
+    if ((Get-Date) -ge $deadline) {
+      throw "Codex did not expose a verified loopback connection on port $Port. It was left running; fully exit it before retrying Codex (Xskin)."
     }
-
-    $deadline = (Get-Date).AddSeconds(45)
+    Start-Sleep -Milliseconds 400
     $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
-    while ($null -eq $cdpIdentity) {
-      if ((Get-Date) -ge $deadline) {
-        throw "Codex did not expose a verified loopback CDP endpoint on port $Port within 45 seconds."
-      }
-      Start-Sleep -Milliseconds 400
-      $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
-    }
-  } catch {
-    $launchError = $_
-    if ($launchedWithCdp) {
-      try { Stop-DreamSkinCodex -Codex $codex -AllowForce:($NewLaunchPid -eq 0) } catch {
-        Write-Warning 'Launch rollback could not fully close the failed CDP session.'
-      }
-    }
-    $recoveryCodex = if ($quitRequested -and -not $closedExistingCodex) { $codexToStop } else { $codex }
-    if (($quitRequested -or $closedExistingCodex -or $launchedWithCdp) -and
-      (Get-DreamSkinCodexProcesses -Codex $recoveryCodex).Count -eq 0 -and
-      @(Get-DreamSkinRegisteredCodexInstalls | Where-Object { (Get-DreamSkinCodexProcesses -Codex $_).Count -gt 0 }).Count -eq 0) {
-      if ($launchedWithCdp) {
-        Write-Warning 'Dream Skin launch failed; reopening Codex without a debugging port.'
-      }
-      try { $null = Start-DreamSkinCodex -Codex $recoveryCodex } catch {
-        Write-Warning 'Launch rollback could not reopen Codex automatically.'
-      }
-    }
-    throw $launchError
+  }
+  if (-not $Resume -and $previousState -and $previousState.browserId -ceq $cdpIdentity.BrowserId -and
+    $previousState.port -eq $Port -and (Stop-DreamSkinRecordedInjector -State $previousState -CheckOnly)) {
+    Write-Host 'Xskin is already active; reusing its injector.'
+    return
   }
 
   try {
@@ -172,20 +126,8 @@ try {
       $staleStatePath = Archive-DreamSkinStateFile -Path $StatePath
       Write-Warning "Archived stale Dream Skin state at $staleStatePath"
     }
-  } catch {
-    if ($launchedWithCdp) {
-      try {
-        Stop-DreamSkinCodex -Codex $codex -AllowForce:($NewLaunchPid -eq 0)
-        $null = Start-DreamSkinCodex -Codex $codex
-      } catch {
-        Write-Warning 'State validation rollback could not fully restart Codex; close Codex to ensure its CDP port is closed.'
-      }
-    }
-    throw
-  }
+  } catch { throw }
 
-  # Keep a paused, already-running watcher paused until all state checks and any
-  # restart consent have succeeded.  A cancelled prompt must be side-effect free.
   Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
   $pauseCleared = $true
 
@@ -274,7 +216,7 @@ try {
         Write-Warning 'The newly created injector could not be stopped during startup rollback.'
       }
     }
-    if ($injectorStopped -and -not $launchedWithCdp) {
+    if ($injectorStopped) {
       try {
         $rollbackIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
         if ($null -ne $rollbackIdentity -and $rollbackIdentity.BrowserId -ceq $cdpIdentity.BrowserId) {
@@ -288,14 +230,6 @@ try {
       }
     }
     if ($injectorStopped) { Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue }
-    if ($launchedWithCdp) {
-      try {
-        Stop-DreamSkinCodex -Codex $codex -AllowForce:($NewLaunchPid -eq 0)
-        $null = Start-DreamSkinCodex -Codex $codex
-      } catch {
-        Write-Warning 'Startup rollback could not fully restart Codex; close Codex to ensure its CDP port is closed.'
-      }
-    }
     if ($pauseWasSet -and $pauseCleared) {
       try {
         Set-DreamSkinPaused -Paused $true -StateRoot $StateRoot | Out-Null

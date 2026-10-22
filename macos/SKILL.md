@@ -23,7 +23,7 @@ When a macOS user asks to install the World Cup theme, run exactly:
 bash scripts/dream-skin-macos.sh world-cup
 ```
 
-Tell the user only to confirm the single native dialog and then wait. The helper owns installation, one controlled Codex restart, theme preparation, launch, and Verify. Never tell the user to quit or reopen Codex manually. After Codex returns, read the result without restarting:
+Tell the user only to confirm the single native dialog and then wait. The helper owns installation, one explicit official launch, theme preparation, launch, and Verify. If ordinary Codex is already running, ask them to fully quit it manually before using Codex (Xskin). After Codex returns, read the result without restarting:
 
 ```bash
 bash scripts/dream-skin-macos.sh world-cup-status
@@ -41,7 +41,7 @@ bash scripts/dream-skin-macos.sh apply-custom-url "https://cdn.example.com/theme
 bash scripts/dream-skin-macos.sh apply-custom-file "/absolute/path/to/theme.png"
 ```
 
-Tell the user only to confirm the single native dialog and wait. The helper owns installation, one controlled Codex restart, theme preparation, launch, and Verify. After Codex returns, read the result without restarting:
+Tell the user only to confirm the single native dialog and wait. The helper owns installation, one explicit official launch, theme preparation, launch, and Verify. After Codex returns, read the result without restarting:
 
 ```bash
 bash scripts/dream-skin-macos.sh custom-install-status
@@ -62,7 +62,7 @@ bash scripts/dream-skin-macos.sh apply-video-file "/absolute/path/to/background.
 bash scripts/dream-skin-macos.sh apply-video-url "https://example.com/background.mp4"
 ```
 
-The helper confirms the restart once, installs the bundled runtime, applies the video, and runs Verify. Read `custom-install-status` after Codex returns; only report success with `status=success` and a ready or intentionally suspended video in the live Verify result. If no video is provided, ask the user to upload an MP4 or provide an HTTPS video URL. Never apply a test video as the user's theme.
+The helper confirms the selected media, installs the bundled runtime, applies the video, and runs Verify. Read `custom-install-status` after Codex returns; only report success with `status=success` and a ready or intentionally suspended video in the live Verify result. If no video is provided, ask the user to upload an MP4 or provide an HTTPS video URL. Never apply a test video as the user's theme.
 
 MP4 only, non-empty, maximum 256 MiB. Recommend H.264/AVC encoding. The original video file is streamed locally without transcoding or downscaling, including 4K/60fps sources. Video always plays muted in a loop, pauses while the document is hidden or reduced motion is enabled, and uses the current static background as its poster and failure fallback. Verify rejects failed or unplayable video; a successful download alone is not success. No video upload service or extra package is required. The current Codex active page is detected through native `data-app-shell-*` attributes, so retained hidden pages cannot block injection.
 
@@ -78,8 +78,8 @@ The optional macOS menu controller includes “更換影片背景…”. Image s
 
 - The macOS video edition uses the runtime included in this Skill folder. Keep the whole folder when installing or packaging. The Windows wrapper still downloads its pinned upstream runtime.
 - Official `Codex.app`, `app.asar`, `WindowsApps`, signatures, accounts, chats, projects, API keys, and model providers remain unchanged.
-- Restart confirmation appears before a running Codex window is closed. A user request to enable automatic backgrounds authorizes one graceful handoff of each newly launched process, with a 30-second loop guard; already-open windows are skipped. Unsaved input may be lost after a confirmed restart.
-- A normally reopened Codex needs the optional automatic-startup service or the controlled launcher to load its background.
+- Startup never closes/reopens official Codex. An ordinary existing session requires manual exit before Codex (Xskin). Full Restore is a separate explicitly requested operation.
+- Use the managed Codex (Xskin) entry for backgrounds; no login observer is installed.
 - Custom themes use an HTTPS image URL or a local image selected by the user. Full-interface showcase screenshots are visual references, not theme backgrounds.
 - Decorative layers do not receive pointer events, so native controls remain clickable.
 - A theme is considered active only after Verify passes.
@@ -146,33 +146,23 @@ bash scripts/dream-skin-macos.sh select-theme "THEME_ID"
 bash scripts/dream-skin-macos.sh switch-theme "THEME_ID"
 ```
 
-`switch-theme` uses live reapplication when the verified CDP session exists. Otherwise it invokes the safe start path and displays native restart confirmation.
+`switch-theme` uses live reapplication when the verified CDP session exists. Otherwise the safe starter leaves ordinary running Codex open and requires manual exit.
 
-### Automatic backgrounds on normal launches
+### Managed Codex (Xskin) entry
 
-When a user explicitly asks for automatic backgrounds from the usual Codex icon, enable the installed service:
-
-```bash
-bash scripts/dream-skin-macos.sh autostart enable
-bash scripts/dream-skin-macos.sh autostart status
-```
-
-Enabling automatic startup installs a per-user service for the original official Codex app; no special shortcut is required. Explain that each new ordinary launch is gracefully reopened once to connect its background. The explicit request to enable this option authorizes future fresh-launch handoffs. Skip already-open windows and explicit debug launches, never force a refused quit, and enforce a 30-second loop guard. Restore any previously managed Dock entry to the official app. Xskin does not need to remain open. Cold startup still requires application loading and media decoding.
-
-The service is stored at `~/Library/LaunchAgents/com.openai.codex-dream-skin-studio.autostart.plist`; it cleans up the old injector after Codex quits and never opens Codex merely because the user logged in or quit. The menu bar toggle controls the same service. `autostart disable` leaves the current theme playing. Pause and Restore also disable the service, and runtime updates retain an enabled service.
-
+Use `autostart enable` to prepare ~/Applications/Codex (Xskin).app and enable shortcut backgrounds. Fully quit ordinary Codex manually before launching it. `autostart disable` retains the entry and opens ordinary Codex; paused sessions also remain paused. Xskin can stay closed, including after login. Retire only the verified old LaunchAgent; never intercept or close a fresh official launch. Pin using the normal Dock UI. CDP/CSS authorization remains unconfirmed; see ../docs/direct-launch-shortcut.md.
 
 ### Start, status, pause, and menu bar
 
 ```bash
-# Reuses the saved port or scans from 9341; prompts before any restart.
+# Reuses the saved port or scans from 9341; never restarts an existing app.
 bash scripts/dream-skin-macos.sh start
 
 # Optional custom port or foreground injector for diagnosis.
 bash scripts/dream-skin-macos.sh start --port 9350
 bash scripts/dream-skin-macos.sh start --foreground-injector
 
-# Non-interactive restart after the restart has already been confirmed.
+# Explicit start; ordinary existing Codex still requires manual exit.
 bash scripts/dream-skin-macos.sh start-authorized --port 9350
 
 # Fast state, machine-readable state, or deeper CDP probe.
@@ -234,11 +224,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dream-skin-windows.p
 # Open the system-tray controller for image picking, saving/switching themes, pause, and restore.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dream-skin-windows.ps1 -Action tray
 
-# Start with native restart confirmation; optionally choose port/profile or foreground diagnosis.
+# Start without automatic restart; optionally choose port/profile or foreground diagnosis.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dream-skin-windows.ps1 -Action start -Port 9335
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dream-skin-windows.ps1 -Action start -ProfilePath "C:\path\profile" -ForegroundInjector
 
-# Non-interactive restart after the restart has already been confirmed.
+# Explicit start; ordinary existing Codex still requires manual exit.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dream-skin-windows.ps1 -Action start-authorized
 
 # Verify and capture proof.

@@ -8,9 +8,11 @@ Xskin is a native macOS app for importing, previewing, and applying local images
 
 Use the system file picker or drag a local image or MP4 into the app, inspect its native preview, and apply when ready. The mask-depth slider updates all surfaces together (0–100%, default 62%); release it to apply, or adjust it with the keyboard. Mask depth, pending imports, and your language preference persist locally. English is the default interface, with Traditional Chinese, Simplified Chinese, and Japanese available in the app.
 
-Enable **Apply on Codex launch** once, then open the original official Codex app from Finder, Spotlight, or the Dock. The background service gracefully reopens a newly launched ordinary session once to connect the saved background. Existing sessions are skipped, refused quits are never forced, and a 30-second guard prevents restart loops. Xskin does not need to remain open.
+The 1.8.0 source creates **~/Applications/Codex (Xskin).app**. Fully quit Codex, then use that entry from Finder or Spotlight; drag it into the Dock using the normal system UI. Xskin can stay closed. Existing ordinary Codex windows are left running with instructions to quit manually. No launch observer closes/reopens fresh sessions, and failed starts do not reopen the app.
 
-Enabling the option restores any Dock entry previously managed by Xskin to its original official app. The official bundle and signature remain unchanged. A cold start still requires application loading and media decoding. Turn the option off, Pause, or Restore to stop automatic handoffs. An already-open ordinary session still requires one confirmed manual Apply.
+The launch preference controls this shortcut only. Paused or disabled shortcuts open ordinary Codex without clearing pause. Explicit Apply resumes the skin. Upgrades retire only the verified old LaunchAgent, restore previously managed Dock entries, and preserve media, language, opacity and pause. New setup never replaces official Dock pins automatically. Installation leaves an open Codex running; full Restore remains an explicitly requested operation.
+
+The task overlay includes the Windows draft-ID, serialized-subscription, lifecycle fan, long-log and new-session-file fixes. The 1.8.0 source is not the older published download above. CDP/CSS authorization remains unconfirmed; unchanged official files do not establish permission. See [evidence, validation and recovery](../docs/direct-launch-shortcut.md).
 
 See the [product README](../README.md) and [native app user guide](../docs/background-panel.md) for current features, formats, installation, and startup limitations. The sections below document the advanced engine and retained command-line workflows.
 
@@ -19,7 +21,7 @@ See the [product README](../README.md) and [native app user guide](../docs/backg
 - MP4 up to 256 MiB; H.264/AVC recommended. Playback is muted, looping, and non-interactive.
 - Hidden documents and reduced-motion preferences pause decoding and show the static background.
 - The current image remains the poster/failure fallback. Switch back to an image, Pause, or Restore to release video resources.
-- One-click commands: `scripts/dream-skin-macos.sh apply-video-file PATH` or `apply-video-url HTTPS_URL`; check `custom-install-status` after the single confirmed restart.
+- One-click commands: `scripts/dream-skin-macos.sh apply-video-file PATH` or `apply-video-url HTTPS_URL`; check `custom-install-status` after applying through Codex (Xskin).
 - `load-video-theme-macos.sh --file PATH --no-apply` prepares without launching. SwiftBar also offers a video picker.
 - Videos are handed to the verified renderer as local files and streamed through Blob URLs. Original resolution and frame rate are preserved; no transcoding is performed.
 - Windows video support is outside this fork's scope.

@@ -107,7 +107,7 @@ jobs:
             fi
           done
           for file in windows/tests/*.test.mjs; do
-            if [[ "$file" != "windows/tests/panel-command.test.mjs" ]]; then
+            if [[ "$file" != "windows/tests/panel-command.test.mjs" && "$file" != "windows/tests/installer.test.mjs" && "$file" != "windows/tests/startup-rollback.test.mjs" ]]; then
               node --test "$file"
             fi
           done

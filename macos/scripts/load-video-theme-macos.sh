@@ -22,5 +22,5 @@ if [ -z "$VIDEO" ]; then
 fi
 "$NODE" "$SCRIPT_DIR/prepare-video-theme.mjs" "$VIDEO" "$THEME_DIR" "$THEME_NAME"
 if [ "$APPLY_NOW" = "true" ]; then
-  "$SCRIPT_DIR/start-dream-skin-macos.sh" --prompt-restart
+  "$SCRIPT_DIR/start-dream-skin-macos.sh"
 fi

@@ -103,10 +103,10 @@ echo "应用皮肤 | bash=\"$APPLY\" terminal=false refresh=true"
 echo "暂停皮肤 | bash=\"$PAUSE\" terminal=false refresh=true"
 echo "换一张图… | bash=\"$CUSTOMIZE\" terminal=false refresh=true"
 echo "更換影片背景… | bash=\"$LOAD_VIDEO\" terminal=false refresh=true"
-if [ -f "$HOME/Library/LaunchAgents/com.openai.codex-dream-skin-studio.autostart.plist" ]; then
-  echo "一般啟動自動套用：開 ✓（點此關閉） | bash=\"$AUTOSTART\" param1=disable terminal=false refresh=true"
+if [ -f "$HOME/Library/Application Support/CodexDreamSkinStudio/shortcut-enabled" ]; then
+  echo "Codex (Xskin) 背景：開 ✓（點此關閉） | bash=\"$AUTOSTART\" param1=disable terminal=false refresh=true"
 else
-  echo "一般啟動自動套用：關（點此開啟） | bash=\"$AUTOSTART\" param1=enable terminal=false refresh=true"
+  echo "Codex (Xskin) 背景：關（點此開啟） | bash=\"$AUTOSTART\" param1=enable terminal=false refresh=true"
 fi
 
 # Dynamic: saved theme packs

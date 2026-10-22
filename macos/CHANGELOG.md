@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0 — 2026-10-22 (source; physical startup validation pending)
+
+- Use Codex (Xskin) for one explicit official launch. Retire legacy launch monitoring; ordinary existing apps and failed launches are never closed/reopened by startup.
+- Preserve saved media, language, opacity and pause. Paused shortcuts open ordinary Codex. Owned-entry migration preserves foreign same-name shortcuts and existing data.
+- Preserve the running official app during runtime upgrades. Windows stops verified injector pipe holders before the legacy host, preserves bundled Node and no longer waits on grandchild output EOF.
+- macOS includes draft conversation IDs, lifecycle fan animation, long-log incremental reads and new-session overlay fixes.
+- Document CDP/CSS authorization as unconfirmed and distinguish automated checks from pending physical cold-start/login/Store verification.
+
 ## 1.7.0 — 2026-10-22
 
 - Add a compact token overlay below the Codex task composer: show the current conversation's cumulative tokens, cached input tokens, remaining context percentage, subscription plan and remaining subscription quota when present in official local session logs. Keep missing values visibly unknown; cached tokens are a subset of input tokens, not additional consumption.

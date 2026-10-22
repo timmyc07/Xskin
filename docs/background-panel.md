@@ -35,17 +35,15 @@ Mask depth persists locally. The mask is a visual overlay: it does not re-encode
 
 English is the default. Use the in-app language selector to switch to **Traditional Chinese**, **Simplified Chinese**, or **Japanese**. Your selection is saved locally and restored the next time Xskin opens.
 
-## Apply whenever the official Codex app opens
+## Open Codex (Xskin)
 
 1. Apply the background you want to keep.
-2. Enable **Apply on Codex launch**.
-3. Open the original official Codex app from Finder, Spotlight, or the Dock. **Xskin does not need to stay open.**
+2. Enable **Use background from Codex (Xskin)**.
+3. Fully exit Codex, then open **Codex (Xskin)** from the Windows Desktop/Start menu or macOS ~/Applications. Xskin does not need to stay open.
 
-The background service gracefully reopens each new ordinary session once to establish its background connection. Existing windows are skipped, refused quits are never forced, and a 30-second guard prevents restart loops. Avoid entering unsent text during that startup handoff. Signing in or quitting Codex never opens it automatically.
+Pin that managed entry using the normal system UI. A new launch starts the official app once; ordinary existing sessions are left running with instructions to exit manually. Paused/disabled entries open ordinary Codex and retain pause. Upgrades retire only verified legacy monitors and preserve media, language and opacity. Historical managed Dock pins are restored; new setup does not replace official pins automatically.
 
-Previously managed Dock entries are restored to the official app when this option is enabled. Official application files and signatures remain unchanged. Disable the option, Pause, or Restore to stop future automatic handoffs; disabling it alone leaves the current background playing. An already-open ordinary session still needs one confirmed manual Apply.
-
-A cold start requires application loading and media decoding; no fixed latency is guaranteed.
+A cold start still needs app loading and media decoding. CDP/CSS injection authorization is unconfirmed; see [validation and recovery](direct-launch-shortcut.md).
 
 ## Media and playback limits
 

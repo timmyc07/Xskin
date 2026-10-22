@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\scripts\common-windows.ps1')
 . (Join-Path $PSScriptRoot '..\scripts\theme-windows.ps1')
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('xskin-quiet-' + [guid]::NewGuid().ToString('N'))
@@ -63,6 +63,36 @@ exit 17
   }
   $errorLog = [IO.File]::ReadAllText((Join-Path $scripts 'quiet-launcher-error.log'))
   if ($errorLog.Length -gt 4200 -or $errorLog -notmatch 'code 17') { throw 'The watch error diagnostic is missing or unbounded.' }
+
+  # Reproduce the upgrade hang: the parent exits while a live Node child owns both redirected streams.
+  $holderPath = Join-Path $temporary 'holder.pid'
+  $node = (Get-DreamSkinNodeRuntime).Path
+  $holderFixture = @'
+param([string]$NodePath, [string]$HolderPath)
+$start = New-Object Diagnostics.ProcessStartInfo
+$start.FileName = $NodePath
+$start.Arguments = '-e "setInterval(() => {}, 1000)"'
+$start.UseShellExecute = $false
+$start.CreateNoWindow = $true
+$child = [Diagnostics.Process]::Start($start)
+[IO.File]::WriteAllText($HolderPath, [string]$child.Id)
+[Console]::Out.WriteLine('holder started')
+exit 0
+'@
+  [IO.File]::WriteAllText((Join-Path $scripts 'start-dream-skin.ps1'), $holderFixture, [Text.UTF8Encoding]::new($true))
+  $start.Arguments = ((@('start','-NodePath',$node,'-HolderPath',$holderPath) | ForEach-Object { Quote-QuietFixtureArgument -Value $_ }) -join ' ')
+  $process = [Diagnostics.Process]::Start($start)
+  $processes += $process
+  try {
+    if (-not $process.WaitForExit(10000) -or $process.ExitCode -ne 0) { throw 'Quiet launcher still waits for a grandchild pipe EOF after PowerShell exits.' }
+    $holder = Get-Process -Id ([int][IO.File]::ReadAllText($holderPath)) -ErrorAction Stop
+    if ($holder.HasExited -or -not (Test-DreamSkinPathEqual -Left $holder.Path -Right $node)) { throw 'The inherited-stream fixture did not leave its verified Node child alive.' }
+  } finally {
+    if (Test-Path -LiteralPath $holderPath) {
+      $holder = Get-Process -Id ([int][IO.File]::ReadAllText($holderPath)) -ErrorAction SilentlyContinue
+      if ($holder -and (Test-DreamSkinPathEqual -Left $holder.Path -Right $node)) { Stop-Process -InputObject $holder -Force }
+    }
+  }
 
   $package = Join-Path $temporary 'package'
   $packageScripts = Join-Path $package 'scripts'

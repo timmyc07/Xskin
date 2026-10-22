@@ -23,8 +23,8 @@ const messages = Object.freeze({
   imported: "Media imported. Review the preview before applying the background.",
   applied: "Background applied. Playback and layout checks passed.",
   mask_updated: "Full-window mask applied. Playback and layout checks passed.",
-  autostart_enabled: "The current background will apply when Codex opens normally.",
-  autostart_disabled: "Automatic apply is off. The current background is unchanged.",
+  autostart_enabled: "Use Codex (Xskin) to apply the saved background.",
+  autostart_disabled: "Shortcut backgrounds are off. Codex (Xskin) opens ordinary Codex.",
 });
 const errors = Object.freeze({
   invalid_media: "The background file is invalid. Import it again.",
@@ -100,7 +100,7 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.7.0",
+    version: "1.8.0",
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,
@@ -223,7 +223,7 @@ async function applySelection(id) {
     }
     await atomicJson(configPath, { ...selected.config, maskOpacity: previous.maskOpacity ?? DEFAULT_MASK_OPACITY });
     published = true;
-    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh"), "--prompt-restart"], { timeout: 180000, maxBuffer: 1024 * 1024 });
+    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 });
   } catch {
     let restored = !published;
     if (published) {
@@ -255,7 +255,7 @@ async function applyMask(maskOpacity) {
   try {
     await atomicJson(configPath, { ...previous, maskOpacity });
     published = true;
-    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh"), "--prompt-restart"], { timeout: 180000, maxBuffer: 1024 * 1024 });
+    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 });
   } catch {
     let restored = !published;
     if (published) {

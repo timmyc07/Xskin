@@ -40,8 +40,13 @@ deploy_project() {
   if [ -f "$THEME_DIR/theme.json" ]; then
     "$NODE" "$temporary/scripts/injector.mjs" --check-payload --theme-dir "$THEME_DIR" >/dev/null
   fi
+  if [ -e "$INSTALL_ROOT" ] && [ ! -f "$STATE_ROOT/shortcut-setup-complete" ]; then
+    /usr/bin/touch "$STATE_ROOT/shortcut-setup-complete"
+  fi
   if [ -f "$AUTOSTART_AGENT_PATH" ]; then
     startup_enabled="true"
+    . "$SCRIPT_DIR/autostart-dream-skin-macos.sh"
+    check_autostart_agent
     local target="gui/$(/usr/bin/id -u)/$AUTOSTART_JOB_LABEL"
     if ! /bin/launchctl bootout "$target" 2>/dev/null; then
       ! /bin/launchctl print "$target" >/dev/null 2>&1 || fail "Could not stop automatic startup for the update."
@@ -79,8 +84,8 @@ deploy_project() {
     [ "$resume_watcher" != "true" ] || "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$resume_port"
     fail "Could not install the project at $INSTALL_ROOT"
   fi
-  if [ "$LAUNCH_AFTER_INSTALL" = "true" ] && [ "$resume_watcher" != "true" ]; then
-    "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$PORT" --prompt-restart
+  if [ "$LAUNCH_AFTER_INSTALL" = "true" ] && [ "$resume_watcher" != "true" ] && ! codex_is_running; then
+    "$INSTALL_ROOT/scripts/direct-launch-macos.sh"
   fi
 }
 
@@ -93,7 +98,7 @@ fi
 discover_codex_app
 require_macos_runtime
 ensure_state_root
-# Installation only backs up appearance keys; the launcher owns the restart.
+# Installation backs up only appearance keys and leaves an open Codex running.
 seed_bundled_presets
 if [ ! -f "$THEME_DIR/theme.json" ]; then
   "$SCRIPT_DIR/switch-theme-macos.sh" --id preset-midnight-aurora --no-apply >/dev/null
@@ -122,26 +127,29 @@ write_launcher() {
 
 if [ "$CREATE_LAUNCHERS" = "true" ]; then
   /bin/mkdir -p "$HOME/Desktop"
-  start_script="$(shell_quote "$SCRIPT_DIR/start-dream-skin-macos.sh")"
+  start_script="$(shell_quote "$SCRIPT_DIR/direct-launch-macos.sh")"
   customize_script="$(shell_quote "$SCRIPT_DIR/customize-theme-macos.sh")"
   verify_script="$(shell_quote "$SCRIPT_DIR/verify-dream-skin-macos.sh")"
   restore_script="$(shell_quote "$SCRIPT_DIR/restore-dream-skin-macos.sh")"
   screenshot="$(shell_quote "$HOME/Desktop/Codex Dream Skin Verification.png")"
-  write_launcher "$HOME/Desktop/Codex Dream Skin.command" "exec $start_script --port $PORT --prompt-restart"
+  write_launcher "$HOME/Desktop/Codex Dream Skin.command" "exec $start_script"
   write_launcher "$HOME/Desktop/Codex Dream Skin - Customize.command" "exec $customize_script"
   write_launcher "$HOME/Desktop/Codex Dream Skin - Verify.command" "$verify_script --screenshot $screenshot && /usr/bin/open $screenshot"
   write_launcher "$HOME/Desktop/Codex Dream Skin - Restore.command" "exec $restore_script --restore-base-theme --restart-codex"
 fi
 
-if [ -f "$AUTOSTART_AGENT_PATH" ]; then
+# Keep the old preference when migrating; a fresh install enables shortcut backgrounds.
+"$SCRIPT_DIR/setup-direct-launch.sh" --install
+if [ -f "$AUTOSTART_AGENT_PATH" ] || [ ! -f "$STATE_ROOT/shortcut-setup-complete" ]; then
   "$SCRIPT_DIR/autostart-dream-skin-macos.sh" enable
 fi
+/usr/bin/touch "$STATE_ROOT/shortcut-setup-complete"
 
 printf 'Codex Dream Skin Studio %s installed at %s for Codex %s using its signed Node.js %s.\n' \
   "$SKIN_VERSION" "$PROJECT_ROOT" "$CODEX_VERSION" "$NODE_VERSION"
 printf 'Use the Desktop launchers to customize, start, verify, or restore the official appearance.\n'
 printf 'Bundled presets are ready in your theme library — pick one from the menu bar (已保存的主题) or switch-theme.\n'
 
-if [ "$LAUNCH_AFTER_INSTALL" = "true" ]; then
-  "$SCRIPT_DIR/start-dream-skin-macos.sh" --port "$PORT" --prompt-restart
+if [ "$LAUNCH_AFTER_INSTALL" = "true" ] && ! codex_is_running; then
+  "$SCRIPT_DIR/direct-launch-macos.sh"
 fi

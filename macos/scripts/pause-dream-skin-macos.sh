@@ -15,7 +15,9 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-"$SCRIPT_DIR/autostart-dream-skin-macos.sh" disable >/dev/null
+# Retire a legacy observer, preserving the shortcut preference.
+. "$SCRIPT_DIR/autostart-dream-skin-macos.sh"
+disable_autostart
 
 discover_codex_app
 require_macos_runtime

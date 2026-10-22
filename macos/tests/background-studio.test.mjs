@@ -102,7 +102,7 @@ esac
   await fs.writeFile(path.join(theme, initial.image), image);
   await fs.writeFile(configPath, JSON.stringify(initial));
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.7.0");
+  assert.equal(initialStatus.version, "1.8.0");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);
@@ -169,7 +169,7 @@ esac
   assert.deepEqual(await fs.readFile(imageApplied.active.path), preview);
   assert.equal((await readJson(configPath)).layout, "wallpaper");
   assert.deepEqual(await stages(), []);
-  assert.equal(await fs.readFile(path.join(home, "start-calls"), "utf8"), "--prompt-restart\n");
+  assert.equal(await fs.readFile(path.join(home, "start-calls"), "utf8"), "\n");
   for (const value of ["0", "1.00", "0.43"]) {
     const masked = await success("mask", value);
     assert.equal(masked.maskOpacity, Number(value));
@@ -209,14 +209,14 @@ esac
   assert.equal(maskRestored.maskOpacity, 0.27);
   assert.deepEqual(maskRestored.selection, pending.selection, "A failed mask change preserves pending media");
   assert.deepEqual(await fs.readFile(videoApplied.active.path), mp4);
-  assert.match(await fs.readFile(path.join(home, "start-calls"), "utf8"), /--prompt-restart\n\n$/u, "Mask rollback reapplies the original settings once");
+  assert.match(await fs.readFile(path.join(home, "start-calls"), "utf8"), /\n\n$/u, "Mask rollback reapplies the original settings once");
   await fs.writeFile(path.join(home, "fail-next-apply"), "");
   await rejects(["apply", pending.selection.id], "apply_failed_restored");
   assert.deepEqual(await readJson(configPath), previous, "A failed Verify restores the previous settings");
   assert.deepEqual(await fs.readFile(videoApplied.active.path), mp4);
   assert.deepEqual((await success("status")).selection, pending.selection, "A failed apply retains the selection for retry");
   assert.deepEqual((await fs.readdir(theme)).sort(), [previous.image, previous.video, "initial.png", "theme.json"].sort(), "Rollback removes only the newly published assets");
-  assert.match(await fs.readFile(path.join(home, "start-calls"), "utf8"), /--prompt-restart\n\n$/u, "Rollback starts the original theme once without another restart prompt");
+  assert.match(await fs.readFile(path.join(home, "start-calls"), "utf8"), /\n\n$/u, "Rollback starts the original theme once without another restart prompt");
   assert.equal((await success("apply", pending.selection.id)).active.kind, "image");
   assert.equal((await readJson(configPath)).video, undefined);
   await assert.rejects(fs.access(path.join(theme, previous.video)), { code: "ENOENT" });

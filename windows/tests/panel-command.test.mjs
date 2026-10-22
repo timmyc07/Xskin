@@ -57,7 +57,7 @@ function Set-XskinAutostart {
     [IO.File]::WriteAllText($file, 'enabled')
     [IO.File]::AppendAllText((Join-Path $StateRoot 'automatic-setups.txt'), 'setup')
   } elseif (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
-  Write-XskinSettings -StateRoot $StateRoot -Values @{ automaticSetupComplete = $true }
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 2; shortcutSkinEnabled = $Enabled }
 }
 `);
   const initial = await run("state");
@@ -84,6 +84,9 @@ function Set-XskinAutostart {
     assert.equal(invalid.code, 1);
     assert.match(invalid.error, /Mask opacity/);
   }
+  // Resume explicitly starts the engine; use a local stub with the actual StateRoot contract.
+  await fs.writeFile(path.join(runtimeRoot, 'scripts/fixture-resume.ps1'), 'param([switch]$Resume, [string]$StateRoot)');
+  await fs.appendFile(path.join(runtimeRoot, 'scripts/xskin-theme.ps1'), "\nfunction Install-DreamSkinRuntimeEngine { return @{ Start = (Join-Path $PSScriptRoot 'fixture-resume.ps1') } }\n");
   const paused = await run("pause");
   assert.equal(paused.code, 0, paused.error);
   for (const maskOpacity of [0, 1]) {
@@ -125,7 +128,7 @@ function Set-XskinAutostart {
     "function Install-DreamSkinRuntimeEngine { param([string]$SkillRoot, [string]$StateRoot) return @{ Start = (Join-Path $PSScriptRoot 'start-dream-skin.ps1') } }\n");
   for (const action of ["start", "verify", "restore"]) {
     await fs.writeFile(path.join(runtimeRoot, `scripts/${action}-dream-skin.ps1`), `
-param([switch]$PromptRestart, [string]$StateRoot)
+param([switch]$PromptRestart, [switch]$Resume, [string]$StateRoot)
 if ([IO.Path]::GetFullPath($StateRoot) -ine '${stateRoot.replaceAll("'", "''")}') {
   throw 'The panel did not forward its custom state root.'
 }

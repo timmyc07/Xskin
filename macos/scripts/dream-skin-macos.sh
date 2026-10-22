@@ -31,7 +31,7 @@ Commands:
   apply-video-url URL           Install, apply, and verify an HTTPS MP4 background
   apply-custom-file PATH        One-click install, apply, and verify a local image theme
   custom-install-status         Read the custom installation result without restarting
-  autostart enable|disable|status  Manage automatic backgrounds on normal Codex launches
+  autostart enable|disable|status  Manage backgrounds from Codex (Xskin)
   panel [--json]                Open the native macOS Xskin app
   source                         Validate the bundled macOS video runtime
   doctor [--require-live]        Validate Codex, runtime, payload, and optional live session
@@ -46,7 +46,7 @@ Commands:
   select-theme ID                Select a saved theme without applying it
   switch-theme ID                Select and safely apply a saved theme
   status [--short|--json|--deep] Read the current session, port, process, and theme state
-  start [options]                Start or reapply; prompts before restarting a running Codex
+  start [options]                Start or reapply; ordinary running Codex must be quit manually
   start-authorized [options]     Restart without prompting; requires prior explicit authorization
   pause [--port PORT]            Remove the live skin but keep base appearance settings
   verify [options]               Verify live injection; supports --screenshot ABSOLUTE_PATH
@@ -101,10 +101,9 @@ reject_argument() {
 }
 
 run_safe_start() {
-  reject_argument --restart-existing "$@"
   local starter
   starter="$(installed_script start-dream-skin-macos.sh)"
-  exec "$starter" --prompt-restart "$@"
+  exec "$starter" "$@"
 }
 
 download_https_image() {
@@ -256,7 +255,7 @@ run_world_cup_helper() {
   temporary_image=""
 
   starter="$(installed_script start-dream-skin-macos.sh)"
-  "$starter" --restart-existing
+  "$starter"
   verifier="$(installed_script verify-dream-skin-macos.sh)"
   "$verifier" --screenshot "$screenshot_path"
   write_world_cup_result success '主题已安装、应用并通过 Verify。' "$screenshot_path"
@@ -341,7 +340,7 @@ run_custom_helper() {
   temporary_image=""
 
   starter="$(installed_script start-dream-skin-macos.sh)"
-  "$starter" --restart-existing
+  "$starter"
   verifier="$(installed_script verify-dream-skin-macos.sh)"
   "$verifier" --screenshot "$screenshot_path"
   write_custom_result success '自定义主题已安装、应用并通过 Verify。' "$screenshot_path"
@@ -357,12 +356,12 @@ case "$command_name" in
   world-cup)
     [ "$#" -eq 0 ] || fail "The world-cup command takes no arguments."
     /usr/bin/osascript <<'APPLESCRIPT' >/dev/null
-display dialog "将自动关闭并重新打开 Codex 一次，然后安装、应用并验证世界杯主题。整个过程无需手动操作。" buttons {"取消", "安装世界杯主题"} default button "安装世界杯主题" cancel button "取消" with title "Codex Dream Skin"
+display dialog "将安装、应用并验证世界杯主题。如果普通 Codex 已打开，请先完整退出，再使用 Codex (Xskin)。" buttons {"取消", "安装世界杯主题"} default button "安装世界杯主题" cancel button "取消" with title "Codex Dream Skin"
 APPLESCRIPT
     write_world_cup_result pending '等待后台接管。'
     helper_pid="$(launch_world_cup_helper)"
     case "$helper_pid" in ''|*[!0-9]*) fail "Could not start the one-click theme helper." ;; esac
-    printf '世界杯主题已开始自动安装。Codex 将只重启一次，请不要手动关闭或重新打开。\n'
+    printf '世界杯主题已开始安装；不会自动关闭或重新打开 Codex。\n'
     ;;
   world-cup-status)
     [ "$#" -eq 0 ] || fail "The world-cup-status command takes no arguments."
@@ -399,7 +398,7 @@ APPLESCRIPT
       fi
     fi
     /usr/bin/osascript <<'APPLESCRIPT' >/dev/null
-display dialog "将自动关闭并重新打开 Codex 一次，然后安装、应用并验证你选择的圖片或影片主題。整个过程无需手动操作。" buttons {"取消", "安装这个主题"} default button "安装这个主题" cancel button "取消" with title "Codex Dream Skin"
+display dialog "将安装、应用并验证所选主题。如果普通 Codex 已打开，请先完整退出，再使用 Codex (Xskin)。" buttons {"取消", "安装这个主题"} default button "安装这个主题" cancel button "取消" with title "Codex Dream Skin"
 APPLESCRIPT
     if [[ "$source_kind" == *file ]]; then
       /bin/mkdir -p "$WORLD_CUP_STATE_ROOT"
@@ -425,7 +424,7 @@ APPLESCRIPT
         fail "Could not start the custom theme helper."
         ;;
     esac
-    printf '自定义主题已开始自动安装。Codex 将只重启一次，请不要手动关闭或重新打开。\n'
+    printf '自定义主题已开始安装；不会自动关闭或重新打开 Codex。\n'
     ;;
   custom-install-status)
     [ "$#" -eq 0 ] || fail "The custom-install-status command takes no arguments."
@@ -574,7 +573,7 @@ APPLESCRIPT
     ;;
   start-authorized)
     starter="$(installed_script start-dream-skin-macos.sh)"
-    exec "$starter" --restart-existing "$@"
+    exec "$starter" "$@"
     ;;
   pause)
     pause_script="$(installed_script pause-dream-skin-macos.sh)"

@@ -1,4 +1,4 @@
-. (Join-Path $PSScriptRoot 'common-windows.ps1')
+﻿. (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
 
 function New-XskinImport {
@@ -91,77 +91,85 @@ function Get-XskinLaunchShortcutPaths {
     (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Codex (Xskin).lnk'))
 }
 
+function Test-XskinLaunchShortcut {
+  param([object]$Link, [string]$StateRoot)
+  return $Link.Description -ceq 'Xskin managed Codex shortcut' -and
+    (Test-DreamSkinPathEqual -Left $Link.TargetPath -Right (Join-Path $StateRoot 'engine\scripts\xskin-quiet.exe')) -and
+    (Test-DreamSkinPathEqual -Left $Link.WorkingDirectory -Right $StateRoot) -and
+    $Link.Arguments -ceq (ConvertTo-DreamSkinArgumentLine -Arguments @('start', '-StateRoot', $StateRoot))
+}
+
+function Test-XskinLegacyLaunchShortcut {
+  param([object]$Link, [string]$StateRoot)
+  $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $StateRoot
+  $arguments = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $engine.Start + '"'
+  return $Link.Description -ceq 'Xskin automatic Codex background launcher' -and
+    (Test-DreamSkinPathEqual -Left $Link.TargetPath -Right (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')) -and
+    (Test-DreamSkinPathEqual -Left $Link.WorkingDirectory -Right $engine.Root) -and $Link.Arguments -ceq $arguments
+}
+
+function Set-XskinLaunchShortcuts {
+  param([string]$StateRoot, [switch]$Remove)
+  $paths = @(Get-XskinLaunchShortcutPaths)
+  # Check all entries before changing either one.
+  foreach ($file in $paths) {
+    Assert-DreamSkinNoReparseComponents -Path $file
+    if (Test-Path -LiteralPath $file) {
+      $link = Get-DreamSkinShortcut -Path $file
+      if ((Test-XskinLaunchShortcut -Link $link -StateRoot $StateRoot) -or
+        (Test-XskinLegacyLaunchShortcut -Link $link -StateRoot $StateRoot)) { continue }
+      if ($Remove) { continue }
+      throw "An unrelated shortcut already exists: $file. Rename it before installing Codex (Xskin)."
+    }
+  }
+  $launcher = if (-not $Remove) { Get-DreamSkinQuietLauncher -StateRoot $StateRoot }
+  $codex = if (-not $Remove) { Get-DreamSkinCodexInstall }
+  foreach ($file in $paths) {
+    if ($Remove) {
+      if ((Test-Path -LiteralPath $file) -and (Test-XskinLaunchShortcut -Link (Get-DreamSkinShortcut -Path $file) -StateRoot $StateRoot)) {
+        Remove-Item -LiteralPath $file -Force
+      }
+    } else {
+      Set-DreamSkinShortcut -Path $file -TargetPath $launcher -WorkingDirectory $StateRoot -IconPath $codex.Executable `
+        -Description 'Xskin managed Codex shortcut' -Arguments (ConvertTo-DreamSkinArgumentLine -Arguments @('start', '-StateRoot', $StateRoot))
+    }
+  }
+}
+
+function Save-XskinStateRoot {
+  param([string]$StateRoot)
+  $null = New-Item -Path 'HKCU:\Software\Xskin' -Force
+  $null = New-ItemProperty -LiteralPath 'HKCU:\Software\Xskin' -Name StateRoot -Value $StateRoot -PropertyType String -Force
+}
+
 function Get-XskinAutostart {
   param([Parameter(Mandatory = $true)][string]$StateRoot)
-  return Get-DreamSkinAutostart -StateRoot $StateRoot
+  $enabled = (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -ne $false
+  $loaded = @(Get-XskinLaunchShortcutPaths | Where-Object {
+    (Test-Path -LiteralPath $_) -and (Test-XskinLaunchShortcut -Link (Get-DreamSkinShortcut -Path $_) -StateRoot $StateRoot)
+  }).Count -eq 2
+  return [pscustomobject]@{ Enabled = $enabled; Loaded = $loaded; Foreign = $false }
 }
 
 function Initialize-XskinAutostart {
   param([Parameter(Mandatory = $true)][string]$SkillRoot, [Parameter(Mandatory = $true)][string]$StateRoot)
-  if ((Read-XskinSettings -StateRoot $StateRoot).automaticSetupComplete -eq $true) { return }
-  if (Test-DreamSkinPaused -StateRoot $StateRoot) {
-    Write-XskinSettings -StateRoot $StateRoot -Values @{ automaticSetupComplete = $true }
-    return
-  }
-  Set-XskinAutostart -Enabled $true -SkillRoot $SkillRoot -StateRoot $StateRoot
+  $settings = Read-XskinSettings -StateRoot $StateRoot
+  if ($settings.launchSetupVersion -eq 2) { return }
+  $legacy = Get-DreamSkinAutostart -StateRoot $StateRoot
+  $enabled = -not $settings.automaticSetupComplete -or $legacy.Enabled
+  Set-XskinAutostart -Enabled $enabled -SkillRoot $SkillRoot -StateRoot $StateRoot
 }
 
 function Set-XskinAutostart {
   param([Parameter(Mandatory = $true)][bool]$Enabled, [Parameter(Mandatory = $true)][string]$SkillRoot,
     [Parameter(Mandatory = $true)][string]$StateRoot)
   $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
-  $startup = Get-XskinAutostart -StateRoot $StateRoot
-  if ($startup.Foreign) { throw 'Refusing to change an unrelated automatic-startup task.' }
-  if ($Enabled) {
-    $null = Get-DreamSkinCodexInstall
-    $null = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
-    Stop-DreamSkinAutostart -StateRoot $StateRoot
-    $task = Get-DreamSkinAutostartTask
-    $previous = if ($task) { $task.Xml } else { $null }
-    try {
-      Register-DreamSkinAutostartTask -StateRoot $StateRoot
-      Start-DreamSkinAutostart -StateRoot $StateRoot
-    } catch {
-      $folder = Get-DreamSkinAutostartTaskFolder
-      $name = Get-DreamSkinAutostartTaskName
-      if ($null -ne $previous) {
-        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-        $null = $folder.RegisterTask($name, $previous, 6, $sid, $null, 3)
-      } elseif (Get-DreamSkinAutostartTask) { $folder.DeleteTask($name, 0) }
-      throw
-    }
-  } else {
-    Stop-DreamSkinAutostart -StateRoot $StateRoot
-    if (Get-DreamSkinAutostartTask) {
-      (Get-DreamSkinAutostartTaskFolder).DeleteTask((Get-DreamSkinAutostartTaskName), 0)
-    }
-  }
-  $startupShortcut = Get-DreamSkinAutostartShortcutPath
-  Assert-DreamSkinNoReparseComponents -Path $startupShortcut
-  if (Test-Path -LiteralPath $startupShortcut) {
-    $link = Get-DreamSkinShortcut -Path $startupShortcut
-    if ($link.Description -ceq 'Xskin official Codex launch monitor' -and $link.WorkingDirectory) {
-      $legacyArguments = ConvertTo-DreamSkinArgumentLine -Arguments @('-NoProfile', '-WindowStyle', 'Hidden',
-        '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $link.WorkingDirectory 'engine\scripts\watch-codex-launches.ps1'),
-        '-StateRoot', $link.WorkingDirectory)
-      if ((Test-DreamSkinPathEqual -Left $link.TargetPath -Right (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')) -and
-        $link.Arguments -ceq $legacyArguments -and
-        (Test-DreamSkinPathEqual -Left (Resolve-DreamSkinStateRoot -StateRoot $link.WorkingDirectory) -Right $StateRoot)) {
-        Remove-Item -LiteralPath $startupShortcut -Force
-      }
-    }
-  }
-  # Remove only the previous Xskin-owned entry points when changing this preference.
-  foreach ($file in Get-XskinLaunchShortcutPaths) {
-    Assert-DreamSkinNoReparseComponents -Path $file
-    if (-not (Test-Path -LiteralPath $file)) { continue }
-    $link = Get-DreamSkinShortcut -Path $file
-    if ($link.Description -ceq 'Xskin automatic Codex background launcher' -and
-      (Test-DreamSkinCommandLineToken -CommandLine $link.Arguments -Token (Join-Path $StateRoot 'engine\scripts\start-dream-skin.ps1'))) {
-      Remove-Item -LiteralPath $file -Force
-    }
-  }
-  Write-XskinSettings -StateRoot $StateRoot -Values @{ automaticSetupComplete = $true }
+  $null = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
+  Set-XskinLaunchShortcuts -StateRoot $StateRoot
+  # Persist the physical store before deleting the legacy task that used to locate it.
+  Save-XskinStateRoot -StateRoot $StateRoot
+  Remove-DreamSkinLegacyAutostart -StateRoot $StateRoot
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 2; shortcutSkinEnabled = $Enabled }
 }
 
 function Test-XskinApplied {

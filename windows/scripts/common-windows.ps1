@@ -1,4 +1,4 @@
-. (Join-Path $PSScriptRoot 'config-utf8.ps1')
+﻿. (Join-Path $PSScriptRoot 'config-utf8.ps1')
 
 function Enter-DreamSkinOperationLock {
   param([int]$TimeoutMilliseconds = 0)
@@ -53,8 +53,20 @@ function Resolve-DreamSkinStateRoot {
   param([Parameter(Mandatory = $true)][string]$StateRoot)
   $root = [IO.Path]::GetFullPath($StateRoot)
   if (Test-DreamSkinPathEqual -Left $root -Right (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')) {
+    $managedRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $locator = Get-ItemProperty -LiteralPath 'HKCU:\Software\Xskin' -ErrorAction SilentlyContinue
+    $candidate = if ((Split-Path -Leaf (Split-Path -Parent $PSScriptRoot)) -ieq 'engine') { $managedRoot }
+      elseif ($locator.StateRoot) { [string]$locator.StateRoot } else { $null }
+    if ($candidate) {
+      if (-not [IO.Path]::IsPathRooted($candidate)) { throw 'The saved Xskin state root is not absolute.' }
+      Assert-DreamSkinNoReparseComponents -Path $candidate
+      if (-not (Test-Path -LiteralPath (Join-Path $candidate 'active-theme\theme.json') -PathType Leaf)) {
+        throw 'The saved Xskin store is missing; refusing to create an empty replacement.'
+      }
+      $root = [IO.Path]::GetFullPath($candidate)
+    }
     $task = Get-DreamSkinAutostartTask
-    if ($task -and $task.Definition.Actions.Count -eq 1) {
+    if (-not $candidate -and $task -and $task.Definition.Actions.Count -eq 1) {
       $candidate = "$($task.Definition.Actions.Item(1).WorkingDirectory)"
       if ($candidate -and [IO.Path]::IsPathRooted($candidate) -and
         (Test-DreamSkinAutostartTask -Task $task -StateRoot $candidate)) {
@@ -226,7 +238,6 @@ function Install-DreamSkinRuntimeEngine {
   $backupRoot = Join-Path $fullStateRoot ".engine-backup-$token"
   Ensure-DreamSkinManagedDirectory -Path $stagingRoot -Root $fullStateRoot
   $resumeState = $null
-  $resumeAutostart = $false
 
   try {
     foreach ($directoryName in @('assets', 'scripts')) {
@@ -265,10 +276,6 @@ function Install-DreamSkinRuntimeEngine {
     $hasBackup = $false
     if (Test-Path -LiteralPath $engine.Root) {
       Assert-DreamSkinRuntimeTree -Path $engine.Root
-      if (Get-DreamSkinAutostartProcess -StateRoot $fullStateRoot -Strict) {
-        Stop-DreamSkinAutostart -StateRoot $fullStateRoot
-        $resumeAutostart = $true
-      }
       $previousState = Read-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json')
       if ($null -ne $previousState -and $previousState.injectorPid -and $previousState.injectorPath -and
         (Test-DreamSkinPathEqual -Left $previousState.injectorPath -Right (Join-Path $engine.Scripts 'injector.mjs')) -and
@@ -277,6 +284,12 @@ function Install-DreamSkinRuntimeEngine {
         $null = Stop-DreamSkinRecordedInjector -State $previousState
         $resumeState = $previousState
       }
+      $bundledNode = Join-Path $engine.Scripts 'node.exe'
+      if (Test-Path -LiteralPath $bundledNode -PathType Leaf) {
+        Copy-Item -LiteralPath $bundledNode -Destination (Join-Path $stagingRoot 'scripts\node.exe') -Force
+      }
+      # Stop inherited pipe holders before the legacy quiet host waits for EOF.
+      Stop-DreamSkinAutostart -StateRoot $fullStateRoot
       Move-Item -LiteralPath $engine.Root -Destination $backupRoot -ErrorAction Stop
       $hasBackup = $true
     }
@@ -314,11 +327,10 @@ function Install-DreamSkinRuntimeEngine {
         }
       }
     }
-    try {
-      if ($null -ne $resumeState) {
+    if ($null -ne $resumeState) {
         $daemon = $null
         try {
-          $resumeState.nodePath = (Get-DreamSkinNodeRuntime).Path
+          $resumeState.nodePath = (Get-DreamSkinNodeRuntime -RuntimePath (Join-Path $engine.Scripts 'node.exe')).Path
           $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
             $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
             '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
@@ -337,9 +349,6 @@ function Install-DreamSkinRuntimeEngine {
           if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
           throw
         }
-      }
-    } finally {
-      if ($resumeAutostart) { Start-DreamSkinAutostart -StateRoot $fullStateRoot }
     }
   }
 }
@@ -404,9 +413,9 @@ function Invoke-DreamSkinNative {
 }
 
 function Get-DreamSkinNodeRuntime {
-  param([int]$MinimumMajor = 22)
+  param([int]$MinimumMajor = 22, [string]$RuntimePath)
 
-  $executable = Join-Path $PSScriptRoot 'node.exe'
+  $executable = if ($RuntimePath) { $RuntimePath } else { Join-Path $PSScriptRoot 'node.exe' }
   if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     $command = Get-Command node.exe -ErrorAction SilentlyContinue
     if (-not $command) { $command = Get-Command node -ErrorAction SilentlyContinue }
@@ -822,11 +831,11 @@ function Get-DreamSkinProcessStartedAt {
 }
 
 function Stop-DreamSkinRecordedInjector {
-  param([AllowNull()][object]$State)
-  if ($null -eq $State -or -not $State.injectorPid) { return $true }
+  param([AllowNull()][object]$State, [switch]$CheckOnly)
+  if ($null -eq $State -or -not $State.injectorPid) { return -not $CheckOnly }
   $processId = [int]$State.injectorPid
   $process = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
-  if (-not $process) { return $true }
+  if (-not $process) { return -not $CheckOnly }
 
   $expectedInjector = if ($State.injectorPath) {
     "$($State.injectorPath)"
@@ -865,6 +874,7 @@ function Stop-DreamSkinRecordedInjector {
     throw "The recorded injector PID $processId is running, but its visible identity does not match the saved Dream Skin process. State was preserved."
   }
 
+  if ($CheckOnly) { return $true }
   Stop-Process -Id $processId -Force -ErrorAction Stop
   try { Wait-Process -Id $processId -Timeout 5 -ErrorAction Stop } catch {}
   $remainingProcess = Get-Process -Id $processId -ErrorAction SilentlyContinue
@@ -944,7 +954,7 @@ namespace CodexDreamSkin {
       } finally { Marshal.FinalReleaseComObject(link); }
     }
 
-    public static void Save(string path, string target, string arguments, string directory, string description) {
+    public static void Save(string path, string target, string arguments, string directory, string description, string icon) {
       var link = Create();
       try {
         link.SetPath(target);
@@ -952,7 +962,15 @@ namespace CodexDreamSkin {
         link.SetWorkingDirectory(directory);
         link.SetDescription(description);
         link.SetShowCmd(7);
-        ((IPersistFile)link).Save(path, true);
+        if (!String.IsNullOrEmpty(icon)) link.SetIconLocation(icon, 0);
+        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".lnk";
+        try {
+          ((IPersistFile)link).Save(temporary, true);
+          if (System.IO.File.Exists(path)) System.IO.File.Replace(temporary, path, null);
+          else System.IO.File.Move(temporary, path);
+        } finally {
+          if (System.IO.File.Exists(temporary)) System.IO.File.Delete(temporary);
+        }
       } finally { Marshal.FinalReleaseComObject(link); }
     }
   }
@@ -967,9 +985,9 @@ function Get-DreamSkinShortcut {
 }
 
 function Set-DreamSkinShortcut {
-  param([string]$Path, [string]$TargetPath, [string]$Arguments, [string]$WorkingDirectory, [string]$Description)
+  param([string]$Path, [string]$TargetPath, [string]$Arguments, [string]$WorkingDirectory, [string]$Description, [string]$IconPath)
   Initialize-DreamSkinShortcut
-  [CodexDreamSkin.Shortcut]::Save($Path, $TargetPath, $Arguments, $WorkingDirectory, $Description)
+  [CodexDreamSkin.Shortcut]::Save($Path, $TargetPath, $Arguments, $WorkingDirectory, $Description, $IconPath)
 }
 
 function Request-DreamSkinCodexQuit {

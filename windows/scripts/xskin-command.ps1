@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
   [ValidateSet('state','import','apply','mask','autostart','preferences','pause','launch','restore','save','select')][string]$Action,
@@ -108,7 +108,7 @@ try {
       Write-XskinSettings -StateRoot $StateRoot -Values @{ pending = [IO.Path]::GetFileName($candidate.Directory) }
       Invoke-XskinApply -ThemeDirectory $candidate.Directory -StateRoot $StateRoot -Apply {
         $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
-        & $runtime.Start -PromptRestart -StateRoot $StateRoot
+        & $runtime.Start -Resume -StateRoot $StateRoot
       }
       Write-XskinSettings -StateRoot $StateRoot -Values @{ pending = $null }
       try { Remove-DreamSkinRuntimeTree -Path $candidate.Directory -StateRoot $StateRoot }
@@ -133,15 +133,22 @@ try {
     }
     'pause' {
       $paused = -not (Test-DreamSkinPaused -StateRoot $StateRoot)
-      if ($paused) { Set-XskinAutostart -Enabled $false -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot }
       $null = Set-DreamSkinPaused -Paused $paused -StateRoot $StateRoot
+      if (-not $paused) {
+        try {
+          $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+          & $runtime.Start -Resume -StateRoot $StateRoot
+        } catch {
+          $null = Set-DreamSkinPaused -Paused $true -StateRoot $StateRoot
+          throw
+        }
+      }
     }
     'launch' {
       $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
-      & $runtime.Start -PromptRestart -StateRoot $StateRoot
+      & $runtime.Start -StateRoot $StateRoot
     }
     'restore' {
-      Set-XskinAutostart -Enabled $false -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
       & (Join-Path $PSScriptRoot 'restore-dream-skin.ps1') -PromptRestart -StateRoot $StateRoot
     }
     'save' { $null = Save-DreamSkinCurrentTheme -Name ([string]$request.name) -StateRoot $StateRoot }

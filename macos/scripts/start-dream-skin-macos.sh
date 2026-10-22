@@ -14,47 +14,26 @@ trap 'code=$?; record_start_error "$code" "$LINENO"' ERR
 
 PORT=9341
 PORT_EXPLICIT="false"
-RESTART_EXISTING="false"
-PROMPT_RESTART="false"
 FOREGROUND_INJECTOR="false"
 DIRECT_LAUNCH="false"
-STARTUP_PID=""
-STARTUP_STARTED_AT=""
-AUTOMATIC_HANDOFF="false"
-HANDOFF_COMPLETED="false"
-RUNTIME_VERIFIED="false"
 VERIFY_OUTPUT=""
 REQUESTED_AT="$(/bin/date +%s)"
 finish_start() {
-  local code="$?"
   [ -z "$VERIFY_OUTPUT" ] || /bin/rm -f "$VERIFY_OUTPUT"
-  if [ "$code" -ne 0 ] && [ "$DIRECT_LAUNCH" = "true" ] && [ "$RUNTIME_VERIFIED" = "true" ] &&
-    { [ "$AUTOMATIC_HANDOFF" != "true" ] || [ "$HANDOFF_COMPLETED" = "true" ]; }; then
-    /usr/bin/open -a "$CODEX_BUNDLE" >/dev/null 2>&1 || true
-  fi
 }
 trap finish_start EXIT
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --port) PORT="${2:-}"; PORT_EXPLICIT="true"; shift 2 ;;
-    --restart-existing) RESTART_EXISTING="true"; shift ;;
-    --prompt-restart) PROMPT_RESTART="true"; shift ;;
     --foreground-injector) FOREGROUND_INJECTOR="true"; shift ;;
     --direct-launch) DIRECT_LAUNCH="true"; shift ;;
-    --restart-new-launch) STARTUP_PID="${2:-}"; STARTUP_STARTED_AT="${3:-}"; AUTOMATIC_HANDOFF="true"; DIRECT_LAUNCH="true"; shift 3 ;;
     *) fail "Unknown start argument: $1" ;;
   esac
 done
 case "$PORT" in ''|*[!0-9]*) fail "Invalid port: $PORT" ;; esac
 [ "$PORT" -ge 1024 ] && [ "$PORT" -le 65535 ] || fail "Port must be between 1024 and 65535."
-if [ "$AUTOMATIC_HANDOFF" = "true" ]; then
-  case "$STARTUP_PID" in ''|*[!0-9]*) fail "Invalid automatic startup process." ;; esac
-  [ -n "$STARTUP_STARTED_AT" ] || fail "Missing automatic startup process identity."
-fi
-
 discover_codex_app
 require_macos_runtime
-RUNTIME_VERIFIED="true"
 ensure_state_root
 
 if [ "$PORT_EXPLICIT" = "false" ] && [ -f "$STATE_PATH" ]; then
@@ -65,37 +44,8 @@ fi
 DEBUG_READY="false"
 if verified_cdp_endpoint "$PORT"; then DEBUG_READY="true"; fi
 
-if [ -n "$STARTUP_PID" ] && [ "$DEBUG_READY" = "false" ]; then
-  [ -f "$AUTOSTART_AGENT_PATH" ] || fail "Automatic apply is disabled."
-  new_codex_launch_matches "$STARTUP_PID" "$STARTUP_STARTED_AT" \
-    || fail "Automatic apply skipped: Codex is no longer a new, matching launch."
-  "$NODE" "$INJECTOR" --check-payload --theme-dir "$THEME_DIR" >/dev/null
-  # The enabled startup option authorizes one graceful handoff, never a forced quit.
-  new_codex_launch_matches "$STARTUP_PID" "$STARTUP_STARTED_AT" \
-    || fail "Automatic apply skipped: Codex changed during validation."
-  stop_codex false
-  HANDOFF_COMPLETED="true"
-elif codex_is_running && [ "$DEBUG_READY" = "false" ]; then
-  if [ "$PROMPT_RESTART" = "true" ] && [ "$RESTART_EXISTING" = "false" ]; then
-    language="$(/usr/bin/defaults read com.xskin.studio xskin.language 2>/dev/null || true)"
-    case "$language" in
-      zh-Hant) restart_message="需要重新開啟 Codex 才能套用背景。未送出的輸入可能遺失。"; cancel_label="取消"; restart_label="重新開啟並套用" ;;
-      zh-Hans) restart_message="需要重新打开 Codex 才能应用背景。未发送的输入可能丢失。"; cancel_label="取消"; restart_label="重新打开并应用" ;;
-      ja) restart_message="背景を適用するには Codex の再起動が必要です。未送信の入力が失われる場合があります。"; cancel_label="キャンセル"; restart_label="再起動して適用" ;;
-      *) restart_message="Codex needs to restart to apply the background. Unsent input may be lost."; cancel_label="Cancel"; restart_label="Restart and apply" ;;
-    esac
-    if ! /usr/bin/osascript - "$restart_message" "$cancel_label" "$restart_label" >/dev/null <<'APPLESCRIPT'
-on run argv
-  display dialog (item 1 of argv) buttons {item 2 of argv, item 3 of argv} default button (item 3 of argv) cancel button (item 2 of argv) with title "Xskin"
-end run
-APPLESCRIPT
-    then
-      fail "Theme launch was cancelled."
-    fi
-    RESTART_EXISTING="true"
-  fi
-  [ "$RESTART_EXISTING" = "true" ] || fail "Codex is already running without the verified skin CDP endpoint. Close it first or pass --restart-existing."
-  stop_codex true
+if codex_is_running && [ "$DEBUG_READY" = "false" ]; then
+  fail "Codex is already open without a verified Xskin connection. Fully quit Codex, then open Codex (Xskin). Your app was left running."
 fi
 
 if [ -f "$STATE_PATH" ]; then
