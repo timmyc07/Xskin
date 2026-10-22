@@ -47,7 +47,7 @@ Commands:
   switch-theme ID                Select and safely apply a saved theme
   status [--short|--json|--deep] Read the current session, port, process, and theme state
   start [options]                Start or reapply; ordinary running Codex must be quit manually
-  start-authorized [options]     Restart without prompting; requires prior explicit authorization
+  start-authorized [options]     Explicit start; leaves ordinary running Codex open
   pause [--port PORT]            Remove the live skin but keep base appearance settings
   verify [options]               Verify live injection; supports --screenshot ABSOLUTE_PATH
   restore [options]              Remove the skin and restore base appearance

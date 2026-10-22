@@ -48,7 +48,7 @@ function Get-DreamSkinVerifiedCdpIdentity {
 function Test-DreamSkinPortAvailable { return $true }
 function Start-DreamSkinCodex {
   param($Codex, $Arguments)
-  Event $(if ($Arguments) { 'launch' } else { 'normal' })
+  Event $(if ($Arguments) { 'launch' } elseif (Test-Path (Join-Path $script:fixtureState 'running')) { 'activate' } else { 'normal' })
   if ($script:fixtureMode -eq 'launch-failure') { throw 'fixture launch failure' }
   [IO.File]::WriteAllText((Join-Path $script:fixtureState 'running'), 'running')
 }
@@ -78,7 +78,7 @@ function Invoke-DreamSkinNative {
     assert.equal(result.code, 0, result.output);
     result = await run("repeat", state);
     assert.equal(result.code, 0, result.output);
-    assert.equal(await fs.readFile(path.join(state, "events.txt"), "utf8"), "lock\nlaunch\ninjector\nverify\nunlock\nlock\nunlock\n");
+    assert.equal(await fs.readFile(path.join(state, "events.txt"), "utf8"), "lock\nlaunch\ninjector\nverify\nunlock\nlock\nactivate\nunlock\n");
   }
   const ordinary = path.join(temporary, "ordinary");
   const result = await run("ordinary", ordinary);

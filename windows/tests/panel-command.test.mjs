@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "xskin-panel-"));
+const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "xskin-panel-")));
 const stateRoot = path.join(temporary, "state");
 const runtimeRoot = path.join(temporary, "runtime");
 const run = async (action, request = {}) => {
@@ -130,7 +130,7 @@ function Set-XskinAutostart {
     await fs.writeFile(path.join(runtimeRoot, `scripts/${action}-dream-skin.ps1`), `
 param([switch]$PromptRestart, [switch]$Resume, [string]$StateRoot)
 if ([IO.Path]::GetFullPath($StateRoot) -ine '${stateRoot.replaceAll("'", "''")}') {
-  throw 'The panel did not forward its custom state root.'
+  throw ('The panel did not forward its custom state root: actual=' + $StateRoot + '; expected=' + '${stateRoot.replaceAll("'", "''")}')
 }
 [IO.File]::WriteAllText((Join-Path $StateRoot '${action}-root.txt'), $StateRoot)
 $global:LASTEXITCODE = 0

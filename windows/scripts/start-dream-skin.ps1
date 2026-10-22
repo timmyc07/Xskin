@@ -53,7 +53,7 @@ try {
   }
 
   $currentProcesses = Get-DreamSkinCodexProcesses -Codex $currentCodex
-  $codexToStop = $currentCodex
+  $activeCodex = $currentCodex
   $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $currentCodex
   $savedIsDifferent = [bool]($null -ne $savedCodex -and
     -not (Test-DreamSkinPathEqual -Left $savedCodex.Executable -Right $currentCodex.Executable))
@@ -70,23 +70,23 @@ try {
       $savedIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $savedCodex
       if ($null -ne $savedIdentity) {
         $codex = $savedCodex
-        $codexToStop = $savedCodex
+        $activeCodex = $savedCodex
         $cdpIdentity = $savedIdentity
         Write-Warning 'Reapplying Dream Skin to the still-running registered Codex version; the current Store version will be used after that app exits.'
       } else {
-        $codexToStop = $savedCodex
+        $activeCodex = $savedCodex
         $currentProcesses = $savedProcesses
       }
     }
   }
   $debugReady = $null -ne $cdpIdentity
-  $codexProcesses = if (Test-DreamSkinPathEqual -Left $codexToStop.Executable -Right $currentCodex.Executable) {
+  $codexProcesses = if (Test-DreamSkinPathEqual -Left $activeCodex.Executable -Right $currentCodex.Executable) {
     $currentProcesses
   } else {
-    Get-DreamSkinCodexProcesses -Codex $codexToStop
+    Get-DreamSkinCodexProcesses -Codex $activeCodex
   }
   if (($pauseWasSet -or (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $false) -and -not $Resume) {
-    if ($codexProcesses.Count -eq 0) { $null = Start-DreamSkinCodex -Codex $codex }
+    $null = Start-DreamSkinCodex -Codex $codex
     Write-Host 'Xskin is paused or shortcut backgrounds are disabled. Official Codex was left open without applying a skin.'
     return
   }
@@ -116,17 +116,16 @@ try {
   }
   if (-not $Resume -and $previousState -and $previousState.browserId -ceq $cdpIdentity.BrowserId -and
     $previousState.port -eq $Port -and (Stop-DreamSkinRecordedInjector -State $previousState -CheckOnly)) {
+    $null = Start-DreamSkinCodex -Codex $codex
     Write-Host 'Xskin is already active; reusing its injector.'
     return
   }
 
-  try {
-    $recordedInjectorStopped = Stop-DreamSkinRecordedInjector -State $previousState
-    if (-not $recordedInjectorStopped) {
-      $staleStatePath = Archive-DreamSkinStateFile -Path $StatePath
-      Write-Warning "Archived stale Dream Skin state at $staleStatePath"
-    }
-  } catch { throw }
+  $recordedInjectorStopped = Stop-DreamSkinRecordedInjector -State $previousState
+  if (-not $recordedInjectorStopped) {
+    $staleStatePath = Archive-DreamSkinStateFile -Path $StatePath
+    Write-Warning "Archived stale Dream Skin state at $staleStatePath"
+  }
 
   Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
   $pauseCleared = $true

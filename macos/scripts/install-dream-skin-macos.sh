@@ -139,9 +139,10 @@ if [ "$CREATE_LAUNCHERS" = "true" ]; then
 fi
 
 # Keep the old preference when migrating; a fresh install enables shortcut backgrounds.
-"$SCRIPT_DIR/setup-direct-launch.sh" --install
 if [ -f "$AUTOSTART_AGENT_PATH" ] || [ ! -f "$STATE_ROOT/shortcut-setup-complete" ]; then
   "$SCRIPT_DIR/autostart-dream-skin-macos.sh" enable
+else
+  "$SCRIPT_DIR/setup-direct-launch.sh" --install
 fi
 /usr/bin/touch "$STATE_ROOT/shortcut-setup-complete"
 

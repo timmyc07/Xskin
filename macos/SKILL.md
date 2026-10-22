@@ -72,11 +72,11 @@ To prepare a video after the engine is installed without applying it:
 bash scripts/load-video-theme-macos.sh --file "/absolute/path/to/background.mp4" --no-apply
 ```
 
-The optional macOS menu controller includes “更換影片背景…”. Image switching, Pause, and Restore release the video decoder, listeners, and Blob URL. Windows retains the upstream image-only implementation.
+The optional macOS menu controller includes “更換影片背景…”. Image switching, Pause, and Restore release the video decoder, listeners, and Blob URL. Windows also supports original MP4 backgrounds in its matching package.
 
 ## Safety guarantees
 
-- The macOS video edition uses the runtime included in this Skill folder. Keep the whole folder when installing or packaging. The Windows wrapper still downloads its pinned upstream runtime.
+- The macOS video edition uses the runtime included in this Skill folder. Keep the whole folder when installing or packaging. The Windows wrapper requires the matching Windows package/source; it does not download an older runtime.
 - Official `Codex.app`, `app.asar`, `WindowsApps`, signatures, accounts, chats, projects, API keys, and model providers remain unchanged.
 - Startup never closes/reopens official Codex. An ordinary existing session requires manual exit before Codex (Xskin). Full Restore is a separate explicitly requested operation.
 - Use the managed Codex (Xskin) entry for backgrounds; no login observer is installed.
@@ -214,7 +214,7 @@ bash scripts/dream-skin-macos.sh build-release
 Windows requires the official Microsoft Store `OpenAI.Codex` package and Node.js 22+. The runtime dynamically discovers the current Appx package, validates Store identity, serializes operations with a per-user lock, and preserves strict UTF-8 `config.toml` bytes.
 
 ```powershell
-# Download and validate the pinned source.
+# Validate the matching local Windows source.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dream-skin-windows.ps1 -Action source
 
 # Close Codex first. Create shortcuts, or skip them.
