@@ -38,7 +38,7 @@ The earlier Windows overlay fixes remain intact and are now shared with macOS: d
 | Windows startup/installer fixtures | Passed under local PowerShell 7 with physical temporary paths. Three cold-start fixtures and repeated, ordinary, paused and failure cases pass. This is not Windows cold-start evidence. |
 | Flutter analyze | Passed. |
 | Flutter tests on macOS | 5 passed, 1 skipped because its process bridge requires Windows. |
-| Windows full runner/package CI | Pending push/Windows CI result; update this row with the actual outcome. |
+| Windows full runner/package CI | Passed on Windows Server 2022 / Windows PowerShell 5.1, commit `aa8833d`. Full runner, Flutter analyze, all 6 Flutter tests, release build and package upload passed: [CI run](https://github.com/timmyc07/Xskin/actions/runs/39795123443). |
 | Real Windows three cold starts, new login and Store update | Not performed here. The user confirmed that no remote execution connection is available; retain this manual checklist. Requires an interactive Windows session with official Codex installed. |
 | Real home/task visual checks | Not completed. Native computer-use access to Codex was denied by tool safety restrictions; no alternative capture/navigation was used to bypass that denial. |
 | Physical macOS cold starts | Not performed: current Codex session was preserved. The three-launch result above uses isolated fixtures. |
@@ -51,4 +51,4 @@ Build from this branch; do not assume the older release ZIP contains 1.8.0. Wind
 
 To stop using the skin, Pause or turn off shortcut backgrounds. Use the official app normally after fully exiting the current session. To uninstall entry points, use the platform Restore command with `-Uninstall` / `--uninstall`; only owned entry points are removed and saved media/preferences remain. Full base-theme restoration uses the existing recoverable appearance-key backup and remains a separately requested action. Preserve the state directory when troubleshooting; do not delete auth.json or account data. Engine transaction backups are retained if a rollback cannot complete safely.
 
-Before declaring the startup change ready, complete the pending physical Windows checks above, inspect home/task on both platforms and obtain an applicable authorization basis for CDP/CSS injection.
+The automated checks pass. Before declaring physical startup behavior and authorization confirmed, complete the pending physical Windows checks above, inspect home/task on both platforms and obtain an applicable authorization basis for CDP/CSS injection.
