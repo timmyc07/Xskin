@@ -126,13 +126,46 @@ function Set-XskinLaunchShortcuts {
   $codex = if (-not $Remove) { Get-DreamSkinCodexInstall }
   foreach ($file in $paths) {
     if ($Remove) {
-      if ((Test-Path -LiteralPath $file) -and (Test-XskinLaunchShortcut -Link (Get-DreamSkinShortcut -Path $file) -StateRoot $StateRoot)) {
+      if ((Test-Path -LiteralPath $file) -and
+        ((Test-XskinLaunchShortcut -Link (Get-DreamSkinShortcut -Path $file) -StateRoot $StateRoot) -or
+        (Test-XskinLegacyLaunchShortcut -Link (Get-DreamSkinShortcut -Path $file) -StateRoot $StateRoot))) {
         Remove-Item -LiteralPath $file -Force
       }
     } else {
       Set-DreamSkinShortcut -Path $file -TargetPath $launcher -WorkingDirectory $StateRoot -IconPath $codex.Executable `
         -Description 'Xskin managed Codex shortcut' -Arguments (ConvertTo-DreamSkinArgumentLine -Arguments @('start', '-StateRoot', $StateRoot))
     }
+  }
+}
+
+function Get-XskinLegacyShortcutDefinitions {
+  $desktop = [Environment]::GetFolderPath('Desktop')
+  $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+  foreach ($folder in @($desktop, $menu)) {
+    @{ Path = (Join-Path $folder 'Codex Dream Skin.lnk'); Mode = 'start'; Switches = @('-PromptRestart'); Description = 'Launch the official Codex app with Codex Dream Skin' }
+    @{ Path = (Join-Path $folder 'Codex Dream Skin - Tray.lnk'); Mode = 'tray'; Switches = @(); Description = 'Open Codex Dream Skin status and theme controls in the system tray' }
+  }
+  @{ Path = (Join-Path $desktop 'Codex Dream Skin - Restore.lnk'); Mode = 'restore'; Switches = @('-RestoreBaseTheme', '-PromptRestart'); Description = 'Restore the official Codex appearance and close the CDP session' }
+}
+
+function Remove-XskinLegacyShortcuts {
+  param([string]$StateRoot)
+  $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $StateRoot
+  foreach ($entry in Get-XskinLegacyShortcutDefinitions) {
+    Assert-DreamSkinNoReparseComponents -Path $entry.Path
+    if (-not (Test-Path -LiteralPath $entry.Path)) { continue }
+    $link = Get-DreamSkinShortcut -Path $entry.Path
+    if ($link.Description -cne $entry.Description -or
+      -not (Test-DreamSkinPathEqual -Left $link.TargetPath -Right (Join-Path $engine.Scripts 'xskin-quiet.exe')) -or
+      -not (Test-DreamSkinPathEqual -Left $link.WorkingDirectory -Right $engine.Root)) { continue }
+    $arguments = $link.Arguments
+    $port = [regex]::Match($arguments, ' -Port ([0-9]{4,5})$')
+    if ($port.Success) {
+      if ([int]$port.Groups[1].Value -lt 1024 -or [int]$port.Groups[1].Value -gt 65535) { continue }
+      $arguments = $arguments.Substring(0, $port.Index)
+    }
+    $expected = ConvertTo-DreamSkinArgumentLine -Arguments (@($entry.Mode) + $entry.Switches + @('-StateRoot', $StateRoot))
+    if ($arguments -ceq $expected) { Remove-Item -LiteralPath $entry.Path -Force }
   }
 }
 

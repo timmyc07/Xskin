@@ -29,5 +29,6 @@ try {
     Set-XskinLaunchShortcuts -StateRoot $StateRoot
   }
   Remove-DreamSkinLegacyAutostart -StateRoot $StateRoot
+  Remove-XskinLegacyShortcuts -StateRoot $StateRoot
   Write-Host 'Xskin installed. Fully exit Codex, then open Codex (Xskin). The panel can stay closed.'
 } finally { Exit-DreamSkinOperationLock -Mutex $operationLock }

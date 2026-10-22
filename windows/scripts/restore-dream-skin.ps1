@@ -156,6 +156,7 @@ try {
     $null = Set-DreamSkinPaused -Paused $true -StateRoot $StateRoot
     if ($Uninstall) {
       Set-XskinLaunchShortcuts -StateRoot $StateRoot -Remove
+      Remove-XskinLegacyShortcuts -StateRoot $StateRoot
     }
 
     if ($shouldCloseCodex -and -not $NoRelaunch) {

@@ -25,6 +25,7 @@ function Save-XskinStateRoot { }
 function Initialize-XskinAutostart { }
 function Set-XskinLaunchShortcuts { [IO.File]::WriteAllText((Join-Path $StateRoot 'shortcut'), $StateRoot) }
 function Remove-DreamSkinLegacyAutostart { }
+function Remove-XskinLegacyShortcuts { }
 `);
   for (const mode of ["cold", "active", "paused", "failure"]) {
     const state = path.join(temporary, `${mode} 中文 🌙`);

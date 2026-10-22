@@ -26,6 +26,19 @@ try {
   if ((Test-Path -LiteralPath $script:fixturePaths[0]) -or (Get-FileHash -LiteralPath $foreign).Hash -cne $hash) {
     throw 'Uninstall did not preserve a foreign entry.'
   }
+  $legacyPath = Join-Path $temporary 'old-start.lnk'
+  $script:legacyEntry = @{ Path = $legacyPath; Mode = 'start'; Switches = @('-PromptRestart'); Description = 'Launch the official Codex app with Codex Dream Skin' }
+  function Get-XskinLegacyShortcutDefinitions { return $script:legacyEntry }
+  $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $stateRoot
+  Set-DreamSkinShortcut -Path $legacyPath -TargetPath (Join-Path $engine.Scripts 'xskin-quiet.exe') -WorkingDirectory $engine.Root `
+    -Description $script:legacyEntry.Description -Arguments (ConvertTo-DreamSkinArgumentLine -Arguments @('start', '-PromptRestart', '-StateRoot', $stateRoot, '-Port', '9440'))
+  Remove-XskinLegacyShortcuts -StateRoot $stateRoot
+  if (Test-Path -LiteralPath $legacyPath) { throw 'A fully owned obsolete packaged shortcut survived migration.' }
+  Set-DreamSkinShortcut -Path $legacyPath -TargetPath (Join-Path $temporary 'foreign.exe') -WorkingDirectory $engine.Root `
+    -Description $script:legacyEntry.Description -Arguments (ConvertTo-DreamSkinArgumentLine -Arguments @('start', '-PromptRestart', '-StateRoot', $stateRoot))
+  $legacyHash = (Get-FileHash -LiteralPath $legacyPath).Hash
+  Remove-XskinLegacyShortcuts -StateRoot $stateRoot
+  if ((Get-FileHash -LiteralPath $legacyPath).Hash -cne $legacyHash) { throw 'An unrelated same-name legacy shortcut was removed.' }
   $script:events = [Collections.Generic.List[string]]::new()
   $script:legacyTask = @{ Enabled = $true }
   function Get-DreamSkinAutostartTask { return $script:legacyTask }
