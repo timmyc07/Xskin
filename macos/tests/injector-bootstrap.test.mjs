@@ -39,7 +39,7 @@ function createFixture() {
     document: {
       documentElement: {},
       querySelector(selector) {
-        if (selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return markers.shell ? {} : null;
+        if (selector === 'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)') return markers.shell ? {} : null;
         if (selector === "aside.app-shell-left-panel") return markers.sidebar ? {} : null;
         return null;
       },
@@ -103,7 +103,7 @@ assert.deepEqual(
 assert.equal(generations.context.window.__CODEX_DREAM_SKIN_EARLY_APPLIED__, "new");
 
 const discoveryStart = source.indexOf("record.earlyScriptId = await registerEarly");
-const probeStart = source.indexOf("const probe = await waitForCodexProbe", discoveryStart);
+const probeStart = source.indexOf("const probe = await probeSession", discoveryStart);
 assert.ok(discoveryStart >= 0 && probeStart > discoveryStart, "Early registration must happen before full shell probing.");
 assert.match(
   source,
@@ -128,6 +128,8 @@ async function shutdownFixture(mode) {
   let acknowledge;
   let stoppedAt;
   let finished = false;
+  let probes = 0;
+  let fixtureNow = Date.now();
   const stop = () => { stoppedAt = performance.now(); events.emit("SIGTERM"); };
   const session = {
     closed: false,
@@ -137,26 +139,30 @@ async function shutdownFixture(mode) {
       if (mode === "active" && method === "Page.removeScriptToEvaluateOnNewDocument") return new Promise((resolve) => { acknowledge = resolve; });
       return {};
     },
-    async evaluate() { return true; },
+    async evaluate(expression) { if (expression.includes('EARLY_GENERATION__ = null')) calls.push('cancel-pending'); return true; },
     on() {},
     close() { this.closed = true; calls.push("close"); },
   };
   const context = {
     process: events, AbortController, setTimeout, clearTimeout,
-    console: { error() {}, log() { if (mode === "active") stop(); } },
+    Date: class extends Date { static now() { return mode === "auxiliary" ? fixtureNow : Date.now(); } },
+    console: { error() {}, log() { if (["active", "late-shell"].includes(mode)) stop(); } },
     async loadPayload() { return { payload: "", revision: "fixture", theme: { id: "fixture" } }; },
     watchPayloadSources() { return () => {}; },
     nextDiscoveryDelayMs() { return 30000; },
     discoveryLogIntervalMs() { return 2000; },
     earlyPayloadFor() { return ""; },
     async connectTarget() { calls.push("connect"); return session; },
-    async probeSession() { return mode === "auxiliary" ? { codex: false, readyState: "complete" } : { codex: true }; },
+    async probeSession() {
+      probes++;
+      return { codex: mode !== "auxiliary" && (mode !== "late-shell" || probes > 2), readyState: "complete" };
+    },
     async waitForCodexProbe() { return { codex: true }; },
     async applyToSession() { calls.push("apply"); },
     async attachVideoToSession() { calls.push("video"); },
     delay(ms, value, options) {
       if (mode === "auxiliary" && calls.filter(call => call === "poll").length === 1) setImmediate(stop);
-      if (mode === "auxiliary") calls.push("poll");
+      if (mode === "auxiliary") { calls.push("poll"); fixtureNow += 11000; }
       if (mode === "backoff" && ms === 30000) setImmediate(stop);
       return delay(ms, value, options);
     },
@@ -171,7 +177,7 @@ async function shutdownFixture(mode) {
     },
   };
   vm.createContext(context);
-  context.listAppTargets = ["active", "auxiliary"].includes(mode) ? async () => [{ id: "main" }] : vm.runInContext(`(${listSource})`, context);
+  context.listAppTargets = ["active", "auxiliary", "late-shell"].includes(mode) ? async () => [{ id: "main" }] : vm.runInContext(`(${listSource})`, context);
   const run = vm.runInContext(`(${watchSource})`, context);
   const running = run({ port: 19341 }).then(() => { finished = true; });
   if (mode === "active") {
@@ -184,8 +190,16 @@ async function shutdownFixture(mode) {
   await running;
   assert.ok(performance.now() - stoppedAt < 500, `${mode} shutdown must not wait on discovery/backoff`);
   if (mode === "auxiliary") {
-    assert.equal(calls.filter(call => call === "connect").length, 1, "Completed auxiliary windows are retried with a cooldown");
-    assert.ok(!calls.includes("Page.addScriptToEvaluateOnNewDocument"), "Unrecognized completed windows must not receive an early script");
+    assert.equal(calls.filter(call => call === "connect").length, 1);
+    assert.ok(!calls.includes("apply") && !calls.includes("video"), "Pending auxiliary windows must never receive a theme or media handoff.");
+    assert.ok(calls.indexOf("Page.removeScriptToEvaluateOnNewDocument") < calls.indexOf("close"));
+    assert.ok(calls.indexOf("cancel-pending") < calls.indexOf("close"), "Expired pending observers must be invalidated before the debugger disconnects.");
+  }
+  if (mode === "late-shell") {
+    assert.equal(probes, 3);
+    assert.equal(calls.filter(call => call === "connect").length, 1, "A completed document must keep its guarded connection while React creates the shell.");
+    assert.equal(calls.filter(call => call === "Page.addScriptToEvaluateOnNewDocument").length, 1);
+    assert.equal(calls.filter(call => call === "video").length, 1, "Attach video immediately when the late shell becomes recognizable.");
   }
   if (mode === "active") {
     assert.ok(calls.indexOf("Page.removeScriptToEvaluateOnNewDocument") < calls.indexOf("close"));
@@ -194,6 +208,7 @@ async function shutdownFixture(mode) {
 }
 await shutdownFixture("active");
 await shutdownFixture("auxiliary");
+await shutdownFixture("late-shell");
 await shutdownFixture("fetch");
 await shutdownFixture("backoff");
 

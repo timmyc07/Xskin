@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.1 — 2026-10-22
+
+- Recognize the native ChatGPT Work shell without requiring a Codex active-page wrapper. Keep inactive pages excluded and use the same selectors for injection, routes, and verification.
+- Keep guarded early injection connected while React creates a shell after document loading completes. Show the saved artwork immediately when the shell appears, then attach its original video without the previous five-second rejection cooldown. Expire unrecognized windows and cancel pending observers on shutdown.
+- React to native macOS application launch and termination notifications instead of polling once per second. Preserve fresh-process identity checks, graceful handoffs, and the restart loop guard.
+
 ## 1.6.0 — 2026-10-22
 
 - Port Windows 1.5.4 background coverage to embedded Work, native Your dot conversations, and transparent Dot composer/activity cards. Keep one original-quality player per surface, clip Dot video to its cards, and pause hidden or covered players.

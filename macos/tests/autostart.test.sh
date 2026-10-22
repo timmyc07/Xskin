@@ -54,6 +54,10 @@ autostart_step '' ''
 autostart_step 101 '/fixture/Official --remote-debugging-port=9341'
 [ "$handoffs" -eq 0 ]
 current_pid=200
+can_handoff=false
+autostart_step 200 '/fixture/Official'
+[ "$handoffs" -eq 0 ]
+can_handoff=true
 autostart_step 200 '/fixture/Official'
 [ "$handoffs" -eq 1 ] && [ "$AUTOSTART_PREVIOUS_PID" = 201 ]
 autostart_step 201 '/fixture/Official --remote-debugging-port=9341'
@@ -76,3 +80,31 @@ current_pid=''
 autostart_step '' ''
 [ "$stops" -eq 2 ] && [ "$handoffs" -eq 2 ]
 printf 'PASS: automatic apply handles only fresh official launches, skips existing/debug sessions, rejects PID reuse, and prevents restart loops.\n'
+
+TEMPORARY="$(/usr/bin/mktemp -d /tmp/xskin-events-test.XXXXXX)"
+trap '/bin/rm -rf "$TEMPORARY"' EXIT
+(
+  PROJECT_ROOT="$TEMPORARY"
+  /bin/mkdir -p "$PROJECT_ROOT/bin"
+  /bin/cat > "$PROJECT_ROOT/bin/CodexLauncher" <<'SH'
+#!/bin/bash
+[ "$1" = --watch-launches ] && [ "$2" = /fixture/Official.app ] || exit 1
+printf 'launch 200\nterminate 200\n'
+SH
+  /bin/chmod +x "$PROJECT_ROOT/bin/CodexLauncher"
+  CODEX_BUNDLE=/fixture/Official.app
+  discover_codex_app() { :; }
+  require_macos_runtime() { :; }
+  ensure_state_root() { :; }
+  printf 0 > "$TEMPORARY/read-count"
+  codex_main_pids() {
+    local count="$(/bin/cat "$TEMPORARY/read-count")"
+    printf '%s' "$((count + 1))" > "$TEMPORARY/read-count"
+    case "$count" in 0) printf 100 ;; 1) printf 200 ;; esac
+  }
+  function /bin/ps() { printf '/fixture/Official'; }
+  autostart_step() { printf '%s|%s\n' "$1" "$2" >> "$TEMPORARY/events"; }
+  if (watch_normal_launches >/dev/null 2>&1); then exit 1; fi
+  [ "$(/bin/cat "$TEMPORARY/events")" = $'200|/fixture/Official\n|' ]
+)
+printf 'PASS: native launch and termination notifications drive startup without a polling delay; a stopped observer fails visibly.\n'

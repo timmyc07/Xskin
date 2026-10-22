@@ -75,19 +75,21 @@ autostart_step() {
   local pid="$1"
   local command_line="$2"
   [ "$pid" != "$AUTOSTART_PREVIOUS_PID" ] || return 0
-  AUTOSTART_PREVIOUS_PID="$pid"
   if [ -z "$pid" ]; then
+    AUTOSTART_PREVIOUS_PID=""
     stop_recorded_injector || printf 'Automatic startup could not stop the old injector.\n' >&2
     return 0
   fi
-  case "$command_line" in *--remote-debugging-port=*) return 0 ;; esac
+  case "$command_line" in *--remote-debugging-port=*) AUTOSTART_PREVIOUS_PID="$pid"; return 0 ;; esac
   if [ $((SECONDS - AUTOSTART_LAST_HANDOFF)) -lt 30 ]; then
+    AUTOSTART_PREVIOUS_PID="$pid"
     printf 'Automatic handoff skipped to prevent a restart loop.\n' >&2
     return 0
   fi
   local started_at
   started_at="$(process_started_at "$pid")"
   new_codex_launch_matches "$pid" "$started_at" || return 0
+  AUTOSTART_PREVIOUS_PID="$pid"
   AUTOSTART_LAST_HANDOFF="$SECONDS"
   if ! apply_new_launch "$pid" "$started_at"; then
     printf 'Automatic apply failed; this launch will not be retried.\n' >&2
@@ -104,16 +106,16 @@ watch_normal_launches() {
   AUTOSTART_LAST_HANDOFF=-30
   trap 'exit 0' INT TERM
   printf '%s automatic startup is watching normal launches.\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  while :; do
-    local pid command_line
+  local event event_pid pid command_line
+  "$PROJECT_ROOT/bin/CodexLauncher" --watch-launches "$CODEX_BUNDLE" | while read -r event event_pid; do
     pid="$(codex_main_pids | /usr/bin/head -n 1)"
     command_line=""
     if [ -n "$pid" ] && [ "$pid" != "$AUTOSTART_PREVIOUS_PID" ]; then
       command_line="$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)"
     fi
     autostart_step "$pid" "$command_line"
-    /bin/sleep 1
   done
+  fail "Automatic startup notifications stopped."
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then

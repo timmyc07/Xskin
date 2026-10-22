@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {detectSurface, earlyPayloadFor, isValidCdpTarget, waitForVerifiedSession} from '../scripts/injector.mjs';
 
 const selectors = {
-  codex: ['[data-app-shell-active-page="true"] main[data-app-shell-main-surface]', 'aside.app-shell-left-panel'],
+  codex: ['main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)', 'aside.app-shell-left-panel'],
   work: ['main#main #thread', '#prompt-textarea'],
   dot: ['.codex-avatar-root', '[data-avatar-overlay-native-surface-id="composer"]'],
 };
@@ -74,7 +74,8 @@ const messagingSelector = selectors.codex[0] + ' .messaging-root.messaging-embed
   selectors.codex[0] + ' .messaging-root.messaging-embedded .thread-pane';
 for (const blockedLayer of [-1, 0, 1, 2, 3, 'image']) {
   const clearStyle = {backgroundColor:'rgba(0, 0, 0, 0)', backgroundImage:'none', pointerEvents:'none'};
-  const node = {getBoundingClientRect: () => ({x:0, y:0, width:100, height:100}), style:clearStyle};
+  const node = {querySelector: () => null,
+    getBoundingClientRect: () => ({x:0, y:0, width:100, height:100}), style:clearStyle};
   const layers = Array.from({length:4}, (_, index) => ({style:{...clearStyle,
     ...(index === blockedLayer ? {backgroundColor:'rgb(24, 24, 24)'} : {}),
     ...(blockedLayer === 'image' && index === 3 ? {backgroundImage:'linear-gradient(black, black)'} : {}),

@@ -10,7 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.6.0";
+const SKIN_VERSION = "1.6.1";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
@@ -81,7 +81,7 @@ export function detectSurface() {
   const app = location.protocol === "app:";
   const work = location.origin === "https://chatgpt.com";
   if (!app && !work) return null;
-  if (app && document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') &&
+  if (app && document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)') &&
     document.querySelector('aside.app-shell-left-panel')) return "codex";
   if (work && document.querySelector('main#main #thread') && document.querySelector('#prompt-textarea')) return "work";
   if (app && new URLSearchParams(location.search).get('initialRoute') === '/avatar-overlay' &&
@@ -230,9 +230,9 @@ async function probeSession(session) {
   return session.evaluate(`(() => {
     const surface = (${detectSurface.toString()})();
     const markers = {
-      shell: Boolean(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
+      shell: Boolean(document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)')),
       sidebar: Boolean(document.querySelector('aside.app-shell-left-panel')),
-      composer: Boolean(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]')),
+      composer: Boolean(document.querySelector('[data-composer-body]:not([data-app-shell-active-page="false"] *)')),
       main: Boolean(document.querySelector('[role="main"]')),
     };
     return {
@@ -613,7 +613,8 @@ async function verifySession(session) {
         visible: r.width > 0 && r.height > 0 && style.display !== 'none' && style.visibility !== 'hidden',
       };
     };
-    const page = document.querySelector('[data-app-shell-active-page="true"]');
+    const page = document.querySelector('[data-app-shell-active-page="true"]') ??
+      document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)');
     const homeIndicator = page?.querySelector('[data-testid="home-icon"]');
     const homeSignal = homeIndicator ?? page?.querySelector('[data-feature="game-source"]') ??
       page?.querySelector('[class~="group/home-suggestions"]');
@@ -624,10 +625,10 @@ async function verifySession(session) {
     const visibleCards = cardBoxes.filter((item) => item?.visible);
     const hero = box(home?.firstElementChild?.firstElementChild?.firstElementChild);
     const projectButton = box(home?.querySelector('[class~="group/project-selector"] > button'));
-    const mainSelector = surface === 'work' ? 'main#main' : '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]';
+    const mainSelector = surface === 'work' ? 'main#main' : 'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)';
     const sidebarSelector = surface === 'work' ? '#stage-slideover-sidebar' : 'aside.app-shell-left-panel';
     const shell = box(document.querySelector(mainSelector));
-    const composer = box(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]'));
+    const composer = box(document.querySelector('[data-composer-body]:not([data-app-shell-active-page="false"] *)'));
     const sidebar = box(document.querySelector(sidebarSelector));
     const chrome = document.getElementById('codex-dream-skin-chrome');
     const videoElement = document.getElementById('codex-dream-skin-video');
@@ -645,7 +646,7 @@ async function verifySession(session) {
       pointerEvents: maskStyle.pointerEvents,
       mainClear: clearSurface(document.querySelector(mainSelector)),
       sidebarClear: clearSurface(document.querySelector(sidebarSelector)),
-      headerClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] header.app-header-tint')),
+      headerClear: clearSurface(document.querySelector('header.app-header-tint:not([data-app-shell-active-page="false"] *)')),
       messagingClear: [...document.querySelectorAll(mainSelector + ' .messaging-root.messaging-embedded, ' +
         mainSelector + ' .messaging-root.messaging-embedded .thread-pane')].every(clearSurface),
     };
@@ -941,7 +942,9 @@ async function runWatch(options) {
   };
 
   const removeEarly = async (record) => {
-    if (!record.earlyScriptId || record.session.closed) return;
+    if (record.session.closed) return;
+    if (!record.ready) await record.session.evaluate('window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null').catch(() => {});
+    if (!record.earlyScriptId) return;
     const identifier = record.earlyScriptId;
     record.earlyScriptId = null;
     await record.session.send("Page.removeScriptToEvaluateOnNewDocument", { identifier }).catch(() => {});
@@ -966,7 +969,8 @@ async function runWatch(options) {
         record.earlyScriptId = nextIdentifier;
         record.needsLoadFallback = !nextIdentifier;
         if (stopping) break;
-        await applyToSession(session, current);
+        if (record.ready) await applyToSession(session, current);
+        else await session.evaluate(earlyPayloadFor(current.payload, current.revision));
       } catch (error) {
         record.needsLoadFallback = true;
         console.error(`[dream-skin] theme refresh failed: ${error.message}`);
@@ -1021,33 +1025,33 @@ async function runWatch(options) {
 
       for (const target of targets) {
         if (stopping) break;
-        if (sessions.has(target.id)) continue;
+        if (sessions.get(target.id)?.ready) continue;
         if ((rejected.get(target.id) ?? 0) > Date.now()) continue;
-        let session;
-        let record;
+        let record = sessions.get(target.id);
+        let session = record?.session;
         try {
-          session = await connectTarget(target, options.port);
-          if (stopping) { session.close(); break; }
-          const initialProbe = await probeSession(session);
-          if (!initialProbe?.codex && initialProbe?.readyState === "complete") {
-            rejected.set(target.id, Date.now() + 5000);
-            session.close();
-            continue;
-          }
-          record = { session, earlyScriptId: null, needsLoadFallback: false };
-          try {
-            record.earlyScriptId = await registerEarly(session, current.payload, current.revision);
-            if (!stopping) await session.evaluate(earlyPayloadFor(current.payload, current.revision));
-          } catch (error) {
-            record.needsLoadFallback = true;
-            console.error(`[dream-skin] early injection unavailable: ${error.message}`);
+          if (!record) {
+            session = await connectTarget(target, options.port);
+            if (stopping) { session.close(); break; }
+            record = { session, earlyScriptId: null, needsLoadFallback: false, ready: false, pendingAt: Date.now() };
+            sessions.set(target.id, record);
+            try {
+              record.earlyScriptId = await registerEarly(session, current.payload, current.revision);
+              if (!stopping) await session.evaluate(earlyPayloadFor(current.payload, current.revision));
+            } catch (error) {
+              record.needsLoadFallback = true;
+              console.error(`[dream-skin] early injection unavailable: ${error.message}`);
+            }
           }
           if (stopping) { await removeEarly(record); session.close(); break; }
-          const probe = await waitForCodexProbe(session);
+          const probe = await probeSession(session);
           if (stopping) { await removeEarly(record); session.close(); break; }
           if (!probe?.codex) {
+            // React can create the shell after document.readyState is already complete.
+            if (Date.now() - record.pendingAt < 10000) continue;
             await removeEarly(record);
             session.close();
+            sessions.delete(target.id);
             if (!rejected.has(target.id)) {
               console.error(`[dream-skin] rejected non-Codex app target ${target.id}`);
             }
@@ -1079,15 +1083,17 @@ async function runWatch(options) {
           } else {
             await attachVideoToSession(session, current.videoSource);
           }
-          sessions.set(target.id, record);
+          record.ready = true;
           console.log(`[dream-skin] injected verified ${probe.surface} target ${target.id}`);
         } catch (error) {
           if (record) await removeEarly(record);
           session?.close();
+          sessions.delete(target.id);
           console.error(`[dream-skin] inject failed for ${target.id}: ${error.message}`);
         }
       }
-      const pollDelay = sessions.size ? 800 : (targets.length ? 250 : 100);
+      const pending = [...sessions.values()].some(record => !record.ready);
+      const pollDelay = pending ? 50 : sessions.size ? 800 : (targets.length ? 250 : 100);
       await pause(pollDelay);
     }
   } finally {

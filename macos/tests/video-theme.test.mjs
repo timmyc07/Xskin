@@ -168,8 +168,8 @@ try {
           if (selector === '[role="main"].dream-skin-home, [role="main"].dream-skin-video-home' && homePresent) return homeNode;
           return null;
         } };
-        if (selector === '[data-app-shell-active-page="true"] [data-composer-body]') return node;
-        if (selector === 'aside.app-shell-left-panel' || selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return node;
+        if (selector === '[data-composer-body]:not([data-app-shell-active-page="false"] *)') return node;
+        if (selector === 'aside.app-shell-left-panel' || selector === 'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)') return node;
         return null;
       },
       querySelectorAll() { return []; },

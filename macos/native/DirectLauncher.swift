@@ -136,6 +136,23 @@ private struct DirectLauncher {
 
   private static func run() throws {
     let args = Array(CommandLine.arguments.dropFirst())
+    if args.count == 2, args[0] == "--watch-launches" {
+      let official = URL(fileURLWithPath: args[1]).standardizedFileURL
+      guard Bundle(url: official)?.bundleIdentifier == "com.openai.codex" else { throw CocoaError(.fileReadCorruptFile) }
+      let center = NSWorkspace.shared.notificationCenter
+      let observers = [NSWorkspace.willLaunchApplicationNotification, NSWorkspace.didLaunchApplicationNotification,
+        NSWorkspace.didTerminateApplicationNotification].map { name in
+        center.addObserver(forName: name, object: nil, queue: .main) { notification in
+          guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            app.bundleIdentifier == "com.openai.codex", app.bundleURL?.standardizedFileURL == official else { return }
+          let event = notification.name == NSWorkspace.didTerminateApplicationNotification ? "terminate" : "launch"
+          FileHandle.standardOutput.write(Data("\(event) \(app.processIdentifier)\n".utf8))
+        }
+      }
+      defer { observers.forEach(center.removeObserver) }
+      RunLoop.main.run()
+      return
+    }
     if args == ["--self-check"] {
       let original: [String: Any] = ["GUID": 7, "tile-type": "file-tile", "tile-data": ["file-data": ["_CFURLString": "file:///Applications/ChatGPT.app/", "_CFURLStringType": 15], "book": Data([1, 2, 3]), "bundle-identifier": "com.openai.codex", "file-mod-date": 1, "parent-mod-date": 2, "keep": true]]
       assert(tileURL(original)?.path == "/Applications/ChatGPT.app")
