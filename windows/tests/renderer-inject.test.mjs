@@ -174,6 +174,7 @@ function createFixture(theme, {
   analysisFixture = null,
   analysisCache = null,
   homeRoute = false,
+  activePageMarker = true,
 } = {}) {
   let fixtureShell = nativeShell;
   const nodes = new Map();
@@ -230,6 +231,7 @@ function createFixture(theme, {
   const shellMain = {
     parentElement: body,
     classList: createClassList(),
+    querySelector(selector) { return activePage.querySelector(selector); },
     getBoundingClientRect() {
       return { ...shellBox };
     },
@@ -307,8 +309,8 @@ function createFixture(theme, {
     removeEventListener(name) { documentListeners.delete(name); },
     getElementById(id) { return nodes.get(id) ?? null; },
     querySelector(selector) {
-      if (selector === '[data-app-shell-active-page="true"]') return activePage;
-      if (selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return surface === 'codex' ? shellMain : null;
+      if (selector === '[data-app-shell-active-page="true"]') return activePageMarker ? activePage : null;
+      if (selector === 'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)') return surface === 'codex' ? shellMain : null;
       if (selector === 'aside.app-shell-left-panel') return surface === 'codex' ? {} : null;
       if (surface === 'work' && selector === 'main#main') return shellMain;
       if (surface === 'work' && ['main#main #thread', '#thread'].includes(selector)) return activePage;
@@ -446,10 +448,12 @@ function createFixture(theme, {
   };
 }
 
-const freshHome = createFixture({ id: "fresh-home" }, { homeRoute: true });
-assert.doesNotThrow(() => vm.runInNewContext(freshHome.payload, freshHome.context), "A fresh normal launch must detect Home before suggestion cards are available.");
-assert.ok(freshHome.homeSurface.classList.contains("dream-skin-home"));
-assert.ok(freshHome.shellMain.classList.contains("dream-skin-home-shell"));
+for (const activePageMarker of [true, false]) {
+  const freshHome = createFixture({ id: "fresh-home" }, { homeRoute: true, activePageMarker });
+  assert.doesNotThrow(() => vm.runInNewContext(freshHome.payload, freshHome.context), "A cold shell must detect Home with or without an active-page wrapper.");
+  assert.ok(freshHome.homeSurface.classList.contains("dream-skin-home"));
+  assert.ok(freshHome.shellMain.classList.contains("dream-skin-home-shell"));
+}
 const videoHome = createFixture({ id: "video-home", video: "background.mp4" }, { homeRoute: true });
 videoHome.homeSurface.classList.add("dream-skin-home");
 vm.runInNewContext(videoHome.payload, videoHome.context);

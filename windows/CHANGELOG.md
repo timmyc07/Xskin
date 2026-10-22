@@ -1,5 +1,12 @@
 # Windows Changelog
 
+## Xskin Windows 1.5.5 — 2026-10-22
+
+- Fix a black preview when replacing one video with another. Bind each video view to its current controller so width/height subscriptions follow the new player; retain paused first-frame previews, original media and frame rate. Extend the native integration test to start with a video, replace it and require a visible texture before and after playback.
+- Port macOS 1.6.1 native Work shell detection to Windows injection, routing and verification. Recognize main surfaces without an active-page wrapper while excluding inactive pages.
+- Keep guarded early injection connected for up to ten seconds while React creates a late shell, including before the HTML element exists. Attach the original video when ready instead of rejecting a completed document and entering the previous retry cooldown. Cancel pending observers on pause, theme change, expiry and shutdown.
+- Retain Windows package/browser identity and loopback checks, managed launch shortcuts and original-quality Dot playback. macOS application-launch notifications and LaunchAgent behavior remain platform-specific; no Windows system service is added.
+
 ## Xskin Windows 1.5.4 — 2026-10-22
 
 - Fix the main-window **Your dot** conversation remaining opaque: clear its nested embedded messaging roots and thread panes so the existing original-quality video shows through. Keep message bubbles and composer styling; reject opaque inner messaging layers during verification instead of checking only the outer shell. A 60-second live test retained 3840×2160 at approximately 30 fps with zero added dropped frames, and changing pixels were captured inside the formerly opaque conversation area.

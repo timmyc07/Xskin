@@ -8,7 +8,7 @@ import { inspectVideo, validateVideoName } from "./video-file.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.5.4";
+const SKIN_VERSION = "1.5.5";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -100,7 +100,7 @@ export function detectSurface() {
   const app = location.protocol === "app:";
   const work = location.origin === "https://chatgpt.com";
   if (!app && !work) return null;
-  if (app && document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') &&
+  if (app && document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)') &&
     document.querySelector('aside.app-shell-left-panel')) return "codex";
   if (work && document.querySelector('main#main #thread') && document.querySelector('#prompt-textarea')) return "work";
   if (app && new URLSearchParams(location.search).get('initialRoute') === '/avatar-overlay' &&
@@ -477,9 +477,9 @@ async function probeSession(session) {
   return session.evaluate(`(() => {
     const surface = (${detectSurface.toString()})();
     const markers = {
-      shell: Boolean(document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]')),
+      shell: Boolean(document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)')),
       sidebar: Boolean(document.querySelector('aside.app-shell-left-panel')),
-      composer: Boolean(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]')),
+      composer: Boolean(document.querySelector('[data-composer-body]:not([data-app-shell-active-page="false"] *)')),
       main: Boolean(document.querySelector('[role="main"]')),
     };
     return {
@@ -607,9 +607,9 @@ export function earlyPayloadFor(payload, revision) {
       return true;
     };
     if (install()) return;
-    if (typeof MutationObserver === "function" && document.documentElement) {
+    if (typeof MutationObserver === "function") {
       observer = new MutationObserver(install);
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      observer.observe(document.documentElement ?? document, { childList: true, subtree: true });
     }
     timeout = setTimeout(stop, 10000);
   })()`;
@@ -663,7 +663,8 @@ async function verifySession(session) {
         visible: r.width > 0 && r.height > 0 && style.display !== 'none' && style.visibility !== 'hidden',
       };
     };
-    const page = document.querySelector('[data-app-shell-active-page="true"]');
+    const page = document.querySelector('[data-app-shell-active-page="true"]') ??
+      document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)');
     const homeIndicator = page?.querySelector('[data-testid="home-icon"]');
     const homeSignal = homeIndicator ?? page?.querySelector('[data-feature="game-source"]') ??
       page?.querySelector('[class~="group/home-suggestions"]');
@@ -674,10 +675,10 @@ async function verifySession(session) {
     const visibleCards = cardBoxes.filter((item) => item?.visible);
     const hero = box(home?.firstElementChild?.firstElementChild?.firstElementChild);
     const projectButton = box(home?.querySelector('[class~="group/project-selector"] > button'));
-    const mainSelector = surface === 'work' ? 'main#main' : '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]';
+    const mainSelector = surface === 'work' ? 'main#main' : 'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)';
     const sidebarSelector = surface === 'work' ? '#stage-slideover-sidebar' : 'aside.app-shell-left-panel';
     const shell = box(document.querySelector(mainSelector));
-    const composer = box(document.querySelector('[data-app-shell-active-page="true"] [data-composer-body]'));
+    const composer = box(document.querySelector('[data-composer-body]:not([data-app-shell-active-page="false"] *)'));
     const sidebar = box(document.querySelector(sidebarSelector));
     const chrome = document.getElementById('codex-dream-skin-chrome');
     const videoElement = document.getElementById('codex-dream-skin-video');
@@ -695,7 +696,7 @@ async function verifySession(session) {
       pointerEvents: maskStyle.pointerEvents,
       mainClear: clearSurface(document.querySelector(mainSelector)),
       sidebarClear: clearSurface(document.querySelector(sidebarSelector)),
-      headerClear: clearSurface(document.querySelector('[data-app-shell-active-page="true"] header.app-header-tint')),
+      headerClear: clearSurface(document.querySelector('header.app-header-tint:not([data-app-shell-active-page="false"] *)')),
       messagingClear: [...document.querySelectorAll(mainSelector + ' .messaging-root.messaging-embedded, ' +
         mainSelector + ' .messaging-root.messaging-embedded .thread-pane')].every(clearSurface),
     };
@@ -897,6 +898,7 @@ async function runWatch(options) {
   const earlyScripts = new Map();
   const fallbackTargets = new Map();
   const fallbackListeners = new Set();
+  const pendingTargets = new Map();
   const targetFailures = new Map();
   let stopping = false;
   let listFailures = 0;
@@ -906,6 +908,14 @@ async function runWatch(options) {
   let loadedPayload = null;
   let paused = false;
   const stop = () => { stopping = true; };
+  const discardPending = async (id) => {
+    const pending = pendingTargets.get(id);
+    if (!pending) return;
+    pendingTargets.delete(id);
+    await pending.session.evaluate('window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null').catch(() => {});
+    await removeEarlyPayload(pending.session, pending.earlyScriptId);
+    pending.session.close();
+  };
   const rejectTarget = (target, baseDelayMs, error = null) => {
     const previous = targetFailures.get(target.id) ?? { failures: 0, lastLogAt: 0 };
     const failures = previous.failures + 1;
@@ -1000,6 +1010,7 @@ async function runWatch(options) {
       paused = nextPaused;
 
       if (pauseChanged || payloadChanged) {
+        for (const id of pendingTargets.keys()) await discardPending(id);
         for (const [id, session] of sessions) {
           try {
             const previousEarlyScript = earlyScripts.get(id);
@@ -1046,6 +1057,9 @@ async function runWatch(options) {
       for (const id of targetFailures.keys()) {
         if (!activeIds.has(id)) targetFailures.delete(id);
       }
+      for (const [id, pending] of pendingTargets) {
+        if (!activeIds.has(id) || pending.session.closed) await discardPending(id);
+      }
       for (const [id, session] of sessions) {
         if (!activeIds.has(id) || session.closed) {
           await removeEarlyPayload(session, earlyScripts.get(id));
@@ -1059,42 +1073,43 @@ async function runWatch(options) {
       }
 
       for (const target of targets) {
-        if (identityAnchor.closed) break;
+        if (stopping || identityAnchor.closed) break;
         if (sessions.has(target.id)) continue;
         if ((targetFailures.get(target.id)?.until ?? 0) > Date.now()) continue;
-        let session;
-        let earlyScriptId = null;
+        let pending = pendingTargets.get(target.id);
+        let session = pending?.session;
+        let earlyScriptId = pending?.earlyScriptId ?? null;
         try {
-          session = await connectTarget(target, options.port);
-          if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
-          const initialProbe = await probeSession(session);
-          if (!initialProbe.codex && initialProbe.readyState === "complete") {
-            rejectTarget(target, 5000);
-            session.close();
-            continue;
-          }
-          let earlyInjectionFallback = false;
-          if (!paused) {
-            try {
-              earlyScriptId = await registerEarlyPayload(
-                session,
-                loadedPayload.payload,
-                loadedPayload.fingerprint,
-              );
-              if (!earlyScriptId) throw new Error("CDP did not return an early-script identifier");
-              await session.evaluate(earlyPayloadFor(loadedPayload.payload, loadedPayload.fingerprint));
-            } catch (error) {
-              await removeEarlyPayload(session, earlyScriptId);
-              earlyScriptId = null;
-              earlyInjectionFallback = true;
-              console.error(`[dream-skin] early injection unavailable for ${target.id}: ${error.message}`);
+          let earlyInjectionFallback = pending?.fallback ?? false;
+          if (!pending) {
+            session = await connectTarget(target, options.port);
+            if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
+            if (!paused) {
+              try {
+                earlyScriptId = await registerEarlyPayload(
+                  session,
+                  loadedPayload.payload,
+                  loadedPayload.fingerprint,
+                );
+                if (!earlyScriptId) throw new Error("CDP did not return an early-script identifier");
+                await session.evaluate(earlyPayloadFor(loadedPayload.payload, loadedPayload.fingerprint));
+              } catch (error) {
+                await removeEarlyPayload(session, earlyScriptId);
+                earlyScriptId = null;
+                earlyInjectionFallback = true;
+                console.error(`[dream-skin] early injection unavailable for ${target.id}: ${error.message}`);
+              }
             }
+            pending = { session, earlyScriptId, fallback: earlyInjectionFallback, startedAt: Date.now() };
+            pendingTargets.set(target.id, pending);
           }
-          const probe = await waitForCodexProbe(session);
+          if (stopping || identityAnchor.closed) break;
+          const probe = await probeSession(session);
           if (!probe?.codex) {
-            await removeEarlyPayload(session, earlyScriptId);
+            // React can create a native Work shell after document loading completes.
+            if (Date.now() - pending.startedAt < 10000) continue;
+            await discardPending(target.id);
             rejectTarget(target, 5000);
-            session.close();
             continue;
           }
           fallbackTargets.set(target.id, earlyInjectionFallback);
@@ -1110,14 +1125,18 @@ async function runWatch(options) {
           else if (!earlyApplied) await applyToSession(session, loadedPayload);
           else await attachVideoToSession(session, loadedPayload.videoSource);
           sessions.set(target.id, session);
+          pendingTargets.delete(target.id);
           if (earlyScriptId) earlyScripts.set(target.id, earlyScriptId);
           targetFailures.delete(target.id);
           console.log(`[dream-skin] injected target ${target.id}`);
         } catch (error) {
-          await removeEarlyPayload(session, earlyScriptId);
+          if (pendingTargets.has(target.id)) await discardPending(target.id);
+          else {
+            await removeEarlyPayload(session, earlyScriptId);
+            session?.close();
+          }
           fallbackTargets.delete(target.id);
           fallbackListeners.delete(target.id);
-          session?.close();
           if (identityAnchor.closed || error instanceof CdpIdentityMismatchError) break;
           rejectTarget(target, 2500, error);
         }
@@ -1126,6 +1145,7 @@ async function runWatch(options) {
     }
   } finally {
     identityAnchor.close();
+    for (const id of pendingTargets.keys()) await discardPending(id);
     for (const [id, session] of sessions) {
       await removeEarlyPayload(session, earlyScripts.get(id));
       session.close();

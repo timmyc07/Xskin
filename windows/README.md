@@ -1,10 +1,12 @@
-# Xskin for Windows 1.5.4 (Flutter)
+# Xskin for Windows 1.5.5 (Flutter)
 
-**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.4/Xskin-1.5.4-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.4)
+**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.5/Xskin-1.5.5-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.5)
 
 Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
-**Included in Windows 1.5.4:** the main-window **Your dot** conversation, embedded ChatGPT/Work and floating Dot composer/activity cards all support the original video. The conversation keeps native message bubbles without duplicate row backgrounds, borders or blur; verification checks the inner messaging layers as well as the shell. Work follows native container visibility, and its covered Codex player pauses. Floating cards share one player clipped to their rounded bounds; the desktop outside stays transparent. Playback pauses when no cards are visible, with the existing poster fallback for loading, errors and Reduce Motion.
+**New in Windows 1.5.5:** video-to-video changes create a fresh preview view, keeping its dimension subscriptions attached to the current player. Paused previews remain visible. macOS 1.6.1 native Work detection and guarded late-shell injection are also included; inactive pages stay excluded, and pending observers are cancelled on pause, expiry or shutdown.
+
+**Included since Windows 1.5.4:** the main-window **Your dot** conversation, embedded ChatGPT/Work and floating Dot composer/activity cards all support the original video. The conversation keeps native message bubbles without duplicate row backgrounds, borders or blur; verification checks the inner messaging layers as well as the shell. Work follows native container visibility, and its covered Codex player pauses. Floating cards share one player clipped to their rounded bounds; the desktop outside stays transparent. Playback pauses when no cards are visible, with the existing poster fallback for loading, errors and Reduce Motion.
 
 Live 60-second tests preserved **3840×2160**, playback rate **1**, approximately **30 fps** and **zero additional dropped frames** in the Dot conversation and floating cards. Sustained GPU/memory improvements remain unproven; see the [measurement report](references/performance.md).
 
@@ -62,7 +64,7 @@ flutter test
 flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.4-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.5.4` release tag.
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.5.5-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.5.5` release tag.
 
 ## Performance
 
@@ -72,6 +74,6 @@ The local 100-update benchmark reduced route scans from 104 to 1 while a 4K vide
 
 **Windows 1.5.3** also streams complete MP4 integrity checks through a 1 MiB buffer and hashes video content once. In three fresh-process runs of 30 theme loads, median process CPU time fell from **1,344 to 843 ms (37.3%)**, and peak process RSS fell from **267.27 to 146.73 MiB (45.1%)**. These are load-time results; lower GPU use or sustained playback memory has not been established. Original 4K media and frame rate are preserved.
 
-The downloadable **1.5.4 ZIP retains this optimization and includes the Dot/Work fixes above**. Extract it to a new folder and open `xskin.exe`; saved backgrounds and preferences remain in the managed store. Apply the saved background or use the new panel's launch action to update the managed engine. The update safely replaces and resumes the verified background watcher; existing **Codex (Xskin)** shortcuts keep working.
+The downloadable **1.5.5 ZIP retains this optimization and includes the Dot/Work fixes above**. Extract it to a new folder and open `xskin.exe`; saved backgrounds and preferences remain in the managed store. Apply the saved background or use the new panel's launch action to update the managed engine. The update safely replaces and resumes the verified background watcher; existing **Codex (Xskin)** shortcuts keep working.
 
 See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.

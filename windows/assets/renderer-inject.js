@@ -451,7 +451,7 @@
     if (!root.classList.contains("codex-dream-skin")) {
       const samples = [
         body,
-        document.querySelector('[data-app-shell-active-page="true"] main[data-app-shell-main-surface]'),
+        document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)'),
         document.querySelector("aside.app-shell-left-panel"),
       ].filter(Boolean);
       let votesLight = 0;
@@ -785,13 +785,14 @@
     shell ||= root.getAttribute(SHELL_ATTR) || resolvedShell();
     if (SURFACE === "dot") return;
     const shellMain = document.querySelector(SURFACE === "work" ? 'main#main' :
-      '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]');
+      'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)');
     if (SURFACE === "work") {
       for (let node = document.querySelector('#thread'); node && node !== document.body; node = node.parentElement) {
         node.classList.add("dream-skin-work-surface");
       }
     }
-    const page = document.querySelector('[data-app-shell-active-page="true"]');
+    const page = document.querySelector('[data-app-shell-active-page="true"]') ??
+      document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)');
     const homeIndicator = page?.querySelector('[data-testid="home-icon"]') ??
       page?.querySelector('[data-feature="game-source"]') ??
       page?.querySelector('[class~="group/home-suggestions"]');

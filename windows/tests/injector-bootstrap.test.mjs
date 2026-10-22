@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import vm from "node:vm";
+import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
 import { earlyPayloadFor } from "../scripts/injector.mjs";
 
@@ -22,7 +23,7 @@ function createFixture() {
       documentElement: {},
       body: {},
       querySelector(selector) {
-        if (selector === '[data-app-shell-active-page="true"] main[data-app-shell-main-surface]') return markers.shell ? {} : null;
+        if (selector === 'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)') return markers.shell ? {} : null;
         if (selector === "aside.app-shell-left-panel") return markers.sidebar ? {} : null;
         return null;
       },
@@ -33,7 +34,7 @@ function createFixture() {
         this.connected = true;
         observers.push(this);
       }
-      observe() {}
+      observe(target) { this.target = target; }
       disconnect() { this.connected = false; }
     },
     setTimeout(callback) {
@@ -56,6 +57,16 @@ guarded.markers.sidebar = true;
 guarded.observers[0].callback([]);
 assert.deepEqual(guarded.context.window.installs, ["guarded"], "The guarded payload should install once the shell is complete.");
 
+const rootless = createFixture();
+rootless.context.document.documentElement = null;
+vm.runInNewContext(earlyPayloadFor('window.installs.push("rootless")', "rootless"), rootless.context);
+assert.equal(rootless.observers[0].target, rootless.context.document);
+rootless.context.document.documentElement = {};
+rootless.markers.shell = rootless.markers.sidebar = true;
+rootless.observers[0].callback([]);
+assert.deepEqual(rootless.context.window.installs, ["rootless"]);
+assert.equal(rootless.observers[0].connected, false);
+
 const generations = createFixture();
 vm.runInNewContext(earlyPayloadFor('window.installs.push("old")', "old"), generations.context);
 vm.runInNewContext(earlyPayloadFor('window.installs.push("new")', "new"), generations.context);
@@ -71,7 +82,7 @@ assert.equal(generations.context.window.__CODEX_DREAM_SKIN_EARLY_APPLIED__, "new
 
 const registrationStart = source.indexOf("earlyScriptId = await registerEarlyPayload");
 const evaluateStart = source.indexOf("await session.evaluate(earlyPayloadFor", registrationStart);
-const probeStart = source.indexOf("const probe = await waitForCodexProbe", registrationStart);
+const probeStart = source.indexOf("const probe = await probeSession", registrationStart);
 assert.ok(registrationStart >= 0 && evaluateStart > registrationStart && probeStart > evaluateStart,
   "New targets must register and run the early payload before full shell probing.");
 assert.match(source, /attachLoadFallback\(target.id, target, session\)/,
@@ -82,3 +93,51 @@ assert.match(source, /Page\.removeScriptToEvaluateOnNewDocument/,
   "Watcher shutdown and theme refresh must unregister persistent Page scripts.");
 
 console.log("PASS: Windows early injection is shell-guarded, generation-safe, ordered before probing, and fallback-scoped.");
+
+const watchSource = source.slice(source.indexOf('async function runWatch'), source.indexOf('\nif (path.resolve(process.argv[1]'));
+for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
+  const events = new EventEmitter();
+  const calls = [];
+  let clock = 0, probes = 0, pauseChecks = 0;
+  const anchor = {closed:false, close() {this.closed = true;}};
+  const stop = () => events.emit('SIGTERM');
+  const session = {
+    closed:false,
+    async evaluate(expression) {calls.push(expression.includes('GENERATION__ = null') ? 'cancel' : 'evaluate'); return true;},
+    on() {},
+    close() {this.closed = true; calls.push('close'); if (['auxiliary','pause'].includes(mode)) stop();},
+  };
+  const context = {
+    process:events, Date:{now:() => clock}, STRONG_THEME_AUDIT_MS:30000,
+    console:{error() {}, log() {if (mode === 'late-shell') stop();}},
+    setTimeout(callback, ms) {clock += ms; if(mode === 'stop') stop(); return setImmediate(callback);},
+    async connectBrowserIdentityAnchor() {return anchor;},
+    async loadPayload() {return {fingerprint:'fixture', sourceStamp:'stamp', payload:'', theme:{id:'fixture'}, videoSource:{}};},
+    async fileExists() {return mode === 'pause' && ++pauseChecks > 2;},
+    async readThemeSourceStamp() {return 'stamp';},
+    async listAppTargets() {return [{id:'fixture'}];},
+    async connectTarget() {calls.push('connect'); return session;},
+    async registerEarlyPayload() {calls.push('register'); return 'early';},
+    earlyPayloadFor() {return '';},
+    async removeEarlyPayload() {calls.push('unregister');},
+    async probeSession() {probes++; return {codex:mode === 'late-shell' && probes > 2, readyState:'complete'};},
+    async attachVideoToSession() {calls.push('video');},
+    async applyToSession() {calls.push('apply');},
+    CdpIdentityMismatchError:class extends Error {},
+  };
+  await vm.runInNewContext(watchSource + '\nrunWatch({port:9335})', context);
+  assert.equal(calls.filter(call => call === 'connect').length, 1, `${mode}: retain the original pending connection`);
+  assert.equal(calls.filter(call => call === 'register').length, 1);
+  if (mode === 'late-shell') {
+    assert.equal(probes, 3);
+    assert.equal(calls.filter(call => call === 'video').length, 1);
+    assert.equal(calls.includes('apply'), false, 'Do not replace artwork that early injection already installed.');
+  } else {
+    assert.ok(calls.includes('cancel'));
+    assert.ok(calls.includes('unregister'));
+    assert.ok(calls.indexOf('cancel') < calls.indexOf('unregister'));
+    assert.ok(calls.indexOf('unregister') < calls.indexOf('close'));
+  }
+  assert.equal(anchor.closed, true);
+}
+console.log('PASS: late native shells retain early injection; expiry, pause and shutdown cancel pending observers.');

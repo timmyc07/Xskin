@@ -8,12 +8,12 @@ Bring your favorite images and original 4K videos into Codex.<br>
 Import, preview, and apply from native macOS and Flutter Windows apps.
 
 [![Version](https://img.shields.io/badge/version-1.6.1-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)
-[![Windows](https://img.shields.io/badge/Windows-1.5.4-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.4)
+[![Windows](https://img.shields.io/badge/Windows-1.5.5-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.5)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.4/Xskin-1.5.4-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.5/Xskin-1.5.5-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
@@ -81,9 +81,11 @@ Windows 1.5.2 avoids rescanning the whole page for ordinary message updates. In 
 
 These are **load-time** improvements included in the **1.5.3 Windows ZIP**. Lower GPU use and sustained playback memory have not been established. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
 
+**Windows 1.5.5** fixes black panel previews when replacing one video with another and adopts macOS 1.6.1 native Work detection and earlier guarded injection. Original video quality and frame rate are retained.
+
 **Windows 1.5.4** includes video backgrounds in the main-window **Your dot** conversation, embedded ChatGPT/Work and Dot floating control cards. The conversation reveals the existing original video and keeps native message bubbles without duplicate full-row panels. Verification rejects opaque inner messaging layers. Work follows native container visibility and pauses the covered Codex player. Floating Dot cards share one player clipped to their rounded visible bounds; the surrounding desktop stays transparent.
 
-Live 60-second tests preserved **3840×2160**, playback rate **1**, approximately **30 fps** and **zero additional dropped frames** in both the main-window Dot conversation and floating cards. These fixes are included in the **1.5.4 Windows ZIP**. Sustained GPU/private-memory savings remain unproven; the poster-release experiment was discarded.
+Live 60-second tests preserved **3840×2160**, playback rate **1**, approximately **30 fps** and **zero additional dropped frames** in both the main-window Dot conversation and floating cards. These fixes are included in the **1.5.5 Windows ZIP**. Sustained GPU/private-memory savings remain unproven; the poster-release experiment was discarded.
 
 ## Supported media
 
@@ -113,7 +115,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Installation | Extract the complete Windows ZIP, or move Xskin.app to Applications on macOS |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- Releases are platform-specific: **windows-v1.5.4** for Windows x64 and **v1.6.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
+- Releases are platform-specific: **windows-v1.5.5** for Windows x64 and **v1.6.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
 - macOS automatic startup supports the original official app. Each fresh ordinary launch is gracefully reopened once, with an identity/age check and a 30-second loop guard; existing sessions are skipped and refused quits are never forced. Enabling it restores previously managed Dock entries to the official app. The official bundle remains unchanged.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
@@ -152,4 +154,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.4) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)
+**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.5) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)

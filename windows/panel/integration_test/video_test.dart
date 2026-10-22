@@ -52,6 +52,7 @@ void main() {
         '-StateRoot ${quote(stateRoot)}\n',
       );
       final engine = XskinEngine(temporary.path);
+      await engine.command('import', {'path': source});
       await tester.pumpWidget(XskinApp(engine: engine));
       await tester.pumpAndSettle(
         const Duration(milliseconds: 100),
@@ -71,6 +72,12 @@ void main() {
         const Duration(seconds: 30),
       );
       timer.stop();
+      expect(
+        find.descendant(of: find.byType(Video), matching: find.byType(Texture)),
+        findsOneWidget,
+        reason:
+            'A decoded replacement must display a video texture, not a black placeholder.',
+      );
       debugPrint(
         'Panel video import completed in ${timer.elapsedMilliseconds} ms.',
       );
@@ -104,6 +111,10 @@ void main() {
       await tester.tap(find.text('Pause preview'));
       await tester.pump(const Duration(milliseconds: 500));
       expect(player.state.playing, isFalse);
+      expect(
+        find.descendant(of: find.byType(Video), matching: find.byType(Texture)),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     } finally {
       await tester.pumpWidget(const SizedBox());

@@ -463,6 +463,7 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
                   ),
                 if (_video != null)
                   Video(
+                    key: ObjectKey(_video),
                     controller: _video!,
                     fit: BoxFit.contain,
                     controls: NoVideoControls,
