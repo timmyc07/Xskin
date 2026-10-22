@@ -94,32 +94,34 @@ try {
     Get-DreamSkinCodexProcesses -Codex $codexToStop
   }
   $closedExistingCodex = $false
-  if (-not $debugReady -and $codexProcesses.Count -gt 0) {
-    if ($NewLaunchPid) {
-      Stop-DreamSkinNewCodexLaunch -Codex $currentCodex -ProcessId $NewLaunchPid -StartedAt $NewLaunchStartedAt
-    } else {
-      $restartAuthorized = [bool]$RestartExisting
-      if (-not $restartAuthorized -and $PromptRestart) {
-        $restartAuthorized = Confirm-DreamSkinRestart -Message 'Codex must restart once to enable Dream Skin. Unsaved input may be lost. Restart now?'
-        if (-not $restartAuthorized) {
-          throw 'Dream Skin launch was cancelled; Codex was not changed.'
-        }
-      }
-      if (-not $restartAuthorized) {
-        throw 'Codex is open without a verified Dream Skin CDP endpoint. Close it first or explicitly use -RestartExisting.'
-      }
-      Stop-DreamSkinCodex -Codex $codexToStop -AllowForce
-    }
-    $closedExistingCodex = $true
-    $codex = $currentCodex
-  }
-
-  if ($NewLaunchPid -and -not $closedExistingCodex) {
-    throw 'The new Codex launch changed before automatic restart; it was left alone.'
-  }
-
+  $quitRequested = $false
   $launchedWithCdp = $false
   try {
+    if (-not $debugReady -and $codexProcesses.Count -gt 0) {
+      if ($NewLaunchPid) {
+        Stop-DreamSkinNewCodexLaunch -Codex $currentCodex -ProcessId $NewLaunchPid -StartedAt $NewLaunchStartedAt -QuitRequested ([ref]$quitRequested)
+      } else {
+        $restartAuthorized = [bool]$RestartExisting
+        if (-not $restartAuthorized -and $PromptRestart) {
+          $restartAuthorized = Confirm-DreamSkinRestart -Message 'Codex must restart once to enable Dream Skin. Unsaved input may be lost. Restart now?'
+          if (-not $restartAuthorized) {
+            throw 'Dream Skin launch was cancelled; Codex was not changed.'
+          }
+        }
+        if (-not $restartAuthorized) {
+          throw 'Codex is open without a verified Dream Skin CDP endpoint. Close it first or explicitly use -RestartExisting.'
+        }
+        $quitRequested = $true
+        Stop-DreamSkinCodex -Codex $codexToStop -AllowForce
+      }
+      $closedExistingCodex = $true
+      $codex = $currentCodex
+    }
+
+    if ($NewLaunchPid -and -not $closedExistingCodex) {
+      throw 'The new Codex launch changed before automatic restart; it was left alone.'
+    }
+
     if ($null -eq (Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex)) {
       if (-not (Test-DreamSkinPortAvailable -Port $Port)) {
         if ($PortExplicit) { throw "Port $Port is already occupied by an unverified listener. Choose another port." }
@@ -150,12 +152,14 @@ try {
         Write-Warning 'Launch rollback could not fully close the failed CDP session.'
       }
     }
-    if (($closedExistingCodex -or $launchedWithCdp) -and
-      (Get-DreamSkinCodexProcesses -Codex $codex).Count -eq 0) {
+    $recoveryCodex = if ($quitRequested -and -not $closedExistingCodex) { $codexToStop } else { $codex }
+    if (($quitRequested -or $closedExistingCodex -or $launchedWithCdp) -and
+      (Get-DreamSkinCodexProcesses -Codex $recoveryCodex).Count -eq 0 -and
+      @(Get-DreamSkinRegisteredCodexInstalls | Where-Object { (Get-DreamSkinCodexProcesses -Codex $_).Count -gt 0 }).Count -eq 0) {
       if ($launchedWithCdp) {
         Write-Warning 'Dream Skin launch failed; reopening Codex without a debugging port.'
       }
-      try { $null = Start-DreamSkinCodex -Codex $codex } catch {
+      try { $null = Start-DreamSkinCodex -Codex $recoveryCodex } catch {
         Write-Warning 'Launch rollback could not reopen Codex automatically.'
       }
     }

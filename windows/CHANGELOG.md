@@ -1,5 +1,12 @@
 # Windows Changelog
 
+## Xskin Windows 1.7.1 — 2026-10-22
+
+- Resolve new local tasks through the active composer's official conversation ID while the sidebar still holds a temporary `client-new-thread` ID. Reject ambiguous IDs and route transitions instead of showing another task's usage.
+- Give each overlay installation a stable serializable identity so the CDP bridge keeps its exact-file subscription instead of replacing it every 250ms.
+- Start and stop the fan from official task lifecycle events; use token deltas only to adjust its speed. Completed or interrupted tasks no longer keep spinning for a fixed eight seconds.
+- Cover automatic shutdown with launch recovery so a failure after Codex exits can reopen the app. Preserve identity checks and non-forced shutdown, retain the restart guard when a recovery app is running, and save the last automatic-apply failure for diagnosis.
+
 ## Xskin Windows 1.7.0 — 2026-10-22
 
 - Add a compact token overlay below the Codex task composer: show the current conversation's cumulative tokens, cached input tokens, remaining context percentage, subscription plan and remaining subscription quota when present in official local session logs. Keep missing values visibly unknown; cached tokens are a subset of input tokens, not additional consumption.

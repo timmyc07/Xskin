@@ -9,11 +9,11 @@ const MAX_READ_BYTES = 1024 * 1024;
 const DISCOVERY_DELAY_MS = 5000;
 const count = value => Number.isSafeInteger(value) && value >= 0;
 const percent = value => Math.max(0, Math.min(100, value));
-const snapshot = (threadId, record, now) => record?.usage ? {
+const snapshot = (threadId, record, now) => record?.usage || Number.isFinite(record?.activityAt) ? {
   threadId, ...record.usage,
   primary: record.primary?.resetsAt * 1000 > now ? record.primary : null,
   secondary: record.secondary?.resetsAt * 1000 > now ? record.secondary : null,
-  planType: record.planType, sampledAt: record.sampledAt,
+  planType: record.planType, sampledAt: record.sampledAt ?? record.activityAt, running: record.running,
 } : null;
 
 function limitWindow(value) {
@@ -27,10 +27,17 @@ function limitWindow(value) {
 }
 
 function readEvent(line, record, now) {
-  if (!line.includes('"token_count"')) return;
+  if (!/"(?:token_count|task_started|task_complete|turn_aborted)"/.test(line)) return;
   let event;
   try { event = JSON.parse(line); } catch { return; }
-  if (event.type !== "event_msg" || event.payload?.type !== "token_count") return;
+  if (event.type !== "event_msg") return;
+  if (["task_started", "task_complete", "turn_aborted"].includes(event.payload?.type)) {
+    record.running = event.payload.type === "task_started";
+    const timestamp = Date.parse(event.timestamp);
+    record.activityAt = Number.isFinite(timestamp) ? timestamp : now;
+    return;
+  }
+  if (event.payload?.type !== "token_count") return;
   const { info, rate_limits: limits } = event.payload;
   const totals = info?.total_token_usage;
   if (totals && [totals.total_tokens, totals.input_tokens, totals.cached_input_tokens,
@@ -60,6 +67,40 @@ function readEvent(line, record, now) {
     record.secondary = limitWindow(limits.secondary);
     record.planType = typeof limits.plan_type === "string" && /^[a-z][a-z0-9_-]{0,39}$/i.test(limits.plan_type)
       ? limits.plan_type : null;
+  }
+}
+
+async function readEarlierActivity(handle, end, minimum, completeFirstLine, record, now) {
+  let pending = Buffer.alloc(0);
+  let discard = true;
+  const accept = bytes => {
+    if (bytes.length > MAX_READ_BYTES) return false;
+    const line = bytes.toString("utf8");
+    if (!/"type"\s*:\s*"(?:task_started|task_complete|turn_aborted)"/.test(line)) return false;
+    const activity = { activityAt: null };
+    readEvent(line, activity, now);
+    if (activity.activityAt === null) return false;
+    record.running = activity.running;
+    record.activityAt = activity.activityAt;
+    return true;
+  };
+  while (end > minimum) {
+    const start = Math.max(minimum, end - MAX_READ_BYTES);
+    const bytes = Buffer.alloc(end - start);
+    const { bytesRead } = await handle.read(bytes, 0, bytes.length, start);
+    if (!bytesRead) return;
+    const data = Buffer.concat([bytes.subarray(0, bytesRead), pending]);
+    let lineEnd = data.length;
+    for (let newline = data.lastIndexOf(10); newline !== -1;
+      newline = lineEnd > 0 ? data.lastIndexOf(10, lineEnd - 1) : -1) {
+      if (!discard && accept(data.subarray(newline + 1, lineEnd))) return;
+      discard = false;
+      lineEnd = newline;
+    }
+    if (start === minimum && completeFirstLine && !discard && accept(data.subarray(0, lineEnd))) return;
+    discard ||= lineEnd > MAX_READ_BYTES;
+    pending = discard ? Buffer.alloc(0) : Buffer.from(data.subarray(0, lineEnd));
+    end = start;
   }
 }
 
@@ -150,15 +191,21 @@ export class TokenUsageReader {
           const filename = typeof threadId === "string" && THREAD_ID.test(threadId)
             ? await this.findSession(threadId.toLowerCase()) : null;
           if (closed) break;
-          if (filename && (!watcher || watchedPath !== filename)) {
+          const target = filename ?? this.sessionsRoot;
+          if (typeof threadId === "string" && THREAD_ID.test(threadId) && (!watcher || watchedPath !== target)) {
             watcher?.close();
-            watchedPath = filename;
+            watchedPath = target;
             try {
-              // Filter the containing directory so file replacement keeps the same exact-thread subscription.
-              const activeWatcher = watch(path.dirname(filename), (_event, changed) => {
-                if (!changed || String(changed) === path.basename(filename)) schedule();
+              // Discover the exact new file, then watch its directory so replacement keeps the subscription.
+              const activeWatcher = watch(filename ? path.dirname(filename) : target, { recursive: !filename }, (_event, changed) => {
+                const name = changed ? path.basename(String(changed)) : null;
+                if (!name || (filename ? name === path.basename(filename) : name.match(SESSION_FILE)?.[1]?.toLowerCase() === threadId.toLowerCase())) {
+                  this.misses.delete(threadId.toLowerCase());
+                  schedule();
+                }
               });
               watcher = activeWatcher;
+              if (!filename) this.misses.delete(threadId.toLowerCase());
               activeWatcher.on("error", () => {
                 activeWatcher.close();
                 if (watcher === activeWatcher) { watcher = null; schedule(); }
@@ -208,13 +255,17 @@ export class TokenUsageReader {
       if (!record || record.identity !== identity || stat.size < record.offset ||
         (stat.size === record.offset && (stat.mtimeMs !== record.mtimeMs || stat.ctimeMs !== record.ctimeMs))) {
         record = { identity, offset: 0, pending: Buffer.alloc(0), skipFirst: false, usage: null,
-          primary: null, secondary: null, planType: null, sampledAt: null };
+          primary: null, secondary: null, planType: null, sampledAt: null, running: false, activityAt: null };
         this.records.set(threadId, record);
         while (this.records.size > 16) this.records.delete(this.records.keys().next().value);
       }
       if (stat.size > record.offset) {
+        let recoveryStart = null;
+        const completeFirstLine = !record.skipFirst;
+        const previousActivityAt = record.activityAt;
         if (stat.size - record.offset > MAX_READ_BYTES) {
           // shortcut: attach reads the last 1 MiB; wait for a new event if no usage fits in that tail.
+          recoveryStart = record.offset - record.pending.length;
           record.offset = stat.size - MAX_READ_BYTES;
           record.pending = Buffer.alloc(0);
           record.skipFirst = true;
@@ -233,6 +284,10 @@ export class TokenUsageReader {
         if (record.pending.length > MAX_READ_BYTES) {
           record.pending = Buffer.alloc(0);
           record.skipFirst = true;
+        }
+        // Recover skipped lifecycle events without revisiting previously parsed history.
+        if (recoveryStart !== null && record.activityAt === previousActivityAt) {
+          await readEarlierActivity(handle, stat.size, recoveryStart, completeFirstLine, record, this.now());
         }
       }
       record.mtimeMs = stat.mtimeMs;

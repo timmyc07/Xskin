@@ -36,7 +36,7 @@ let currentUsage = {visible:true, threadId:'thread-a', installation:'one'};
 const subscriptions = [];
 const delivered = [];
 const liveSession = {closed:false, async evaluate(expression) {
-  if (expression === 'window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()') return {...currentUsage};
+  if (expression === 'window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()') return JSON.parse(JSON.stringify(currentUsage));
   return vm.runInNewContext(expression, {window:{__CODEX_DREAM_SKIN_STATE__:{usageOverlay:{
     request:() => currentUsage, update:value => delivered.push(value),
   }}}});
@@ -50,6 +50,8 @@ const liveReader = {watch(threadId, onSnapshot) {
 const liveOverlay = watchUsageOverlay(liveSession, liveReader);
 try {
   await until(() => delivered.length === 1);
+  await delay(550);
+  assert.equal(subscriptions.length, 1, 'Repeated CDP-serialized requests must retain the active file subscription.');
   currentUsage = {...currentUsage, threadId:'thread-b'};
   await until(() => subscriptions.length === 2 && delivered.at(-1)?.threadId === 'thread-b');
   assert.equal(subscriptions[0].closed, true, 'Switching threads closes the old exact-file watcher.');

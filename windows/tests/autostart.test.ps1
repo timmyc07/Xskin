@@ -94,6 +94,8 @@ if ([IO.Path]::GetFullPath($StateRoot).TrimEnd('\') -ine $expectedStateRoot.Trim
   throw 'Automatic apply did not forward its custom state root.'
 }
 [IO.File]::AppendAllText((Join-Path $PSScriptRoot '..\..\handoffs.txt'), "$NewLaunchPid`n")
+$failure = Join-Path $StateRoot 'handoff-failure.txt'
+if (Test-Path -LiteralPath $failure) { throw [IO.File]::ReadAllText($failure) }
 '@)
   $context = @{ Seen = @{}; LastHandoff = [datetimeoffset]::MinValue; State = [pscustomobject]@{lastHandoff=''} }
   $fakeProcess.MainWindowHandle = [IntPtr]::Zero
@@ -115,6 +117,42 @@ if ([IO.Path]::GetFullPath($StateRoot).TrimEnd('\') -ine $expectedStateRoot.Trim
   if (@(Get-Content -LiteralPath $handoffs).Count -ne 1) { throw 'Pause/resume restarted an already-open window.' }
   Invoke-DreamSkinAutostartStep -Candidates @() -Context $context -StateRoot $stateRoot
   if ($context.Seen.Count -ne 0) { throw 'Exited launches were retained forever.' }
+
+  $context.LastHandoff = [datetimeoffset]::MinValue
+  $remaining = @()
+  $failurePath = Join-Path $stateRoot 'handoff-failure.txt'
+  [IO.File]::WriteAllText($failurePath, 'fixture automatic apply failure ' + ('x' * 5000))
+  Invoke-DreamSkinAutostartStep -Candidates @($fakeProcess) -Context $context -StateRoot $stateRoot 3>$null
+  Invoke-DreamSkinAutostartStep -Candidates @($fakeProcess) -Context $context -StateRoot $stateRoot 3>$null
+  if (@(Get-Content -LiteralPath $handoffs).Count -ne 2 -or $context.LastHandoff -ne [datetimeoffset]::MinValue -or
+    [datetimeoffset](Read-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json')).lastHandoff -ne [datetimeoffset]::MinValue) {
+    throw 'An unrecovered failure must keep its own launch seen and clear the persisted guard for a fresh user launch.'
+  }
+  $diagnostic = Read-DreamSkinUtf8File -Path (Join-Path $stateRoot 'autostart-error.log')
+  if ($diagnostic.Length -gt 4098 -or $diagnostic -notmatch 'fixture automatic apply failure' -or $diagnostic -notmatch '12345:') {
+    throw 'Automatic apply did not save a bounded failure diagnostic with the failed process identity.'
+  }
+  Remove-Item -LiteralPath $failurePath
+  $fakeProcess.Id = 12346
+  $launchInfo.ProcessId = 12346
+  Invoke-DreamSkinAutostartStep -Candidates @($fakeProcess) -Context $context -StateRoot $stateRoot
+  if (@(Get-Content -LiteralPath $handoffs).Count -ne 3) { throw 'A distinct user launch was suppressed after an unrecovered handoff failure.' }
+
+  $context.Seen.Clear()
+  $context.LastHandoff = [datetimeoffset]::MinValue
+  $remaining = @($launchInfo)
+  [IO.File]::WriteAllText($failurePath, 'fixture recovered handoff failure')
+  Invoke-DreamSkinAutostartStep -Candidates @($fakeProcess) -Context $context -StateRoot $stateRoot 3>$null
+  $fakeProcess.Id = 12347
+  $launchInfo.ProcessId = 12347
+  Invoke-DreamSkinAutostartStep -Candidates @($fakeProcess) -Context $context -StateRoot $stateRoot
+  if (@(Get-Content -LiteralPath $handoffs).Count -ne 4 -or $context.LastHandoff -eq [datetimeoffset]::MinValue) {
+    throw 'A failure that left Codex open did not retain the restart-loop guard.'
+  }
+  $diagnostic = Read-DreamSkinUtf8File -Path (Join-Path $stateRoot 'autostart-error.log')
+  if ($diagnostic -notmatch 'fixture recovered handoff failure' -or $diagnostic -match 'xxxxxxxx') {
+    throw 'The automatic-apply diagnostic did not replace the previous failure.'
+  }
 
   foreach ($name in $realFunctions.Keys) { Set-Item -Path "Function:\$name" -Value $realFunctions[$name] }
   Remove-Item Function:\Get-CimInstance
@@ -317,4 +355,4 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt, [string]$StateRoot)
   if (-not $fullPath.StartsWith([IO.Path]::GetTempPath(), [StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected cleanup path.' }
   Remove-Item -LiteralPath $fullPath -Recurse -Force
 }
-Write-Host 'PASS: native-launch identity/age/session checks, graceful refusal, duplicate/loop guards, pause, real scheduled monitor lifecycle, engine replacement, foreign-task preservation, rollback, shortcut migration and login launch ordering.'
+Write-Host 'PASS: native-launch identity/age/session checks, graceful refusal, duplicate/loop guards, failed-handoff recovery and diagnostics, pause, real scheduled monitor lifecycle, engine replacement, foreign-task preservation, rollback, shortcut migration and login launch ordering.'

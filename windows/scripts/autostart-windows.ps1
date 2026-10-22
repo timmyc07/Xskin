@@ -166,8 +166,8 @@ function Test-DreamSkinNewCodexLaunch {
 }
 
 function Stop-DreamSkinNewCodexLaunch {
-  param([object]$Codex, [int]$ProcessId, [string]$StartedAt)
-  if (-not (Test-DreamSkinNewCodexLaunch @PSBoundParameters)) { throw 'The newly launched Codex identity or launch age changed; automatic restart was skipped.' }
+  param([object]$Codex, [int]$ProcessId, [string]$StartedAt, [ref]$QuitRequested)
+  if (-not (Test-DreamSkinNewCodexLaunch -Codex $Codex -ProcessId $ProcessId -StartedAt $StartedAt)) { throw 'The newly launched Codex identity or launch age changed; automatic restart was skipped.' }
   $mainProcesses = @(Get-DreamSkinCodexProcesses -Codex $Codex | Where-Object {
     $_.CommandLine -notmatch '(?i)(?:^|[\s"])--type(?:[=\s"]|$)'
   })
@@ -179,6 +179,7 @@ function Stop-DreamSkinNewCodexLaunch {
     -not (Test-DreamSkinPathEqual -Left $process.Path -Right $Codex.Executable)) {
     throw 'The Codex process changed before automatic restart.'
   }
+  if ($QuitRequested) { $QuitRequested.Value = $true }
   Request-DreamSkinCodexQuit -Process $process
   if (-not $process.WaitForExit(15000)) { throw 'Codex did not close; automatic restart will not force it.' }
   $deadline = [datetime]::UtcNow.AddSeconds(5)
@@ -193,6 +194,7 @@ function Invoke-DreamSkinAutostartStep {
   $live = @{}
   foreach ($process in $Candidates) {
     $key = $null
+    $handoffStarted = $false
     try {
       $startedAt = $process.StartTime.ToUniversalTime().ToString('o')
       $key = "$($process.Id):$startedAt"
@@ -214,10 +216,25 @@ function Invoke-DreamSkinAutostartStep {
       $Context.LastHandoff = [datetimeoffset]::UtcNow
       $Context.State.lastHandoff = $Context.LastHandoff.ToString('o')
       Write-DreamSkinState -Path (Join-Path $StateRoot 'autostart.json') -State $Context.State
+      $handoffStarted = $true
       & (Join-Path $StateRoot 'engine\scripts\start-dream-skin.ps1') -NewLaunchPid $process.Id -NewLaunchStartedAt $startedAt -StateRoot $StateRoot
     } catch {
+      $failureMessage = $_.Exception.Message
       if ($key) { $Context.Seen[$key] = $true }
-      Write-Warning "Automatic apply failed; this launch will not be retried: $($_.Exception.Message)"
+      try {
+        if ($handoffStarted -and @(Get-DreamSkinCodexProcesses -Codex $codex | Where-Object {
+          $_.CommandLine -and $_.CommandLine -notmatch '(?i)(?:^|[\s"])--type(?:[=\s"]|$)'
+        }).Count -eq 0) {
+          $Context.LastHandoff = [datetimeoffset]::MinValue
+          $Context.State.lastHandoff = $Context.LastHandoff.ToString('o')
+          Write-DreamSkinState -Path (Join-Path $StateRoot 'autostart.json') -State $Context.State
+        }
+        $failurePath = Join-Path $StateRoot 'autostart-error.log'
+        Assert-DreamSkinNoReparseComponents -Path $failurePath
+        $diagnostic = [datetimeoffset]::UtcNow.ToString('o') + " Automatic apply failed ($key): " + $failureMessage
+        Write-DreamSkinUtf8FileAtomically -Path $failurePath -Content ($diagnostic.Substring(0, [Math]::Min(4096, $diagnostic.Length)) + "`r`n")
+      } catch { Write-Warning 'Could not save the automatic-apply failure diagnostic.' }
+      Write-Warning "Automatic apply failed; this launch will not be retried: $failureMessage"
     }
   }
   foreach ($key in @($Context.Seen.Keys)) { if (-not $live.ContainsKey($key)) { $Context.Seen.Remove($key) } }

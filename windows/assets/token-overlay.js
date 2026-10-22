@@ -4,8 +4,11 @@
   if (state?.surface !== "codex") return false;
 
   const ID = "codex-dream-skin-usage";
+  const installation = window.crypto.randomUUID();
   const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
   const threadPattern = new RegExp(`^local:(${UUID})$`, "i");
+  const draftPattern = new RegExp(`^local:client-new-thread:${UUID}$`, "i");
+  const conversationPattern = new RegExp(`^${UUID}$`, "i");
   const chinese = /^zh\b/i.test(document.documentElement.lang);
   const labels = chinese
     ? { total: "Token", cache: "快取", context: "上下文剩餘", quota: "額度剩餘", plan: "方案", input: "輸入", output: "輸出", stale: "資料暫不可用", cacheNote: "快取包含在輸入內", minute: "分", hour: "時", day: "天",
@@ -30,22 +33,18 @@
   let lastReceivedAt = null;
   let disposed = false;
   let rate = 0;
-  let activeUntil = 0;
-  let idleTimer = null;
   let staleTimer = null;
 
   const clearData = () => {
-    clearTimeout(idleTimer);
     clearTimeout(staleTimer);
-    idleTimer = staleTimer = null;
+    staleTimer = null;
     snapshot = null;
     lastReceivedAt = null;
     rate = 0;
-    activeUntil = 0;
   };
   const paintMotion = () => {
     if (!row) return;
-    const spinning = rate > 0 && Date.now() < activeUntil && !document.hidden && !motion.matches;
+    const spinning = snapshot?.running === true && !document.hidden && !motion.matches;
     if (row.dataset.spinning !== String(spinning)) row.dataset.spinning = String(spinning);
     const period = `${Math.max(0.16, 2 / Math.sqrt(1 + rate / 20)).toFixed(3)}s`;
     if (row.style.getPropertyValue("--dream-skin-fan-period") !== period) row.style.setProperty("--dream-skin-fan-period", period);
@@ -69,8 +68,9 @@
     parts.push(`${labels.plan} ${typeof snapshot?.planType === "string" && snapshot.planType ? snapshot.planType : "—"}`);
     const value = parts.join(" · ");
     if (text.textContent !== value) text.textContent = value;
+    const sampledAt = Number.isFinite(snapshot?.totalTokens) ? snapshot.sampledAt : null;
     const title = (snapshot
-      ? `${labels.total} ${count(snapshot.totalTokens)} · ${labels.input} ${count(snapshot.inputTokens)} · ${labels.output} ${count(snapshot.outputTokens)} · ${labels.cache} ${count(snapshot.cachedInputTokens)} · ${labels.cacheNote}\n${labels.sampled} ${date(snapshot.sampledAt)}`
+      ? `${labels.total} ${count(snapshot.totalTokens)} · ${labels.input} ${count(snapshot.inputTokens)} · ${labels.output} ${count(snapshot.outputTokens)} · ${labels.cache} ${count(snapshot.cachedInputTokens)} · ${labels.cacheNote}\n${labels.sampled} ${date(sampledAt)}`
       : labels.stale
     ) + `\n${labels.retention}`;
     if (row.title !== title) row.title = title;
@@ -94,7 +94,7 @@
       : Number.isFinite(totalWrite) && totalWrite >= 0 ? `${labels.totalWrite} ${compact(totalWrite)}` : "";
     const cacheValue = `${labels.hit} ${percent(hit)}${writeLabel ? ` · ${writeLabel}` : ""}`;
     if (cacheText.textContent !== cacheValue) cacheText.textContent = cacheValue;
-    const cacheTitle = `${labels.hitDescription} · ${labels.input} ${count(input)} · ${labels.cache} ${count(cached)}\n${labels.write} ${count(write)} · ${labels.totalWrite} ${count(totalWrite)}\n${labels.sampled} ${date(snapshot?.sampledAt)}\n${labels.retention}`;
+    const cacheTitle = `${labels.hitDescription} · ${labels.input} ${count(input)} · ${labels.cache} ${count(cached)}\n${labels.write} ${count(write)} · ${labels.totalWrite} ${count(totalWrite)}\n${labels.sampled} ${date(sampledAt)}\n${labels.retention}`;
     if (cacheBar.parentElement.title !== cacheTitle) cacheBar.parentElement.title = cacheTitle;
     if (row.dataset.stale !== String(!snapshot)) row.dataset.stale = String(!snapshot);
     paintMotion();
@@ -107,8 +107,13 @@
     const selected = document.querySelectorAll('[data-app-action-sidebar-thread-selected="true"][aria-current="page"]');
     const local = selected.length === 1 && selected[0].getAttribute("data-app-action-sidebar-thread-host-id") === "local" &&
       selected[0].getAttribute("data-app-action-sidebar-thread-kind") === "local";
-    const current = !home && local
-      ? selected[0].getAttribute("data-app-action-sidebar-thread-id")?.match(threadPattern)?.[1]?.toLowerCase() ?? null : null;
+    const selectedId = local ? selected[0].getAttribute("data-app-action-sidebar-thread-id") : null;
+    const selectedThread = selectedId?.match(threadPattern)?.[1]?.toLowerCase() ?? null;
+    const conversationId = page?.querySelector("[data-above-composer-conversation-id]")?.getAttribute("data-above-composer-conversation-id");
+    const conversationThread = conversationPattern.test(conversationId ?? "") ? conversationId.toLowerCase() : null;
+    const current = !home && local && (selectedThread || draftPattern.test(selectedId ?? "")) &&
+      (!selectedThread || !conversationThread || selectedThread === conversationThread)
+      ? conversationThread ?? selectedThread : null;
     if (current !== threadId) {
       threadId = current;
       clearData();
@@ -150,7 +155,7 @@
     if (anchor.nextElementSibling !== row) anchor.insertAdjacentElement("afterend", row);
     if (changed) render();
     else paintMotion();
-    return { threadId, visible: !document.hidden, installation: state.installToken };
+    return { threadId, visible: !document.hidden, installation };
   };
   const update = next => {
     request();
@@ -162,16 +167,12 @@
     }
     if (!next || next.threadId !== threadId || !Number.isFinite(next.sampledAt) ||
       next.sampledAt > Date.now() + 5000 || (snapshot && next.sampledAt < snapshot.sampledAt)) return false;
-    if (snapshot && next.sampledAt > snapshot.sampledAt && Date.now() - next.sampledAt < 8000 &&
+    if (snapshot?.running && next.running && next.sampledAt > snapshot.sampledAt &&
       Number.isFinite(next.totalTokens) && Number.isFinite(snapshot.totalTokens) &&
       next.totalTokens > snapshot.totalTokens) {
       rate = (next.totalTokens - snapshot.totalTokens) / ((next.sampledAt - snapshot.sampledAt) / 1000);
-      activeUntil = Date.now() + 8000;
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => { rate = 0; idleTimer = null; paintMotion(); }, 8000);
-    } else if (!snapshot || !Number.isFinite(next.totalTokens) || next.totalTokens < snapshot.totalTokens) {
+    } else if (!next.running || !snapshot?.running || !Number.isFinite(next.totalTokens) || next.totalTokens < snapshot.totalTokens) {
       rate = 0;
-      activeUntil = 0;
     }
     snapshot = next;
     lastReceivedAt = Date.now();

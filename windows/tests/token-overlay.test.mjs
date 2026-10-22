@@ -10,6 +10,7 @@ const OTHER = "01a161f4-8a44-7f02-9cee-9c9f8b750414";
 function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   let now = 1000000;
   let nextTimer = 0;
+  let installations = 0;
   const timers = new Map();
   const listeners = new Map();
   const motionListeners = new Map();
@@ -69,14 +70,22 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   selected.setAttribute("data-app-action-sidebar-thread-id", `local:${THREAD}`);
   selected.setAttribute("data-app-action-sidebar-thread-host-id", "local");
   selected.setAttribute("data-app-action-sidebar-thread-kind", "local");
-  const data = { composerVisible: true, home: false, selected: [selected] };
+  const conversation = new Element();
+  const data = { composerVisible: true, home: false, selected: [selected], conversationId: null };
   const document = {
     hidden: false,
     documentElement: { lang },
     createElement: () => new Element(),
     querySelector(selector) {
       assert.equal(selector, '[data-app-shell-active-page="true"]');
-      return { querySelector: () => data.home ? {} : null };
+      return { querySelector: selector => {
+        if (selector === "[data-above-composer-conversation-id]") {
+          if (!data.conversationId) return null;
+          conversation.setAttribute("data-above-composer-conversation-id", data.conversationId);
+          return conversation;
+        }
+        return data.home ? {} : null;
+      } };
     },
     querySelectorAll(selector) {
       if (selector === "[data-composer-body]") return [inactiveComposer, composer];
@@ -94,7 +103,8 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   const state = { surface };
   const context = vm.createContext({
     document,
-    window: { __CODEX_DREAM_SKIN_STATE__: state, matchMedia: () => motion },
+    window: { __CODEX_DREAM_SKIN_STATE__: state, matchMedia: () => motion,
+      crypto: { randomUUID: () => `overlay-${++installations}` } },
     Date: { now: () => now },
     Intl,
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, due: now + delay }); return id; },
@@ -122,7 +132,7 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
     sample(overrides = {}) {
       return { threadId: THREAD, totalTokens: 1000, inputTokens: 800, cachedInputTokens: 600, outputTokens: 200,
         contextRemainingPercent: 75.4, primary: { remainingPercent: 86.2, windowMinutes: 300 },
-        secondary: { remainingPercent: 92, windowMinutes: 10080 }, planType: "pro", sampledAt: now, ...overrides };
+        secondary: { remainingPercent: 92, windowMinutes: 10080 }, planType: "pro", sampledAt: now, running: false, ...overrides };
     },
   };
 }
@@ -135,15 +145,17 @@ assert.equal(f.overlay.update(f.sample()), true);
 assert.match(f.text, /Token 1,000.*快取 600.*上下文剩餘 75\.4%.*5時 額度剩餘 86\.2%.*7天 額度剩餘 92%.*方案 pro/);
 assert.match(f.row.title, /輸入 800.*輸出 200.*快取包含在輸入內/);
 assert.equal(f.overlay.status().spinning, false, "Loading history must not animate as new consumption");
+f.overlay.update(f.sample({ running: true }));
+assert.equal(f.overlay.status().spinning, true, "Starting a task spins immediately before its next usage event");
 f.advance(2000);
-f.overlay.update(f.sample({ totalTokens: 1200, cachedInputTokens: 700 }));
+f.overlay.update(f.sample({ totalTokens: 1200, cachedInputTokens: 700, running: true }));
 assert.equal(f.overlay.status().tokensPerSecond, 100, "Cached input is a subset, never added to total consumption");
 assert.equal(f.overlay.status().spinning, true);
 const slowPeriod = parseFloat(f.row.style.getPropertyValue("--dream-skin-fan-period"));
 f.advance(2000);
-f.overlay.update(f.sample({ totalTokens: 2200 }));
+f.overlay.update(f.sample({ totalTokens: 2200, running: true }));
 assert.ok(parseFloat(f.row.style.getPropertyValue("--dream-skin-fan-period")) < slowPeriod);
-assert.equal(f.timers.size, 2, "Only idle/stale one-shot timers are needed, with no per-frame JavaScript");
+assert.equal(f.timers.size, 1, "Only the host heartbeat timeout is needed, with no per-frame JavaScript");
 
 f.document.hidden = true;
 f.listeners.get("visibilitychange")();
@@ -159,8 +171,11 @@ f.motion.matches = false;
 f.motionListeners.get("change")();
 assert.equal(f.overlay.status().spinning, true);
 f.advance(8000);
-assert.equal(f.overlay.status().spinning, false, "A quiet conversation stops the fan");
-f.advance(7000);
+assert.equal(f.overlay.status().spinning, true, "Tool work keeps the fan spinning without another token event");
+f.overlay.update(f.sample({ totalTokens: 2200 }));
+assert.equal(f.overlay.status().spinning, false, "Completion stops the fan immediately without a fixed eight-second tail");
+assert.equal(f.overlay.status().tokensPerSecond, 0);
+f.advance(15000);
 assert.equal(f.overlay.status().stale, true);
 assert.match(f.text, /Token —/);
 assert.equal(f.timers.size, 0);
@@ -196,6 +211,28 @@ f.data.selected = [f.selected];
 f.selected.setAttribute("data-app-action-sidebar-thread-id", "local:../../auth.json");
 assert.equal(f.overlay.request().threadId, null);
 
+f.data.conversationId = THREAD.toUpperCase();
+f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:client-new-thread:${OTHER}`);
+assert.equal(f.overlay.request().threadId, THREAD, "The active composer resolves a newly created task's real UUID");
+f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${OTHER}`);
+assert.equal(f.overlay.request().threadId, null, "A transitioning composer never reports a different selected task's usage");
+f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${THREAD}`);
+assert.equal(f.overlay.request().threadId, THREAD);
+f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "remote");
+assert.equal(f.overlay.request().threadId, null, "An active composer UUID never overrides a remote thread host");
+f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "local");
+f.selected.setAttribute("data-app-action-sidebar-thread-id", "local:../../auth.json");
+assert.equal(f.overlay.request().threadId, null);
+f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:client-new-thread:${OTHER}`);
+f.data.conversationId = "../../auth.json";
+assert.equal(f.overlay.request().threadId, null);
+f.data.conversationId = null;
+
+const installation = JSON.parse(JSON.stringify(f.overlay.request())).installation;
+assert.equal(typeof installation, "string");
+assert.equal(JSON.parse(JSON.stringify(f.overlay.request())).installation, installation,
+  "CDP serialization preserves the installation identity instead of creating a new object each tick");
+
 f.data.composerVisible = false;
 assert.equal(f.overlay.request().visible, false);
 assert.equal(f.row, null);
@@ -203,6 +240,7 @@ f.data.composerVisible = true;
 f.overlay.request();
 const old = f.overlay;
 f.install();
+assert.notEqual(f.overlay.request().installation, installation, "Reinstallation changes the primitive identity");
 assert.equal(f.parent.children.length, 2, "Reinstallation removes the previous row");
 assert.equal(f.listeners.size, 1);
 assert.equal(f.motionListeners.size, 1);
@@ -235,6 +273,12 @@ history.overlay.update(historical);
 assert.equal(history.overlay.update(null), true);
 assert.equal(history.overlay.status().stale, true, "An unavailable host result clears current data immediately");
 assert.match(history.text, /Token —/);
+const starting = fixture();
+assert.equal(starting.overlay.update({ threadId: THREAD, sampledAt: 1000000, running: true }), true);
+assert.equal(starting.overlay.status().spinning, true, "The first turn can animate before any token count exists");
+assert.match(starting.text, /Token —/);
+assert.match(starting.row.title, /Token 事件更新 —/, "A lifecycle event never displays an invented token sample time");
+starting.overlay.dispose();
 const cache = fixture();
 assert.match(cache.cacheText, /最近快取 —/);
 assert.equal(cache.cacheBar.getAttribute("role"), "progressbar");

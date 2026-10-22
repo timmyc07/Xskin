@@ -32,6 +32,7 @@ const usage = (total = 1200, changes = {}) => JSON.stringify({
     ...changes,
   },
 });
+const lifecycle = type => JSON.stringify({ timestamp: "2026-10-22T08:55:00Z", type: "event_msg", payload: { type } });
 const until = async predicate => {
   const deadline = Date.now() + 1500;
   while (!predicate() && Date.now() < deadline) await delay(5);
@@ -51,9 +52,18 @@ try {
     cacheWriteInputTokens: null, lastInputTokens: null, lastCachedInputTokens: null, lastCacheWriteInputTokens: null,
     primary: { remainingPercent: 39, windowMinutes: 10080, resetsAt: 1793084543 },
     secondary: { remainingPercent: 87.5, windowMinutes: 300, resetsAt: 1792660000 },
-    planType: "prolite", sampledAt: now,
+    planType: "prolite", sampledAt: now, running: false,
   });
   assert.deepEqual(await reader.read(threadId), first, "Unchanged snapshots must not add tokens or resample time.");
+
+  await fs.appendFile(filename, `${lifecycle("task_started")}\n`);
+  const running = await reader.read(threadId);
+  assert.equal(running.running, true, "A task starts before its next token event");
+  assert.equal(running.sampledAt, first.sampledAt, "Lifecycle notifications do not invent token samples");
+  await fs.appendFile(filename, `${lifecycle("task_complete")}\n`);
+  assert.equal((await reader.read(threadId)).running, false);
+  await fs.appendFile(filename, `${lifecycle("task_started")}\n${lifecycle("turn_aborted")}\n`);
+  assert.equal((await reader.read(threadId)).running, false, "An interrupted task stops immediately");
 
   const next = usage(1400);
   await fs.appendFile(filename, next.slice(0, next.length - 10));
@@ -153,6 +163,110 @@ try {
     await delay(80);
     assert.equal(notifications.length, afterClose, "Closing a subscription cancels further pushes");
   } finally { watched.close(); }
+
+  const newThreadId = "01a162d1-2222-7222-8222-222222222222";
+  const newFilename = path.join(directory, `rollout-new-${newThreadId}.jsonl`);
+  const discovered = [];
+  const newTask = reader.watch(newThreadId, value => discovered.push(value));
+  try {
+    await newTask.refresh(true);
+    assert.equal(discovered.at(-1), null);
+    const createdAt = performance.now();
+    await fs.writeFile(newFilename, `${lifecycle("task_started")}\n`);
+    await until(() => discovered.at(-1)?.running === true);
+    assert.ok(performance.now() - createdAt < 500, "New tasks must not wait for the five-second discovery heartbeat");
+    assert.equal(discovered.at(-1).totalTokens, undefined, "Task activity can arrive before the first usage event");
+    await fs.appendFile(newFilename, `${usage(2800)}\n`);
+    await until(() => discovered.at(-1)?.totalTokens === 2800);
+    assert.equal(discovered.at(-1).running, true);
+    await fs.appendFile(newFilename, `${lifecycle("task_complete")}\n`);
+    await until(() => discovered.at(-1)?.running === false);
+  } finally { newTask.close(); }
+
+  const racingId = "01a162d1-3333-7333-8333-333333333333";
+  class RacingDiscoveryReader extends TokenUsageReader {
+    async findSession(id) {
+      const found = await super.findSession(id);
+      if (!this.created) {
+        this.created = true;
+        await fs.writeFile(path.join(directory, `rollout-racing-${id}.jsonl`), `${usage(2900)}\n`);
+      }
+      return found;
+    }
+  }
+  const racingReader = new RacingDiscoveryReader({ codexHome: root, now: () => now });
+  let racingSnapshot;
+  const racing = racingReader.watch(racingId, value => { racingSnapshot = value; });
+  try {
+    await racing.refresh(true);
+    assert.equal(racingSnapshot?.totalTokens, 2900, "A session created between discovery and watch attachment is read immediately");
+  } finally { racing.close(); }
+
+  const historyId = "01a162d1-4444-7444-8444-444444444444";
+  const historyFile = path.join(directory, `rollout-history-${historyId}.jsonl`);
+  const toolOutput = `${JSON.stringify({ type: "response_item", payload: { type: "function_call_output",
+    output: "x".repeat(2 * 1024 * 1024) } })}\n`;
+  const historyReader = new TokenUsageReader({ codexHome: root, now: () => now });
+  const originalOpen = fs.open;
+  let maximumRead = 0;
+  let readBytes = 0;
+  fs.open = async (...arguments_) => {
+    const handle = await originalOpen(...arguments_);
+    const read = handle.read.bind(handle);
+    handle.read = (buffer, offset, length, position) => {
+      maximumRead = Math.max(maximumRead, length);
+      readBytes += length;
+      return read(buffer, offset, length, position);
+    };
+    return handle;
+  };
+  try {
+    const nonEvent = `${JSON.stringify({ type: "response_item", payload: { type: "task_complete" } })}\n`;
+    await fs.writeFile(historyFile, `${lifecycle("task_started")}\n${toolOutput}${nonEvent}${usage(3100)}\n`);
+    const activeHistory = await historyReader.read(historyId);
+    assert.equal(activeHistory.running, true, "A task start beyond the initial 1 MiB usage tail is recovered");
+    assert.equal(activeHistory.totalTokens, 3100, "Backward activity discovery preserves the latest usage totals");
+    const afterBootstrap = readBytes;
+    assert.deepEqual(await historyReader.read(historyId), activeHistory);
+    assert.equal(readBytes, afterBootstrap, "An unchanged session does not repeat backward discovery");
+    await fs.appendFile(historyFile, `${lifecycle("task_complete")}\n${toolOutput}${usage(3200)}\n`);
+    assert.equal((await historyReader.read(historyId)).running, false, "The newest completed marker wins across skipped output chunks");
+    await fs.appendFile(historyFile, `${lifecycle("task_started")}\n${toolOutput}${lifecycle("turn_aborted")}\n${toolOutput}${usage(3300)}\n`);
+    const aborted = await historyReader.read(historyId);
+    assert.equal(aborted.running, false, "Backward discovery stops at an abort before reaching an earlier start");
+    assert.equal(aborted.totalTokens, 3300);
+    assert.ok(maximumRead <= 1024 * 1024, "Lifecycle recovery never increases the per-read memory bound");
+    const beforeIncrement = readBytes;
+    await fs.appendFile(historyFile, `${lifecycle("task_started")}\n`);
+    assert.equal((await historyReader.read(historyId)).running, true);
+    assert.ok(readBytes - beforeIncrement < 1024, "Normal incremental updates do not scan history");
+    const boundaryStart = `${lifecycle("task_started")}\n`;
+    const boundaryUsage = `${usage(3400)}\n`;
+    const boundaryOutput = "x".repeat(1024 * 1024 - Math.floor(boundaryStart.length / 2) - boundaryUsage.length - 1);
+    await fs.writeFile(historyFile, `${boundaryStart}${boundaryOutput}\n${boundaryUsage}`);
+    assert.equal((await historyReader.read(historyId)).running, true, "A lifecycle line split between reverse-read chunks is reconstructed");
+
+    const partialStart = `${lifecycle("task_started")}\n`;
+    const split = Math.floor(partialStart.length / 2);
+    await fs.writeFile(historyFile, `${usage(3500)}\n${partialStart.slice(0, split)}`);
+    assert.equal((await historyReader.read(historyId)).running, false);
+    await fs.appendFile(historyFile, `${partialStart.slice(split)}${toolOutput}${usage(3600)}\n`);
+    assert.equal((await historyReader.read(historyId)).running, true, "Skipped-region recovery includes a lifecycle line partially read before the append");
+
+    await fs.writeFile(historyFile, `${toolOutput.repeat(3)}${usage(3700)}\n`);
+    const markerlessReader = new TokenUsageReader({ codexHome: root, now: () => now });
+    assert.equal((await markerlessReader.read(historyId)).running, false, "Markerless historical sessions remain idle");
+    for (const total of [3800, 3900]) {
+      const appended = `${toolOutput}${usage(total)}\n`;
+      const beforeAppend = readBytes;
+      await fs.appendFile(historyFile, appended);
+      const markerless = await markerlessReader.read(historyId);
+      assert.equal(markerless.running, false);
+      assert.equal(markerless.totalTokens, total);
+      assert.ok(readBytes - beforeAppend <= Buffer.byteLength(appended) + 1024 * 1024,
+        "Large appends to markerless sessions read only new bytes plus the usage-tail overlap");
+    }
+  } finally { fs.open = originalOpen; }
 
   class SerialReader extends TokenUsageReader {
     activeReads = 0;

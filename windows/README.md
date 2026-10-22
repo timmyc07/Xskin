@@ -1,8 +1,8 @@
-# Xskin for Windows 1.7.0 (Flutter)
+# Xskin for Windows 1.7.1 (Flutter)
 
 **[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.6.0/Xskin-1.6.0-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.6.0)
 
-This guide describes the 1.7.0 source and packaged builds. The published download above remains 1.6.0 until a new release is published.
+This guide describes the 1.7.1 source and packaged builds. The published download above remains 1.6.0 until a new release is published.
 
 Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
@@ -81,7 +81,7 @@ flutter test
 flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Current source output: `build/windows/Xskin-1.7.0-windows-x64.zip` and SHA-256 file, including the generated `Install Xskin.exe`. GitHub Actions runs the same build and uploads **Xskin-Windows**. The currently published Windows binaries remain under the separate `windows-v1.6.0` release tag.
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Current source output: `build/windows/Xskin-1.7.1-windows-x64.zip` and SHA-256 file, including the generated `Install Xskin.exe`. GitHub Actions runs the same build and uploads **Xskin-Windows**. The currently published Windows binaries remain under the separate `windows-v1.6.0` release tag.
 
 ## Performance
 

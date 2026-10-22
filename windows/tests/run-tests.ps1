@@ -939,6 +939,9 @@ try {
   $installerTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'installer.test.mjs'))
   if ($installerTest.ExitCode -ne 0) { throw ($installerTest.Output -join "`n") }
+  $startupRollbackTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'startup-rollback.test.mjs'))
+  if ($startupRollbackTest.ExitCode -ne 0) { throw ($startupRollbackTest.Output -join "`n") }
   & (Join-Path $PSScriptRoot 'xskin-theme.test.ps1')
   & (Join-Path $PSScriptRoot 'xskin-parity.test.ps1')
   & (Join-Path $PSScriptRoot 'autostart.test.ps1')
