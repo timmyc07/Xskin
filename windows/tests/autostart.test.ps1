@@ -129,8 +129,8 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt)
       startup = $startup; target = $link.TargetPath; description = $link.Description
       arguments = $link.Arguments; expectedArguments = Get-DreamSkinAutostartArguments -StateRoot $stateRoot
       state = Read-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json')
-      log = [IO.File]::ReadAllText((Join-Path $stateRoot 'autostart.log'))
-      error = [IO.File]::ReadAllText((Join-Path $stateRoot 'autostart-error.log'))
+      log = (Get-Content -LiteralPath (Join-Path $stateRoot 'autostart.log') -Raw -ErrorAction Continue)
+      error = (Get-Content -LiteralPath (Join-Path $stateRoot 'autostart-error.log') -Raw -ErrorAction Continue)
     }
     throw "The real background monitor was not registered and ready: $($diagnostic | ConvertTo-Json -Depth 4 -Compress)"
   }
@@ -186,7 +186,7 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt)
 } catch {
   foreach ($name in @('autostart.log', 'autostart-error.log')) {
     $path = Join-Path $stateRoot $name
-    if (Test-Path -LiteralPath $path) { Write-Host "${name}: $([IO.File]::ReadAllText($path))" }
+    if (Test-Path -LiteralPath $path) { Write-Host "${name}: $(Get-Content -LiteralPath $path -Raw -ErrorAction Continue)" }
   }
   throw
 } finally {
