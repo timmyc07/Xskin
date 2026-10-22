@@ -12,7 +12,7 @@ The 1.8.0 source creates **~/Applications/Codex (Xskin).app**. Fully quit Codex,
 
 The launch preference controls this shortcut only. Paused or disabled shortcuts open ordinary Codex without clearing pause. Explicit Apply resumes the skin. Upgrades retire only the verified old LaunchAgent, restore previously managed Dock entries, and preserve media, language, opacity and pause. New setup never replaces official Dock pins automatically. Installation leaves an open Codex running; full Restore remains an explicitly requested operation.
 
-The task overlay includes the Windows draft-ID, serialized-subscription, lifecycle fan, long-log and new-session-file fixes. The 1.8.0 source is not the older published download above. CDP/CSS authorization remains unconfirmed; unchanged official files do not establish permission. See [evidence, validation and recovery](../docs/direct-launch-shortcut.md).
+The task overlay includes the Windows draft-ID, serialized-subscription, lifecycle fan, long-log and new-session-file fixes. The 1.8.0 source is not the older published download above. CDP/CSS authorization remains unconfirmed; unchanged official files do not establish permission. See [evidence, validation and recovery](https://github.com/timmyc07/Xskin/blob/ae38da7de89471045364de9864ace47aee6772b9/docs/direct-launch-shortcut.md).
 
 See the [product README](../README.md) and [native app user guide](../docs/background-panel.md) for current features, formats, installation, and startup limitations. The sections below document the advanced engine and retained command-line workflows.
 

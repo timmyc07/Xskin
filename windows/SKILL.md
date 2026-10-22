@@ -61,4 +61,4 @@ node --check assets\renderer-inject.js
 - `references/runtime-notes.md`: troubleshooting and update behavior.
 - `tests/run-tests.ps1`: managed runtime, configuration, state, recovery, payload, and CDP validation regression checks. Use `-EngineOnly` for the source-independence contract.
 
-CDP/CSS injection authorization remains unconfirmed; see [validation and recovery](../docs/direct-launch-shortcut.md). Do not claim that loopback or unchanged files establish permission.
+CDP/CSS injection authorization remains unconfirmed; see [validation and recovery](https://github.com/timmyc07/Xskin/blob/ae38da7de89471045364de9864ace47aee6772b9/docs/direct-launch-shortcut.md). Do not claim that loopback or unchanged files establish permission.

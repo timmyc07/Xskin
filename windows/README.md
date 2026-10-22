@@ -32,7 +32,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\restore-dream-sk
 
 任務輸入框下方 overlay 僅讀取目前本機對話的 session 記錄。新對話仍使用暫時側欄 ID 時，改由目前輸入框取得正式 ID；風扇依任務開始、完成與中斷事件控制。長紀錄首次必要時向前尋找任務狀態，後續只讀新增範圍。session 新建／替換、切換、資料隔離及序列化訂閱均有回歸測試。不讀取 `auth.json`、不推測方案或虛構用量。
 
-CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](../docs/direct-launch-shortcut.md)。
+CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](https://github.com/timmyc07/Xskin/blob/ae38da7de89471045364de9864ace47aee6772b9/docs/direct-launch-shortcut.md)。
 
 ## 建置與測試
 

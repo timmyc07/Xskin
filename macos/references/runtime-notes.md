@@ -16,4 +16,4 @@
 - 1.8.0 uses ~/Applications/Codex (Xskin).app. Concurrent clicks serialize through lockf; paused/disabled entries activate ordinary Codex without clearing pause. Existing ordinary apps are left running. Xskin need not remain open.
 - Retire only the matching legacy LaunchAgent; no launch observer remains. A separate marker stores the shortcut preference, independent of the paused session. Restore historical managed Dock pins during migration; pin new entries with the normal system UI.
 - The shared token reader/overlay includes draft IDs, stable serialized installation tokens, task lifecycle events, incremental long history and session-file creation tracking.
-- CDP/CSS authorization remains unconfirmed. Official appearance/plugin documentation does not establish permission for renderer injection; see ../../docs/direct-launch-shortcut.md.
+- CDP/CSS authorization remains unconfirmed. Official appearance/plugin documentation does not establish permission for renderer injection; see https://github.com/timmyc07/Xskin/blob/ae38da7de89471045364de9864ace47aee6772b9/docs/direct-launch-shortcut.md.

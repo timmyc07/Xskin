@@ -12,4 +12,4 @@ Upgrade migrates only verified legacy monitors/tasks, keeps the actual Unicode/c
 
 The four-language panel retains local preview, pending imports, saved themes and independent opacity. The overlay retains exact-conversation usage, draft-to-final IDs, lifecycle-driven fan animation, incremental long-log reads and new-file tracking.
 
-**CDP/CSS injection authorization remains unconfirmed.** Loopback and unchanged official files do not establish official permission. See [evidence, validation and recovery](../docs/direct-launch-shortcut.md), the [Chinese guide](README.md), and [runtime notes](references/runtime-notes.md). No release or compliance certification is implied.
+**CDP/CSS injection authorization remains unconfirmed.** Loopback and unchanged official files do not establish official permission. See [evidence, validation and recovery](https://github.com/timmyc07/Xskin/blob/ae38da7de89471045364de9864ace47aee6772b9/docs/direct-launch-shortcut.md), the [Chinese guide](README.md), and [runtime notes](references/runtime-notes.md). No release or compliance certification is implied.
