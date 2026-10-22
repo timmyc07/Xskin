@@ -104,19 +104,14 @@ function Set-XskinAutostart {
   if ($Enabled) {
     $null = Get-DreamSkinCodexInstall
     $null = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
-    $shell = New-Object -ComObject WScript.Shell
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     Stop-DreamSkinAutostart -StateRoot $StateRoot
     $file = Get-DreamSkinAutostartShortcutPath
     $previous = if (Test-Path -LiteralPath $file) { [IO.File]::ReadAllBytes($file) } else { $null }
     try {
-      $link = $shell.CreateShortcut($file)
-      $link.TargetPath = $powershell
-      $link.Arguments = Get-DreamSkinAutostartArguments -StateRoot $StateRoot
-      $link.WorkingDirectory = $StateRoot
-      $link.Description = 'Xskin official Codex launch monitor'
-      $link.WindowStyle = 7
-      $link.Save()
+      Set-DreamSkinShortcut -Path $file -TargetPath $powershell `
+        -Arguments (Get-DreamSkinAutostartArguments -StateRoot $StateRoot) `
+        -WorkingDirectory $StateRoot -Description 'Xskin official Codex launch monitor'
       Start-DreamSkinAutostart -StateRoot $StateRoot
     } catch {
       if ($null -ne $previous) { [IO.File]::WriteAllBytes($file, $previous) }
@@ -131,7 +126,7 @@ function Set-XskinAutostart {
   foreach ($file in Get-XskinLaunchShortcutPaths) {
     Assert-DreamSkinNoReparseComponents -Path $file
     if (-not (Test-Path -LiteralPath $file)) { continue }
-    $link = (New-Object -ComObject WScript.Shell).CreateShortcut($file)
+    $link = Get-DreamSkinShortcut -Path $file
     if ($link.Description -ceq 'Xskin automatic Codex background launcher' -and
       (Test-DreamSkinCommandLineToken -CommandLine $link.Arguments -Token (Join-Path $StateRoot 'engine\scripts\start-dream-skin.ps1'))) {
       Remove-Item -LiteralPath $file -Force

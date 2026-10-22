@@ -34,7 +34,7 @@ function Get-DreamSkinAutostart {
   $exists = Test-Path -LiteralPath $shortcut
   $owned = $false
   if ($exists) {
-    $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
+    $link = Get-DreamSkinShortcut -Path $shortcut
     $owned = $link.Description -ceq 'Xskin official Codex launch monitor' -and
       (Test-DreamSkinPathEqual -Left $link.TargetPath -Right (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')) -and
       $link.Arguments -ceq (Get-DreamSkinAutostartArguments -StateRoot $StateRoot)

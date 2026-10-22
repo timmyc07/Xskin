@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $root 'scripts\xskin-theme.ps1')
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('xskin-autostart-' + [guid]::NewGuid().ToString('N'))
-$stateRoot = Join-Path $temporary ('state ' + [char]0x4E2D + [char]0x6587)
+$stateRoot = Join-Path $temporary ('state ' + [char]0x4E2D + [char]0x6587 + [char]::ConvertFromUtf32(0x1F311))
 New-Item -ItemType Directory -Path (Join-Path $stateRoot 'engine\scripts') -Force | Out-Null
 $realFunctions = @{}
 foreach ($name in @('Get-CimInstance','Get-Process','Get-DreamSkinCodexInstall','Get-DreamSkinProcessStartedAt','Get-DreamSkinCodexProcesses','Request-DreamSkinCodexQuit')) {
@@ -100,22 +100,22 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt)
   $source = Join-Path $temporary 'source'
   New-Item -ItemType Directory -Path $source | Out-Null
   foreach ($name in @('assets','scripts')) { Copy-Item -LiteralPath (Join-Path $root $name) -Destination $source -Recurse }
-  $startupShortcut = Join-Path $temporary 'startup.lnk'
+  $startupShortcut = Join-Path $temporary ('startup-' + [char]::ConvertFromUtf32(0x1F311) + '.lnk')
   $helpers = Join-Path $source 'scripts\autostart-windows.ps1'
   $helperSource = [IO.File]::ReadAllText($helpers).Replace(
     "Join-Path ([Environment]::GetFolderPath('Startup')) 'Xskin Codex backgrounds.lnk'", "'$($startupShortcut.Replace("'", "''"))'")
   $helperSource += "`nfunction Get-DreamSkinCodexInstall { throw 'Isolated monitor must not manage the real app.' }`n"
-  [IO.File]::WriteAllText($helpers, $helperSource, [Text.UTF8Encoding]::new($false))
+  [IO.File]::WriteAllText($helpers, $helperSource, [Text.UTF8Encoding]::new($true))
   function Get-DreamSkinAutostartShortcutPath { return $startupShortcut }
   $legacyPaths = @((Join-Path $temporary 'desktop.lnk'), (Join-Path $temporary 'start.lnk'))
   function Get-XskinLaunchShortcutPaths { return $legacyPaths }
   function Get-DreamSkinCodexInstall { return $codex }
   $shell = New-Object -ComObject WScript.Shell
-  $old = $shell.CreateShortcut($legacyPaths[0])
-  $old.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  $old.Arguments = '-File "' + (Join-Path $stateRoot 'engine\scripts\start-dream-skin.ps1') + '"'
-  $old.Description = 'Xskin automatic Codex background launcher'
-  $old.Save()
+  Set-DreamSkinShortcut -Path $legacyPaths[0] `
+    -TargetPath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') `
+    -Arguments ('-File "' + (Join-Path $stateRoot 'engine\scripts\start-dream-skin.ps1') + '"') `
+    -WorkingDirectory $stateRoot -Description 'Xskin automatic Codex background launcher'
+  $old = Get-DreamSkinShortcut -Path $legacyPaths[0]
   $foreign = $shell.CreateShortcut($legacyPaths[1])
   $foreign.TargetPath = $old.TargetPath
   $foreign.Description = 'unrelated'
@@ -124,7 +124,7 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt)
   Set-XskinAutostart -Enabled $true -SkillRoot $source -StateRoot $stateRoot
   $startup = Get-XskinAutostart -StateRoot $stateRoot
   if (-not $startup.Enabled -or -not $startup.Loaded) {
-    $link = $shell.CreateShortcut($startupShortcut)
+    $link = Get-DreamSkinShortcut -Path $startupShortcut
     $diagnostic = [pscustomobject]@{
       startup = $startup; target = $link.TargetPath; description = $link.Description
       arguments = $link.Arguments; expectedArguments = Get-DreamSkinAutostartArguments -StateRoot $stateRoot
@@ -174,13 +174,10 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt)
   Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State $validRecord
   Set-XskinAutostart -Enabled $false -SkillRoot $source -StateRoot $stateRoot
   if ((Get-XskinAutostart -StateRoot $stateRoot).Enabled -or -not $after.WaitForExit(5000)) { throw 'Disable left automatic startup enabled.' }
-  $foreign = $shell.CreateShortcut($startupShortcut)
-  $foreign.TargetPath = $old.TargetPath
-  $foreign.Description = 'unrelated'
-  $foreign.Save()
+  Set-DreamSkinShortcut -Path $startupShortcut -TargetPath $old.TargetPath -Arguments '' -WorkingDirectory $stateRoot -Description 'unrelated'
   try { Set-XskinAutostart -Enabled $true -SkillRoot $source -StateRoot $stateRoot; throw 'A foreign startup entry was overwritten.' }
   catch { if ($_.Exception.Message -notmatch 'unrelated automatic-startup') { throw } }
-  if (($shell.CreateShortcut($startupShortcut)).Description -cne 'unrelated') { throw 'A foreign startup entry was changed.' }
+  if ((Get-DreamSkinShortcut -Path $startupShortcut).Description -cne 'unrelated') { throw 'A foreign startup entry was changed.' }
   Remove-Item -LiteralPath $startupShortcut
   [IO.File]::WriteAllText((Join-Path $source 'scripts\watch-codex-launches.ps1'), 'exit 1')
   try { Set-XskinAutostart -Enabled $true -SkillRoot $source -StateRoot $stateRoot; throw 'Monitor startup failure was accepted.' }
