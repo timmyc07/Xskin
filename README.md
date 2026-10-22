@@ -8,12 +8,12 @@ Bring your favorite images and original 4K videos into Codex.<br>
 Import, preview, and apply from native macOS and Flutter Windows apps.
 
 [![Version](https://img.shields.io/badge/version-1.6.1-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)
-[![Windows](https://img.shields.io/badge/Windows-1.5.5-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.5)
+[![Windows](https://img.shields.io/badge/Windows-1.6.0-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.6.0)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.5/Xskin-1.5.5-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.6.0/Xskin-1.6.0-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
@@ -64,9 +64,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-Keep your current background and any pending import on your computer. Turn on **Apply on Codex launch** once. On macOS, open the original official Codex app from Finder, Spotlight, or the Dock. Windows 1.6.0 source builds also support the original app from Start, Desktop or the taskbar. The background monitor gracefully reopens a fresh ordinary launch once to connect your background. Xskin does not need to stay open.
+Keep your current background and any pending import on your computer. Turn on **Apply on Codex launch** once. Open the original official Codex app from Start, Desktop or the taskbar on Windows, or Finder, Spotlight or the Dock on macOS. The background monitor gracefully reopens a fresh ordinary launch once to connect your background. Xskin does not need to stay open.
 
-In Windows 1.6.0, enable the option once in the updated panel to replace the old shortcut-based setup, and use or pin the official Codex app. Existing windows, explicit debug launches and refused closes are left alone. The monitor starts at login without opening Codex; Pause/Restore stop it. The published Windows 1.5.5 ZIP still requires its **Codex (Xskin)** shortcut. An already-open ordinary Codex session needs one confirmed restart through manual Apply to enable the background connection.
+In Windows 1.6.0, enable the option once in the updated panel to replace the old shortcut-based setup, and use or pin the official Codex app. Dedicated **Codex (Xskin)** shortcuts are no longer required. Existing windows, explicit debug launches and refused shutdowns are left alone. The monitor starts at login without opening Codex; Pause/Restore stop it. An already-open ordinary Codex session needs one confirmed restart through manual Apply to enable the background connection.
 
 ### Keep streaming updates light
 
@@ -79,13 +79,13 @@ Windows 1.5.2 avoids rescanning the whole page for ordinary message updates. In 
 | Process CPU time | 1,344 ms | 843 ms | 37.3% |
 | Peak process memory (RSS) | 267.27 MiB | 146.73 MiB | 45.1% |
 
-These are **load-time** improvements included in the **1.5.3 Windows ZIP**. Lower GPU use and sustained playback memory have not been established. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
+These are **load-time** improvements included since **Windows 1.5.3**. Lower GPU use and sustained playback memory have not been established. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
 
 **Windows 1.5.5** fixes black panel previews when replacing one video with another and adopts macOS 1.6.1 native Work detection and earlier guarded injection. Original video quality and frame rate are retained.
 
 **Windows 1.5.4** includes video backgrounds in the main-window **Your dot** conversation, embedded ChatGPT/Work and Dot floating control cards. The conversation reveals the existing original video and keeps native message bubbles without duplicate full-row panels. Verification rejects opaque inner messaging layers. Work follows native container visibility and pauses the covered Codex player. Floating Dot cards share one player clipped to their rounded visible bounds; the surrounding desktop stays transparent.
 
-Live 60-second tests preserved **3840×2160**, playback rate **1**, approximately **30 fps** and **zero additional dropped frames** in both the main-window Dot conversation and floating cards. These fixes are included in the **1.5.5 Windows ZIP**. Sustained GPU/private-memory savings remain unproven; the poster-release experiment was discarded.
+Live 60-second tests preserved **3840×2160**, playback rate **1**, approximately **30 fps** and **zero additional dropped frames** in both the main-window Dot conversation and floating cards. These fixes are also included in the **1.6.0 Windows ZIP**. Sustained GPU/private-memory savings remain unproven; the poster-release experiment was discarded.
 
 ## Supported media
 
@@ -115,8 +115,8 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Installation | Extract the complete Windows ZIP, or move Xskin.app to Applications on macOS |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- Releases are platform-specific: **windows-v1.5.5** for Windows x64 and **v1.6.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
-- macOS automatic startup supports the original official app. Each fresh ordinary launch is gracefully reopened once, with an identity/age check and a 30-second loop guard; existing sessions are skipped and refused quits are never forced. Enabling it restores previously managed Dock entries to the official app. The official bundle remains unchanged.
+- Releases are platform-specific: **windows-v1.6.0** for Windows x64 and **v1.6.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
+- Automatic startup supports the original official app on both platforms. Each fresh ordinary launch is gracefully reopened once, with an identity/age check and a 30-second loop guard; existing sessions are skipped and refused shutdowns are never forced. Enabling it restores previously managed Dock entries on macOS and removes owned legacy Desktop/Start launch shortcuts on Windows. Official app files remain unchanged.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
 - 4K decoding and playback load depend on frame rate, codec, and hardware. Preserving original quality does not guarantee identical resource use across files.
@@ -142,7 +142,7 @@ cd macos
 npm test
 ```
 
-An initial manual Apply may ask for one confirmed restart when Codex was opened without the background connection. On macOS, later ordinary launches use one automatic graceful handoff; already-open windows are skipped. Include system, Codex, and Xskin versions with reproducible steps when contributing. Do not submit private chats, media, or credentials.
+An initial manual Apply may ask for one confirmed restart when Codex was opened without the background connection. Later ordinary launches use one automatic graceful handoff on both platforms; already-open windows are skipped. Include system, Codex, and Xskin versions with reproducible steps when contributing. Do not submit private chats, media, or credentials.
 
 </details>
 
@@ -154,4 +154,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.5) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)
+**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.6.0) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)

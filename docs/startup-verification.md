@@ -1,6 +1,18 @@
 # Startup verification
 
-## 1.6.1 — Native Work detection and earlier automatic apply
+## Windows 1.6.0 — Original-app automatic startup
+
+Validated on 2026-10-22 on Windows with the registered Microsoft Store `OpenAI.Codex` package 26.1016.6573.0.
+
+- The installed 1.6.0 app and managed engine match the tested source. Automatic apply is enabled and the background monitor is running with the Xskin panel closed.
+- The official app exited through Windows Restart Manager without a force flag and stayed closed until its registered AppsFolder entry was opened through the Windows Shell Open verb. An ordinary native main process was observed before the automatic handoff created one stable background-enabled process and a new verified browser connection.
+- The saved original 3840×2160 video advanced by 46 frames with zero additional dropped frames in the initial sample. A later read-only 30-second check decoded 902 frames with one additional dropped frame; the same main process and browser connection remained active.
+- The selected uniform 62% mask verified. Theme, media, preferences and Codex configuration hashes were unchanged. The official ASAR digest was also unchanged.
+- Real Windows GUI fixtures prove that closing a tray-style window leaves it running, the session-end request exits it, and a refused shutdown is not forced. Identity/age/session guards, duplicate/loop prevention, pause, monitor lifecycle, upgrade rollback and owned-shortcut migration are covered by the Windows regression suite.
+
+The native entry was activated through the Windows Shell, without synthesizing a physical mouse click. A new Windows login was not tested. The later playback check was read-only and preserved the running app. Cold launch includes official app loading, the one-time handoff and video decoding; no fixed startup latency or sustained-resource reduction is claimed.
+
+## macOS 1.6.1 — Native Work detection and earlier automatic apply
 
 Validated on 2026-10-22 on Apple Silicon with official Codex 26.1016.51333 and its signed Node.js v24.21.0.
 
@@ -12,7 +24,7 @@ Validated on 2026-10-22 on Apple Silicon with official Codex 26.1016.51333 and i
 
 The entire Mac was not rebooted. Home/task visual navigation and visible embedded Work playback were not manually inspected. Background preloading remains disabled; the app starts on demand. Windows was not rebuilt for this macOS release.
 
-## 1.6.0 — Windows parity and original-app automatic apply
+## macOS 1.6.0 — Windows parity and original-app automatic apply
 
 Validated on 2026-10-22 on Apple Silicon with official Codex 26.1016.51333 and its signed Node.js v24.21.0.
 

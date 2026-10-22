@@ -1,8 +1,6 @@
 # Xskin for Windows 1.6.0 (Flutter)
 
-**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.5/Xskin-1.5.5-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.5)
-
-The published download above is **1.5.5** and still uses dedicated launch shortcuts. **1.6.0 source builds** include original-app automatic startup described below.
+**[Download Windows x64 ZIP](https://github.com/timmyc07/Xskin/releases/download/windows-v1.6.0/Xskin-1.6.0-windows-x64.zip)** · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.6.0)
 
 Windows implementation of the macOS 1.5.1 background studio. The Flutter panel uses the same preview → import → apply flow and the same renderer, stylesheet, layout and video behavior as the Mac version. Official Codex files, signatures, accounts, API keys and provider settings remain intact.
 
@@ -21,6 +19,7 @@ Live 60-second tests preserved **3840×2160**, playback rate **1**, approximatel
 3. Choose **Choose file**, or drop one image/MP4 into the panel. Imported copies stay pending; the current background remains unchanged.
 4. Check the preview, resolution and size, then press **Apply this background**. Video previews start paused; the Codex background plays silently in a loop at the original quality and frame rate.
 5. If Codex is already running without a background connection, the first Apply asks to restart it once. Save unfinished input before accepting. Cancel or failed verification preserves the previous theme.
+6. Enable **Apply on Codex launch** once in this updated panel. Later, open the original official Codex app normally; Xskin can remain closed.
 
 The right side shows the active background, language, automatic apply and whole-window overlay. English, Traditional Chinese, Simplified Chinese and Japanese are available. The version is visible at the top right. Errors remain available under **Details**.
 
@@ -55,6 +54,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\verify-dream-ski
 
 CDP remains loopback-only and verifies the registered Store package, process ownership and Browser ID. The official app, WindowsApps permissions and system execution policy are unchanged. The panel is unsigned; use trusted builds and trusted local software while the debugging connection is active.
 
+Installed 1.6.0 passed a cold-launch test using the registered official AppsFolder entry's Windows Shell **Open** action, with the panel closed. The ordinary native process handed off to one stable background-enabled process, the original 3840×2160 video advanced, and media/settings hashes were unchanged. A later 30-second read-only check decoded 902 frames with one dropped frame. Windows close-to-tray no longer blocks the handoff; real GUI tests cover accepted and refused shutdown requests without force. Physical mouse clicks and a new Windows login were not repeated. See the [startup verification report](https://github.com/timmyc07/Xskin/blob/windows-v1.6.0/docs/startup-verification.md#windows-160--original-app-automatic-startup).
+
 The retained installer/tray can still manage legacy appearance-key backups. For that optional setup, close Codex and run `Install Xskin.cmd`. Full appearance-key restoration is available through `scripts\restore-dream-skin.ps1 -RestoreBaseTheme -PromptRestart -Uninstall` when an appearance backup exists.
 
 ## Build and test
@@ -70,7 +71,7 @@ flutter test
 flutter test integration_test/video_test.dart -d windows --dart-define=TEST_VIDEO=D:\media\sample.mp4
 ```
 
-From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.6.0-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries currently use the separate `windows-v1.5.5` release tag.
+From the repository root, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1` tests and packages the app. Output: `build/windows/Xskin-1.6.0-windows-x64.zip` and SHA-256 file. GitHub Actions runs the same build and uploads **Xskin-Windows**. Published Windows binaries use the separate `windows-v1.6.0` release tag.
 
 ## Performance
 
@@ -80,6 +81,6 @@ The local 100-update benchmark reduced route scans from 104 to 1 while a 4K vide
 
 **Windows 1.5.3** also streams complete MP4 integrity checks through a 1 MiB buffer and hashes video content once. In three fresh-process runs of 30 theme loads, median process CPU time fell from **1,344 to 843 ms (37.3%)**, and peak process RSS fell from **267.27 to 146.73 MiB (45.1%)**. These are load-time results; lower GPU use or sustained playback memory has not been established. Original 4K media and frame rate are preserved.
 
-The downloadable **1.5.5 ZIP retains this optimization and includes the Dot/Work fixes above**. The **1.6.0 source build** additionally supports official-app startup. Extract the complete build into a new folder, open `xskin.exe` and enable **Apply on Codex launch** once to update the managed engine and register the monitor. Saved backgrounds and preferences remain in the managed store. Engine updates stop/resume the verified monitor and injector, including rollback.
+The downloadable **1.6.0 ZIP retains these optimizations and Dot/Work fixes and supports official-app startup**. Extract the complete build into a new folder, open `xskin.exe` and enable **Apply on Codex launch** once to update the managed engine and register the monitor. Saved backgrounds and preferences remain in the managed store. Engine updates stop/resume the verified monitor and injector, including rollback.
 
 See [Mac/Windows parity](references/macos-parity.md) for the source mapping and platform-specific equivalents.
