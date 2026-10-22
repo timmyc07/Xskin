@@ -186,6 +186,12 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt)
   try { Set-XskinAutostart -Enabled $true -SkillRoot $source -StateRoot $stateRoot; throw 'Monitor startup failure was accepted.' }
   catch { if ($_.Exception.Message -notmatch 'monitor exited') { throw } }
   if (Test-Path -LiteralPath $startupShortcut) { throw 'Failed enable left a startup registration behind.' }
+} catch {
+  foreach ($name in @('autostart.log', 'autostart-error.log')) {
+    $path = Join-Path $stateRoot $name
+    if (Test-Path -LiteralPath $path) { Write-Host "${name}: $([IO.File]::ReadAllText($path))" }
+  }
+  throw
 } finally {
   foreach ($name in $realFunctions.Keys) { Set-Item -Path "Function:\$name" -Value $realFunctions[$name] }
   Remove-Item Function:\Get-CimInstance,Function:\Get-Process -ErrorAction SilentlyContinue
