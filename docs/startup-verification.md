@@ -1,5 +1,17 @@
 # Startup verification
 
+## 1.6.1 — Native Work detection and earlier automatic apply
+
+Validated on 2026-10-22 on Apple Silicon with official Codex 26.1016.51333 and its signed Node.js v24.21.0.
+
+- Full macOS regression tests pass, with additional native-notification and late React-shell checks. A completed document can gain its shell later without entering the previous five-second rejection cooldown. Pending auxiliary windows receive no theme or video, and their guards are cancelled before disconnection.
+- Opened the original `/Applications/ChatGPT.app` through Launch Services without debugging arguments. The enabled service completed its automatic handoff; independent live verification and `doctor --require-live` passed.
+- Two fresh application launches showed the saved artwork after approximately 8 and 12 seconds, with decoded original 3840 × 2160 video shortly afterwards. These timings include the handoff and application loading, use whole-second request timestamps, and are observations rather than a controlled performance benchmark or zero-latency guarantee.
+- Subsequent main-window, Dot card and hidden Work checks passed. Main-window and Dot video decoded and advanced; hidden Work remained intentionally suspended without decoding. The selected uniform 62% mask and transparent inner messaging layers verified.
+- The installed Xskin app and engine report 1.6.1. The enabled service is loaded, configuration and selected media remain byte-identical, and the official application signature remains valid.
+
+The entire Mac was not rebooted. Home/task visual navigation and visible embedded Work playback were not manually inspected. Background preloading remains disabled; the app starts on demand. Windows was not rebuilt for this macOS release.
+
 ## 1.6.0 — Windows parity and original-app automatic apply
 
 Validated on 2026-10-22 on Apple Silicon with official Codex 26.1016.51333 and its signed Node.js v24.21.0.

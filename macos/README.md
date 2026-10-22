@@ -4,7 +4,7 @@ Xskin is a native macOS app for importing, previewing, and applying local images
 
 ## Native app
 
-[Download Xskin 1.5.0](https://github.com/timmyc07/Xskin/releases/tag/v1.5.0), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires macOS 13 or later, Apple Silicon, and official Codex Desktop; no separate Node.js or Xcode installation is needed. The release uses an ad-hoc signature and is not Apple Developer ID notarized.
+[Download Xskin 1.6.1](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires macOS 13 or later, Apple Silicon, and official Codex Desktop; no separate Node.js or Xcode installation is needed. The release uses an ad-hoc signature and is not Apple Developer ID notarized.
 
 Use the system file picker or drag a local image or MP4 into the app, inspect its native preview, and apply when ready. The mask-depth slider updates all surfaces together (0–100%, default 62%); release it to apply, or adjust it with the keyboard. Mask depth, pending imports, and your language preference persist locally. English is the default interface, with Traditional Chinese, Simplified Chinese, and Japanese available in the app.
 

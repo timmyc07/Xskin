@@ -7,13 +7,13 @@
 Bring your favorite images and original 4K videos into Codex.<br>
 Import, preview, and apply from native macOS and Flutter Windows apps.
 
-[![Version](https://img.shields.io/badge/version-1.5.1-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)
+[![Version](https://img.shields.io/badge/version-1.6.1-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)
 [![Windows](https://img.shields.io/badge/Windows-1.5.4-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.4)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.4/Xskin-1.5.4-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.5.4/Xskin-1.5.4-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
@@ -40,7 +40,7 @@ A quiet photograph. A moving landscape. A workspace that feels a little more lik
 - **Windows:** extract the complete ZIP and open **xskin.exe**. Keep the accompanying DLLs, `data`, `scripts` and `assets` together. Flutter and Node.js are bundled.
 - **macOS:** extract the app, move **Xskin.app** to Applications, and open it. No separate Node.js, package manager or Xcode is needed.
 
-> v1.5.1 uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Download from this project's Release page and review the [user guide](docs/background-panel.md).
+> v1.6.1 uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Download from this project's Release page and review the [user guide](docs/background-panel.md).
 
 ## Details that make room for your work
 
@@ -113,7 +113,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Installation | Extract the complete Windows ZIP, or move Xskin.app to Applications on macOS |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- Releases are platform-specific: **windows-v1.5.4** for Windows x64 and **v1.5.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
+- Releases are platform-specific: **windows-v1.5.4** for Windows x64 and **v1.6.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
 - macOS automatic startup supports the original official app. Each fresh ordinary launch is gracefully reopened once, with an identity/age check and a 30-second loop guard; existing sessions are skipped and refused quits are never forced. Enabling it restores previously managed Dock entries to the official app. The official bundle remains unchanged.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
@@ -152,4 +152,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.4) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.5.1)
+**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.5.4) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.6.1)
