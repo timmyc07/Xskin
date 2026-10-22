@@ -617,6 +617,25 @@ assert.equal(synchronousWide.rootStyle.values.get("--dream-skin-art"), 'url("blo
 assert.deepEqual(synchronousWide.revokedUrls, ["blob:fixture-1"]);
 assert.equal(previousWideState.cleanup(), false, "An old async cleanup must not remove the new theme.");
 
+const usageLifecycle = createFixture({id: "usage-lifecycle"});
+vm.runInNewContext(usageLifecycle.payload, usageLifecycle.context);
+const usageLifecycleState = usageLifecycle.window.__CODEX_DREAM_SKIN_STATE__;
+let usageRequests = 0;
+let usageDisposals = 0;
+usageLifecycleState.usageOverlay = {
+  request() { usageRequests++; },
+  dispose() { usageDisposals++; },
+};
+usageLifecycleState.ensure();
+assert.equal(usageRequests, 1, "Route repair must keep the usage overlay attached to the current composer.");
+vm.runInNewContext(usageLifecycle.payload, usageLifecycle.context);
+assert.equal(usageDisposals, 1, "Reinjection must dispose the old overlay before replacing renderer state.");
+usageLifecycle.window.__CODEX_DREAM_SKIN_STATE__.usageOverlay = {dispose() { usageDisposals++; }};
+assert.equal(usageLifecycleState.cleanup(), false);
+assert.equal(usageDisposals, 1, "Stale cleanup must not dispose the current overlay.");
+assert.equal(usageLifecycle.window.__CODEX_DREAM_SKIN_STATE__.cleanup(), true);
+assert.equal(usageDisposals, 2, "Pause and restore cleanup must dispose the current overlay.");
+
 const brightPixels = new Uint8ClampedArray(96 * 32 * 4);
 for (let offset = 0; offset < brightPixels.length; offset += 4) {
   brightPixels[offset] = 245;

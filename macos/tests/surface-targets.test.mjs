@@ -1,7 +1,72 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
-import {detectSurface, earlyPayloadFor, isValidCdpTarget, waitForVerifiedSession} from '../scripts/injector.mjs';
+import {detectSurface, earlyPayloadFor, isValidCdpTarget, waitForVerifiedSession, updateUsageOverlay, watchUsageOverlay} from '../scripts/injector.mjs';
+
+const usageCalls = [];
+let usageRequest = {visible:false, threadId:'current-thread'};
+const usageSession = {async evaluate(expression) {
+  usageCalls.push(expression);
+  return usageCalls.length === 1 ? usageRequest : undefined;
+}};
+const usageReader = {
+  async read(threadId) { usageCalls.push(threadId); return {threadId,totalTokens:42}; },
+};
+await updateUsageOverlay(usageSession, usageReader);
+assert.equal(usageCalls.length, 1, 'Hidden surfaces must not read conversation logs.');
+usageCalls.length = 0;
+usageRequest = {visible:true, threadId:'current-thread'};
+await updateUsageOverlay(usageSession, usageReader);
+assert.equal(usageCalls[1], 'current-thread');
+assert.match(usageCalls[2], /"threadId":"current-thread","totalTokens":42/);
+assert.doesNotMatch(usageCalls[2], /updateMemory/);
+usageCalls.length = 0;
+usageRequest = {visible:true, threadId:null};
+await updateUsageOverlay(usageSession, usageReader);
+assert.equal(usageCalls.length, 2, 'Unknown threads must clear the overlay without reading a different session.');
+assert.match(usageCalls[1], /update\(null\)/);
+
+const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+const until = async predicate => {
+  const deadline = Date.now() + 1500;
+  while (!predicate() && Date.now() < deadline) await delay(5);
+  assert.ok(predicate(), 'The route probe must switch the live subscription promptly.');
+};
+let currentUsage = {visible:true, threadId:'thread-a', installation:'one'};
+const subscriptions = [];
+const delivered = [];
+const liveSession = {closed:false, async evaluate(expression) {
+  if (expression === 'window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()') return {...currentUsage};
+  return vm.runInNewContext(expression, {window:{__CODEX_DREAM_SKIN_STATE__:{usageOverlay:{
+    request:() => currentUsage, update:value => delivered.push(value),
+  }}}});
+}};
+const liveReader = {watch(threadId, onSnapshot) {
+  const subscription = {threadId, closed:false, onSnapshot,
+    async refresh() {await onSnapshot({threadId,totalTokens:42});}, close() {this.closed = true;}};
+  subscriptions.push(subscription);
+  return subscription;
+}};
+const liveOverlay = watchUsageOverlay(liveSession, liveReader);
+try {
+  await until(() => delivered.length === 1);
+  currentUsage = {...currentUsage, threadId:'thread-b'};
+  await until(() => subscriptions.length === 2 && delivered.at(-1)?.threadId === 'thread-b');
+  assert.equal(subscriptions[0].closed, true, 'Switching threads closes the old exact-file watcher.');
+  const afterSwitch = delivered.length;
+  await subscriptions[0].onSnapshot({threadId:'thread-a',totalTokens:999});
+  assert.equal(delivered.length, afterSwitch, 'A late callback cannot publish another thread’s usage.');
+  currentUsage = {...currentUsage, visible:false};
+  await subscriptions[1].onSnapshot({threadId:'thread-b',totalTokens:100});
+  assert.equal(delivered.length, afterSwitch, 'Hidden renderers must reject in-flight pushes.');
+  await until(() => subscriptions[1].closed);
+  currentUsage = {...currentUsage, visible:true};
+  await until(() => subscriptions.length === 3);
+  currentUsage = {...currentUsage, installation:'two'};
+  await until(() => subscriptions.length === 4);
+  assert.equal(subscriptions[2].closed, true, 'Reinjection must refresh even when the thread is unchanged.');
+} finally { liveOverlay.close(); }
+assert.equal(subscriptions.at(-1).closed, true, 'Disposing the host bridge closes its file watcher.');
 
 const selectors = {
   codex: ['main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)', 'aside.app-shell-left-panel'],

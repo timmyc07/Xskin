@@ -96,31 +96,60 @@ function Get-XskinAutostart {
   return Get-DreamSkinAutostart -StateRoot $StateRoot
 }
 
+function Initialize-XskinAutostart {
+  param([Parameter(Mandatory = $true)][string]$SkillRoot, [Parameter(Mandatory = $true)][string]$StateRoot)
+  if ((Read-XskinSettings -StateRoot $StateRoot).automaticSetupComplete -eq $true) { return }
+  if (Test-DreamSkinPaused -StateRoot $StateRoot) {
+    Write-XskinSettings -StateRoot $StateRoot -Values @{ automaticSetupComplete = $true }
+    return
+  }
+  Set-XskinAutostart -Enabled $true -SkillRoot $SkillRoot -StateRoot $StateRoot
+}
+
 function Set-XskinAutostart {
   param([Parameter(Mandatory = $true)][bool]$Enabled, [Parameter(Mandatory = $true)][string]$SkillRoot,
     [Parameter(Mandatory = $true)][string]$StateRoot)
+  $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
   $startup = Get-XskinAutostart -StateRoot $StateRoot
-  if ($startup.Foreign) { throw 'Refusing to change an unrelated automatic-startup shortcut.' }
+  if ($startup.Foreign) { throw 'Refusing to change an unrelated automatic-startup task.' }
   if ($Enabled) {
     $null = Get-DreamSkinCodexInstall
     $null = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
-    $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     Stop-DreamSkinAutostart -StateRoot $StateRoot
-    $file = Get-DreamSkinAutostartShortcutPath
-    $previous = if (Test-Path -LiteralPath $file) { [IO.File]::ReadAllBytes($file) } else { $null }
+    $task = Get-DreamSkinAutostartTask
+    $previous = if ($task) { $task.Xml } else { $null }
     try {
-      Set-DreamSkinShortcut -Path $file -TargetPath $powershell `
-        -Arguments (Get-DreamSkinAutostartArguments -StateRoot $StateRoot) `
-        -WorkingDirectory $StateRoot -Description 'Xskin official Codex launch monitor'
+      Register-DreamSkinAutostartTask -StateRoot $StateRoot
       Start-DreamSkinAutostart -StateRoot $StateRoot
     } catch {
-      if ($null -ne $previous) { [IO.File]::WriteAllBytes($file, $previous) }
-      else { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
+      $folder = Get-DreamSkinAutostartTaskFolder
+      $name = Get-DreamSkinAutostartTaskName
+      if ($null -ne $previous) {
+        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $null = $folder.RegisterTask($name, $previous, 6, $sid, $null, 3)
+      } elseif (Get-DreamSkinAutostartTask) { $folder.DeleteTask($name, 0) }
       throw
     }
   } else {
     Stop-DreamSkinAutostart -StateRoot $StateRoot
-    if ($startup.Enabled) { Remove-Item -LiteralPath (Get-DreamSkinAutostartShortcutPath) -Force }
+    if (Get-DreamSkinAutostartTask) {
+      (Get-DreamSkinAutostartTaskFolder).DeleteTask((Get-DreamSkinAutostartTaskName), 0)
+    }
+  }
+  $startupShortcut = Get-DreamSkinAutostartShortcutPath
+  Assert-DreamSkinNoReparseComponents -Path $startupShortcut
+  if (Test-Path -LiteralPath $startupShortcut) {
+    $link = Get-DreamSkinShortcut -Path $startupShortcut
+    if ($link.Description -ceq 'Xskin official Codex launch monitor' -and $link.WorkingDirectory) {
+      $legacyArguments = ConvertTo-DreamSkinArgumentLine -Arguments @('-NoProfile', '-WindowStyle', 'Hidden',
+        '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $link.WorkingDirectory 'engine\scripts\watch-codex-launches.ps1'),
+        '-StateRoot', $link.WorkingDirectory)
+      if ((Test-DreamSkinPathEqual -Left $link.TargetPath -Right (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')) -and
+        $link.Arguments -ceq $legacyArguments -and
+        (Test-DreamSkinPathEqual -Left (Resolve-DreamSkinStateRoot -StateRoot $link.WorkingDirectory) -Right $StateRoot)) {
+        Remove-Item -LiteralPath $startupShortcut -Force
+      }
+    }
   }
   # Remove only the previous Xskin-owned entry points when changing this preference.
   foreach ($file in Get-XskinLaunchShortcutPaths) {
@@ -132,6 +161,7 @@ function Set-XskinAutostart {
       Remove-Item -LiteralPath $file -Force
     }
   }
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ automaticSetupComplete = $true }
 }
 
 function Test-XskinApplied {

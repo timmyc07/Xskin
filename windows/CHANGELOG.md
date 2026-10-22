@@ -1,5 +1,21 @@
 # Windows Changelog
 
+## Xskin Windows 1.7.0 — 2026-10-22
+
+- Add a compact token overlay below the Codex task composer: show the current conversation's cumulative tokens, cached input tokens, remaining context percentage, subscription plan and remaining subscription quota when present in official local session logs. Keep missing values visibly unknown; cached tokens are a subset of input tokens, not additional consumption.
+- Show the latest model call's cache hit ratio, with cache-write tokens only when the source provides them. Do not infer permanent cache contents or expiry.
+- Watch the current conversation's exact session file with 20ms write coalescing, 250ms route/visibility checks and a 5-second metadata heartbeat. Serialize reads, deduplicate snapshots and read bounded incremental tails instead of repeatedly scanning session directories. Updates follow actual source writes; no simulated consumption is shown.
+- Scale the CSS fan animation to positive token deltas. Stop it when idle, hidden or Reduce Motion is enabled; reuse the verified loopback CDP connection and read local usage records without network requests or reading `auth.json`.
+- Select and validate an available Node runtime before resuming a watcher after engine replacement or rollback, including updates that remove the previous bundled `node.exe`.
+- Replace the owned legacy Startup shortcut with a per-user Windows Task Scheduler logon task. Start the monitor independently of Codex and the panel, using the current user's interactive session without administrator privileges, execution timeout or battery restrictions. Preserve unrelated startup entries.
+- Resolve MSIX-redirected state directories through a Windows file handle and preserve that path across installation, panel commands, tray, start, verify, restore and engine updates. The login task now finds the same saved backgrounds and runtime from outside the Codex package context; custom directories remain supported.
+- Handle ordinary Codex launches up to 15 seconds old even when the login monitor starts just after the app. Leave older windows untouched, retain the 30-second handoff guard and never force an automatic restart.
+- Initialize the managed engine, saved preset and per-user logon task on the first installation or first panel launch. Persist setup completion so later launches respect explicit disable, Pause and Restore choices.
+- Package a GUI-only `Install Xskin.exe` and use the quiet launcher for installer, logon-task and managed-shortcut commands. Run the fixed system PowerShell child with `CreateNoWindow`; opening `xskin.exe` directly also performs first-use setup. Node.js is bundled, with no separate Node or Flutter installation required.
+- Allow installation while one registered Codex version is open: gracefully close it, install and reopen it with the saved background, or ordinary Codex when paused. Refuse multiple active versions, never force shutdown, and attempt to reopen the original app if setup fails after closing it.
+- Resolve background media relative to the canonical regular `theme.json` file so MSIX file redirection does not reject valid saved backgrounds. Retain symlink rejection and checks that media stays inside the resolved theme directory.
+- Add shared parser and renderer regression checks to the Windows test runner. Existing managed-engine installation and release packaging include the new runtime files.
+
 ## Xskin Windows 1.6.0 — 2026-10-22
 
 - Apply saved backgrounds when opening the original official Codex app from Start, Desktop or the taskbar. The opt-in per-user Startup monitor works with the Xskin panel closed; dedicated Codex (Xskin) shortcuts are no longer required or created.

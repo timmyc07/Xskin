@@ -116,11 +116,34 @@ try {
     if (-not $wrongIdentityRejected -or $fixtureDaemon.HasExited) { throw 'Runtime update stopped an unverified process.' }
     $fixtureState.injectorStartedAt = $fixtureStartedAt
     Write-DreamSkinState -Path $fixtureStatePath -State $fixtureState
-    $engine = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot
+    $realRuntimeStop = (Get-Command Stop-DreamSkinRecordedInjector -CommandType Function).ScriptBlock
+    $realNodeSelection = (Get-Command Get-DreamSkinNodeRuntime -CommandType Function).ScriptBlock
+    $removedNodePath = Join-Path $engine.Scripts 'node.exe'
+    $nodeReselection = @{ Count = 0 }
+    function Stop-DreamSkinRecordedInjector {
+      param([AllowNull()][object]$State)
+      $stopped = & $realRuntimeStop -State $State
+      # The old package's bundled runtime disappears after its verified watcher stops.
+      $State.nodePath = $removedNodePath
+      return $stopped
+    }
+    function Get-DreamSkinNodeRuntime {
+      if (Test-Path -LiteralPath $removedNodePath) { throw 'The removed bundled Node fixture is unexpectedly present.' }
+      $nodeReselection.Count++
+      return $fixtureNode
+    }
+    try {
+      $engine = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot
+    } finally {
+      Set-Item -Path Function:\Stop-DreamSkinRecordedInjector -Value $realRuntimeStop
+      Set-Item -Path Function:\Get-DreamSkinNodeRuntime -Value $realNodeSelection
+    }
     $resumedState = Read-DreamSkinState -Path $fixtureStatePath
     if ($resumedState.injectorPid -eq $fixtureDaemon.Id -or -not $fixtureDaemon.WaitForExit(5000) -or
-      -not (Get-Process -Id $resumedState.injectorPid -ErrorAction SilentlyContinue)) {
-      throw 'Runtime update did not replace and resume the watcher holding the engine working directory.'
+      -not (Get-Process -Id $resumedState.injectorPid -ErrorAction SilentlyContinue) -or
+      $nodeReselection.Count -ne 1 -or
+      -not (Test-DreamSkinPathEqual -Left $resumedState.nodePath -Right $fixtureNode.Path)) {
+      throw 'Runtime update did not resume its watcher with a newly selected available Node runtime.'
     }
 
     [IO.File]::AppendAllText($fixtureInjector, ' // staged update')
@@ -190,19 +213,6 @@ try {
   if ($trayGuardIndex -lt 0 -or $engineInstallIndex -le $trayGuardIndex) {
     throw 'Installer does not reject an active source-bound tray before replacing the runtime engine.'
   }
-  foreach ($requiredShortcutBinding in @(
-    '$startScript = $engine.Start',
-    '$restoreScript = $engine.Restore',
-    '$trayScript = $engine.Tray',
-    '$shortcut.WorkingDirectory = $engine.Root',
-    '$restore.WorkingDirectory = $engine.Root',
-    '$tray.WorkingDirectory = $engine.Root'
-  )) {
-    if (-not $installSource.Contains($requiredShortcutBinding)) {
-      throw "Installer shortcut still depends on its source checkout: $requiredShortcutBinding"
-    }
-  }
-
   Remove-Item -LiteralPath $runtimeSourceRoot -Recurse -Force
   foreach ($installedScript in Get-ChildItem -LiteralPath $engine.Scripts -Filter '*.ps1' -File) {
     $tokens = $null
@@ -901,6 +911,12 @@ try {
   $rendererTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'renderer-inject.test.mjs'))
   if ($rendererTest.ExitCode -ne 0) { throw 'Renderer auxiliary-window regression test failed.' }
+  $tokenUsageTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'token-usage.test.mjs'))
+  if ($tokenUsageTest.ExitCode -ne 0) { throw ($tokenUsageTest.Output -join "`n") }
+  $tokenOverlayTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'token-overlay.test.mjs'))
+  if ($tokenOverlayTest.ExitCode -ne 0) { throw ($tokenOverlayTest.Output -join "`n") }
   $bootstrapTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'injector-bootstrap.test.mjs'))
   if ($bootstrapTest.ExitCode -ne 0) { throw 'Injector early-bootstrap regression test failed.' }
@@ -920,9 +936,15 @@ try {
   $panelTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'panel-command.test.mjs'))
   if ($panelTest.ExitCode -ne 0) { throw ($panelTest.Output -join "`n") }
+  $installerTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'installer.test.mjs'))
+  if ($installerTest.ExitCode -ne 0) { throw ($installerTest.Output -join "`n") }
   & (Join-Path $PSScriptRoot 'xskin-theme.test.ps1')
   & (Join-Path $PSScriptRoot 'xskin-parity.test.ps1')
   & (Join-Path $PSScriptRoot 'autostart.test.ps1')
+  & (Join-Path $PSScriptRoot 'default-state-root.test.ps1')
+  & (Join-Path $PSScriptRoot 'automatic-setup.test.ps1')
+  & (Join-Path $PSScriptRoot 'quiet-launcher.test.ps1')
   & (Join-Path $PSScriptRoot 'graceful-quit.test.ps1')
   & (Join-Path $PSScriptRoot 'injector-process.test.ps1')
   Write-Host 'PASS: config transactions, restore scoping, state safety, argument quoting, loopback CDP and video.'

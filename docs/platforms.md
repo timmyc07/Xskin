@@ -45,12 +45,25 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 | 实机 verify / 截图 | ✅ | ✅ |
 | 用户选图定制 | ✅ | ✅（系统托盘「更换背景图」） |
 | 背景工作室（圖片 / MP4 匯入、預覽、套用） | ✅（SwiftUI macOS .app） | ✅（Flutter Windows .exe） |
+| 对话 Token / 缓存 / 额度 / 方案 overlay | ✅（Codex 任务输入框下方） | ✅（Codex 任务输入框下方） |
 | 四語介面 / 拖放 / 獨立全版遮罩 | ✅ | ✅（1.5.1） |
-| 面板關閉後直接開官方 App 自動套用 | ✅（LaunchAgent） | ✅（1.6.0，每位使用者的 Startup 監看器） |
+| 面板關閉後直接開官方 App 自動套用 | ✅（LaunchAgent） | ✅（1.7.0，每位使用者的登入排程工作） |
 | 本地主题保存 / 切换 | ✅（菜单栏） | ✅（系统托盘） |
 | 官方签名校验 | ✅ | Store 签名类型 + 包身份 |
 | 客户部署提示词 | ✅ | ❌（可用 Mac 文案改写） |
 | 打客户 ZIP | ✅ `build-client-release.sh` | ✅ `scripts/build-release.ps1` |
+
+## 对话 Token overlay
+
+启动 Xskin 注入后，Codex 任务页的文字输入框下方显示一条紧凑状态栏。它按当前任务 ID 匹配官方本机会话记录，显示累计 Token、其中的缓存输入 Token、上下文剩余百分比，以及记录中可用的订阅方案与额度剩余百分比。缓存输入已经包含在输入与总量内，不再重复相加；上下文剩余与订阅额度是不同指标。首页与 Work / Dot 不显示其他对话的数据。记录尚未提供的字段显示未知，不从模型名称推测方案，也不把额度百分比换算成 Token 数量。
+
+缓存命中条使用最近一次模型调用的 `cached_input_tokens / input_tokens`，不是累计缓存比例；缓存写入量仅在官方记录提供该字段时显示。10 月 21 日 [prompt caching 公告](https://x.com/thsottiaux/status/2112712984644784534) 中的「永久缓存」无法从用量记录还原成内容清单，因此 overlay 不推算缓存库存或失效时间。
+
+数据源通过 `fs.watch` 将通知筛选到当前对话的确切记录文件，以 20ms 合并连续写入通知；250ms 检查当前路由与可见性，5 秒元数据心跳处理漏失通知、文件替换及额度失效。读取按顺序进行，相同结果去重，仅增量读取有上限的文件尾部，不以毫秒频率重复扫描整个会话目录。显示延迟仍取决于官方何时写入用量事件，不生成虚构的实时消耗。
+
+小风扇的 CSS 转速随新增 Token 的速度变化，没有新增消耗、页面隐藏或启用 Reduce Motion 时停止。数据读取复用现有注入进程与经过身份检查的 loopback CDP，仅访问本机会话用量字段；不会读取 `auth.json`、发送网络请求或改写官方会话记录。官方用量事件按批次写入，因此显示和转速会随事件更新，不能代表逐 Token 的即时遥测。Pause / Restore 随主题注入一起移除此状态栏。
+
+实现前参考了 [codex-token-overlay](https://github.com/soleillevant0125/codex-token-overlay) 与 [codex-token-meter](https://github.com/prefect12/codex-token-meter) 的开源方案；运行时沿用项目现有脚本与浏览器平台能力，没有增加这些项目作为依赖。
 
 ## 自适应图像主题契约
 
@@ -111,16 +124,22 @@ Engine replacement stops and resumes the verified watcher, restores the previous
 
 macOS 1.6.1 uses native launch notifications to start that handoff immediately. Native Work shells do not need an active Codex tab wrapper. Guarded early injection waits for React's shell even after document loading completes, shows the saved artwork as soon as it appears, then attaches the original video. Unrecognized windows expire after ten seconds. Cold launch still includes the official app's startup and video decoding; Xskin does not guarantee zero latency or modify the official app to hide that work.
 
-## Windows 1.6.0 automatic startup
+## Windows 1.7.0 automatic startup
 
-Enable **Apply on Codex launch** once in the updated panel, then open the original official Codex app from Start, Desktop or its original taskbar pin. A hidden PowerShell monitor starts immediately and at user login through an owned `Xskin Codex backgrounds.lnk` in the current user's Startup folder. The panel can stay closed. No service, administrator privileges, environment variables or dedicated Codex launcher are required.
+The first installation or first panel launch initializes the managed engine, saved preset and **Apply on Codex launch** registration once. Later launches respect an explicit disable, Pause or Restore; they do not silently enable it again. Packaged builds provide `Install Xskin.exe`, or open `xskin.exe` directly for automatic setup. Node.js is bundled; packaged users do not need Flutter or a separate Node installation. The GUI launcher runs the fixed system PowerShell child with `CreateNoWindow`, keeping installation, managed shortcuts and logon monitoring free of terminal windows.
 
-The monitor checks for new processes once per second and resolves the current registered Store package for each candidate, including after Store updates. It skips processes present when monitoring begins, other sessions, unrelated executables, Electron child processes and explicit debug launches. Before gracefully reopening a new ordinary launch, it verifies the exact PID/start time again, a maximum launch age of 15 seconds and exactly one main process. A persisted 30-second guard prevents restart loops, failed launches are not retried, and refused closes are never forced. Login and quitting Codex leave it closed. The official app can briefly appear before the handoff; background injection still includes normal startup and decoding time.
+A per-user Windows Task Scheduler logon task starts the hidden PowerShell monitor immediately and at subsequent logins, independently of Codex and the Xskin panel. It runs only in the current user's interactive session without administrator privileges, has no execution timeout and keeps running on battery power. Enabling it replaces only the exact Xskin-owned legacy Startup shortcut; unrelated startup entries are preserved. Open the original official Codex app from Start, Desktop or its original taskbar pin.
+
+The monitor checks for new processes once per second and resolves the current registered Store package for each candidate, including after Store updates. It accepts an ordinary launch at most 15 seconds old even if Codex starts just before the login monitor; older windows, other sessions, unrelated executables, Electron child processes and explicit debug launches are skipped. Before gracefully reopening that launch, it verifies the exact PID/start time again and requires exactly one main process. A persisted 30-second guard prevents restart loops, failed launches are not retried, and refused closes are never forced. Login does not open Codex, and quitting leaves it closed. The official app can briefly appear before the handoff; background injection still includes normal startup and decoding time.
+
+Installation, panel commands, tray, start, verify, restore and engine updates share the resolved state directory. On MSIX installations, Xskin obtains the actual directory path from a Windows file handle, so the login task can find the same saved media, preferences and runtime even when Codex redirects `%LOCALAPPDATA%` into its package-private storage. Custom state directories remain supported; saved backgrounds do not need to be imported again.
+
+When installation finds one active registered Codex version, it gracefully closes that app and reopens it with the saved background after setup. Paused setups reopen ordinary Codex instead. It refuses multiple active versions, never forces shutdown, and attempts to reopen the original app if installation fails after closing it.
 
 Windows close-to-tray does not end the official app. The handoff uses [Windows Restart Manager](https://learn.microsoft.com/en-us/windows/win32/api/restartmanager/nf-restartmanager-rmshutdown), registers only the verified main PID and creation time, requests session-end with no force flag, and waits for the official process tree to exit. A refused request aborts the automatic handoff. Manual start/restore and rollback share that graceful request.
 
 On 2026-10-22 the installed 1.6.0 passed a cold-launch test using the registered official AppsFolder entry's Windows Shell Open verb, with the Xskin panel closed. The ordinary native process handed off to one stable background-enabled process; the original 3840×2160 video advanced by 46 frames with zero added dropped frames in the initial sample, and the media/configuration hashes were unchanged. A later read-only 30-second check decoded 902 frames with one added dropped frame and retained the same main process/browser connection. Real Windows GUI regression fixtures also accepted and refused session-end requests without force. A physical mouse click and a new Windows login were not repeated in that run.
 
-Pause, Restore and disabling the option remove the owned Startup registration and stop the verified monitor. Engine updates and failed swaps stop/resume the monitor without changing media, preferences, paused state or the handoff guard. Enabling/disabling removes the old Xskin-owned Desktop/Start shortcuts while preserving unrelated entries. If an older Codex (Xskin) copy was pinned manually, unpin that copy and pin the official Codex app again.
+Pause, Restore and disabling the option remove the owned logon task and stop the verified monitor. Engine updates and failed swaps stop/resume the monitor without changing media, preferences, paused state or the handoff guard. Enabling/disabling removes the old Xskin-owned Desktop/Start shortcuts while preserving unrelated entries. If an older Codex (Xskin) copy was pinned manually, unpin that copy and pin the official Codex app again.
 
 Windows 1.5.5 backports those native Work selectors and the ten-second guarded shell wait, including observer cancellation on pause, theme changes, expiry and shutdown. Flutter preview views are keyed to their video controllers so replacing videos cannot retain the previous player's dimension subscriptions. Windows keeps its verified managed launch entry; it does not install a macOS-style application observer service.

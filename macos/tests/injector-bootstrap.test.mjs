@@ -145,6 +145,7 @@ async function shutdownFixture(mode) {
   };
   const context = {
     process: events, AbortController, setTimeout, clearTimeout,
+    TokenUsageReader: class {}, watchUsageOverlay() { return { close() {} }; },
     Date: class extends Date { static now() { return mode === "auxiliary" ? fixtureNow : Date.now(); } },
     console: { error() {}, log() { if (["active", "late-shell"].includes(mode)) stop(); } },
     async loadPayload() { return { payload: "", revision: "fixture", theme: { id: "fixture" } }; },

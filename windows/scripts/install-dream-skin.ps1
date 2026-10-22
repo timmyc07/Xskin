@@ -1,15 +1,18 @@
 [CmdletBinding()]
 param(
   [int]$Port = 9335,
-  [switch]$NoShortcuts
+  [switch]$NoShortcuts,
+  [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
 )
 
 $ErrorActionPreference = 'Stop'
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $SkillRoot = Split-Path -Parent $PSScriptRoot
-. (Join-Path $PSScriptRoot 'common-windows.ps1')
-. (Join-Path $PSScriptRoot 'theme-windows.ps1')
+. (Join-Path $PSScriptRoot 'xskin-theme.ps1')
+$StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 
+$reopenCodex = $null
+$installError = $null
 $operationLock = Enter-DreamSkinOperationLock
 try {
   Assert-DreamSkinPort -Port $Port
@@ -18,13 +21,11 @@ try {
   if ($registeredInstalls.Count -eq 0) {
     throw 'The official OpenAI.Codex Store package is not installed or its identity cannot be validated.'
   }
-  foreach ($registeredCodex in $registeredInstalls) {
-    if ((Get-DreamSkinCodexProcesses -Codex $registeredCodex).Count -gt 0) {
-      throw 'Close Codex before installing Dream Skin so config.toml cannot change during the transaction.'
-    }
+  $activeInstalls = @($registeredInstalls | Where-Object { (Get-DreamSkinCodexProcesses -Codex $_).Count -gt 0 })
+  if ($activeInstalls.Count -gt 1) {
+    throw 'Multiple registered Codex versions are open. Close them before installing Xskin.'
   }
 
-  $StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root
   $StatePath = Join-Path $StateRoot 'state.json'
@@ -38,53 +39,66 @@ try {
   if (Test-DreamSkinTrayActive) {
     throw 'Exit the Codex Dream Skin tray before reinstalling so every shortcut can move to the new runtime safely.'
   }
+  $wasPaused = Test-DreamSkinPaused -StateRoot $StateRoot
+  if ($activeInstalls.Count -eq 1) {
+    $reopenCodex = $activeInstalls[0]
+    Stop-DreamSkinCodex -Codex $reopenCodex
+  }
   $engine = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
   $null = Initialize-DreamSkinThemeStore -SkillRoot $engine.Root -StateRoot $StateRoot
+  $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
+  $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $StateRoot
   $ConfigPath = Join-Path $HOME '.codex\config.toml'
   $BackupPath = Join-Path $StateRoot 'config.before-dream-skin.toml'
   Install-DreamSkinBaseTheme -ConfigPath $ConfigPath -BackupPath $BackupPath
+  Initialize-XskinAutostart -SkillRoot $engine.Root -StateRoot $StateRoot
 
   if (-not $NoShortcuts) {
-    $shell = New-Object -ComObject WScript.Shell
     $desktop = [Environment]::GetFolderPath('Desktop')
     $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-    $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-    $startScript = $engine.Start
-    $restoreScript = $engine.Restore
-    $trayScript = $engine.Tray
-    $portArgument = if ($PortExplicit) { " -Port $Port" } else { '' }
+    $launcher = Get-DreamSkinQuietLauncher -StateRoot $StateRoot
+    $portArguments = if ($PortExplicit) { @('-Port', "$Port") } else { @() }
 
     foreach ($folder in @($desktop, $startMenu)) {
-      $shortcut = $shell.CreateShortcut((Join-Path $folder 'Codex Dream Skin.lnk'))
-      $shortcut.TargetPath = $powershell
-      $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`"$portArgument -PromptRestart"
-      $shortcut.WorkingDirectory = $engine.Root
-      $shortcut.Description = 'Launch the official Codex app with Codex Dream Skin'
-      $shortcut.Save()
+      Set-DreamSkinShortcut -Path (Join-Path $folder 'Codex Dream Skin.lnk') -TargetPath $launcher `
+        -Arguments (ConvertTo-DreamSkinArgumentLine -Arguments (@('start', '-PromptRestart', '-StateRoot', $StateRoot) + $portArguments)) `
+        -WorkingDirectory $engine.Root -Description 'Launch the official Codex app with Codex Dream Skin'
     }
 
-    $restore = $shell.CreateShortcut((Join-Path $desktop 'Codex Dream Skin - Restore.lnk'))
-    $restore.TargetPath = $powershell
-    $restore.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$restoreScript`"$portArgument -RestoreBaseTheme -PromptRestart"
-    $restore.WorkingDirectory = $engine.Root
-    $restore.Description = 'Restore the official Codex appearance and close the CDP session'
-    $restore.Save()
+    Set-DreamSkinShortcut -Path (Join-Path $desktop 'Codex Dream Skin - Restore.lnk') -TargetPath $launcher `
+      -Arguments (ConvertTo-DreamSkinArgumentLine -Arguments (@('restore', '-RestoreBaseTheme', '-PromptRestart', '-StateRoot', $StateRoot) + $portArguments)) `
+      -WorkingDirectory $engine.Root -Description 'Restore the official Codex appearance and close the CDP session'
 
     foreach ($folder in @($desktop, $startMenu)) {
-      $tray = $shell.CreateShortcut((Join-Path $folder 'Codex Dream Skin - Tray.lnk'))
-      $tray.TargetPath = $powershell
-      $tray.Arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$trayScript`"$portArgument"
-      $tray.WorkingDirectory = $engine.Root
-      $tray.Description = 'Open Codex Dream Skin status and theme controls in the system tray'
-      $tray.Save()
+      Set-DreamSkinShortcut -Path (Join-Path $folder 'Codex Dream Skin - Tray.lnk') -TargetPath $launcher `
+        -Arguments (ConvertTo-DreamSkinArgumentLine -Arguments (@('tray', '-StateRoot', $StateRoot) + $portArguments)) `
+        -WorkingDirectory $engine.Root -Description 'Open Codex Dream Skin status and theme controls in the system tray'
     }
   }
 
-  if ($NoShortcuts) {
-    Write-Host "Codex Dream Skin base theme installed at $($engine.Root). Run $($engine.Start) to launch it."
-  } else {
-    Write-Host 'Codex Dream Skin installed. The launch shortcut asks before restarting an open Codex window.'
-  }
+  Write-Host 'Xskin installed. Your saved background and automatic-apply preferences are ready.'
+} catch {
+  $installError = $_
 } finally {
   Exit-DreamSkinOperationLock -Mutex $operationLock
+}
+
+try {
+  if ($installError) { throw $installError }
+  if ($null -ne $reopenCodex) {
+    if ($wasPaused) {
+      $null = Start-DreamSkinCodex -Codex $reopenCodex
+    } else {
+      $startArguments = @{ StateRoot = $StateRoot }
+      if ($PortExplicit) { $startArguments.Port = $Port }
+      & $engine.Start @startArguments
+    }
+  }
+} catch {
+  $failure = $_
+  if ($null -ne $reopenCodex -and (Get-DreamSkinCodexProcesses -Codex $reopenCodex).Count -eq 0) {
+    try { $null = Start-DreamSkinCodex -Codex $reopenCodex }
+    catch { Write-Warning 'Installation could not reopen Codex automatically. Open the official Codex app normally.' }
+  }
+  throw $failure
 }

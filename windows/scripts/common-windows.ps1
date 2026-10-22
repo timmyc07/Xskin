@@ -49,6 +49,62 @@ function Test-DreamSkinPathWithin {
   }
 }
 
+function Resolve-DreamSkinStateRoot {
+  param([Parameter(Mandatory = $true)][string]$StateRoot)
+  $root = [IO.Path]::GetFullPath($StateRoot)
+  if (Test-DreamSkinPathEqual -Left $root -Right (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')) {
+    $task = Get-DreamSkinAutostartTask
+    if ($task -and $task.Definition.Actions.Count -eq 1) {
+      $candidate = "$($task.Definition.Actions.Item(1).WorkingDirectory)"
+      if ($candidate -and [IO.Path]::IsPathRooted($candidate) -and
+        (Test-DreamSkinAutostartTask -Task $task -StateRoot $candidate)) {
+        $launcher = Join-Path $candidate 'engine\scripts\xskin-quiet.exe'
+        Assert-DreamSkinNoReparseComponents -Path $launcher
+        if ((Test-Path -LiteralPath $launcher) -and -not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
+          throw 'The Xskin quiet launcher is not an ordinary file.'
+        }
+        # A standalone process must reuse the store selected from inside the Codex MSIX container.
+        $root = [IO.Path]::GetFullPath($candidate)
+      }
+    }
+  }
+  $anchor = Join-Path $root 'active-theme\theme.json'
+  Assert-DreamSkinNoReparseComponents -Path $anchor
+  if (-not (Test-Path -LiteralPath $anchor -PathType Leaf)) { return $root }
+  if (-not ('CodexDreamSkin.PhysicalPath' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+namespace CodexDreamSkin {
+  public static class PhysicalPath {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(SafeFileHandle file, StringBuilder path, uint size, uint flags);
+    public static string Read(string path) {
+      using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) {
+        var buffer = new StringBuilder(32768);
+        uint length = GetFinalPathNameByHandle(file.SafeFileHandle, buffer, (uint)buffer.Capacity, 0);
+        if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (length >= buffer.Capacity) throw new IOException("The physical state path exceeds the Windows path limit.");
+        string result = buffer.ToString();
+        if (result.StartsWith(@"\\?\UNC\")) return @"\\" + result.Substring(8);
+        return result.StartsWith(@"\\?\") ? result.Substring(4) : result;
+      }
+    }
+  }
+}
+'@
+  }
+  # MSIX can redirect individual files while their parent directory still resolves to the logical path.
+  $physical = [CodexDreamSkin.PhysicalPath]::Read($anchor)
+  $resolved = [IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($physical))
+  Assert-DreamSkinNoReparseComponents -Path $resolved
+  return $resolved
+}
+
 function Get-DreamSkinRuntimeEnginePaths {
   param([string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'))
   $root = Join-Path ([System.IO.Path]::GetFullPath($StateRoot)) 'engine'
@@ -124,12 +180,13 @@ function Install-DreamSkinRuntimeEngine {
   }
 
   $sourceRoot = [System.IO.Path]::GetFullPath($SkillRoot)
-  $fullStateRoot = [System.IO.Path]::GetFullPath($StateRoot)
+  $fullStateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
   $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $fullStateRoot
   $required = @(
     'assets\dream-reference.jpg',
     'assets\dream-skin.css',
     'assets\renderer-inject.js',
+    'assets\token-overlay.js',
     'assets\theme.json',
     'scripts\common-windows.ps1',
     'scripts\autostart-windows.ps1',
@@ -137,6 +194,8 @@ function Install-DreamSkinRuntimeEngine {
     'scripts\config-utf8.ps1',
     'scripts\image-metadata.mjs',
     'scripts\injector.mjs',
+    'scripts\token-usage.mjs',
+    'scripts\quiet-launcher.cs',
     'scripts\install-dream-skin.ps1',
     'scripts\restore-dream-skin.ps1',
     'scripts\start-dream-skin.ps1',
@@ -259,6 +318,7 @@ function Install-DreamSkinRuntimeEngine {
       if ($null -ne $resumeState) {
         $daemon = $null
         try {
+          $resumeState.nodePath = (Get-DreamSkinNodeRuntime).Path
           $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
             $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
             '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
@@ -1009,3 +1069,48 @@ function Confirm-DreamSkinRestart {
 }
 
 . (Join-Path $PSScriptRoot 'autostart-windows.ps1')
+
+function Get-DreamSkinQuietLauncher {
+  param([Parameter(Mandatory = $true)][string]$StateRoot)
+  $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
+  $scripts = Join-Path $StateRoot 'engine\scripts'
+  $source = Join-Path $scripts 'quiet-launcher.cs'
+  $executable = Join-Path $scripts 'xskin-quiet.exe'
+  Assert-DreamSkinNoReparseComponents -Path $source
+  Assert-DreamSkinNoReparseComponents -Path $executable
+  if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw 'The Xskin quiet launcher source is missing; reinstall the complete package.' }
+  if ((Test-Path -LiteralPath $executable -PathType Leaf) -and
+    [IO.File]::GetLastWriteTimeUtc($executable) -ge [IO.File]::GetLastWriteTimeUtc($source)) { return $executable }
+
+  $compiler = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+  if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) { throw 'The Windows .NET Framework C# compiler is unavailable.' }
+  $temporary = Join-Path $scripts ('.xskin-quiet-' + [guid]::NewGuid().ToString('N') + '.exe')
+  try {
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $compiler
+    $start.Arguments = ConvertTo-DreamSkinArgumentLine -Arguments @('/nologo', '/target:winexe',
+      '/reference:System.Windows.Forms.dll', "/out:$temporary", $source)
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = New-Object Diagnostics.Process
+    try {
+      $process.StartInfo = $start
+      $null = $process.Start()
+      $output = $process.StandardOutput.ReadToEndAsync()
+      $errors = $process.StandardError.ReadToEndAsync()
+      $process.WaitForExit()
+      $diagnostic = ($output.Result + $errors.Result).Trim()
+      if ($diagnostic.Length -gt 4096) { $diagnostic = $diagnostic.Substring(0, 4096) }
+      if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $temporary -PathType Leaf)) {
+        throw "The Xskin quiet launcher could not be compiled: $diagnostic"
+      }
+    } finally { $process.Dispose() }
+    if (Test-Path -LiteralPath $executable) { [IO.File]::Replace($temporary, $executable, [NullString]::Value) }
+    else { [IO.File]::Move($temporary, $executable) }
+    return $executable
+  } finally {
+    if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
+  }
+}

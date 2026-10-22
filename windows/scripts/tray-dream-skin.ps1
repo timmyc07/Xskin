@@ -1,5 +1,5 @@
 ﻿[CmdletBinding()]
-param([int]$Port = 9335)
+param([int]$Port = 9335, [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'))
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -9,11 +9,10 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 
 Assert-DreamSkinPort -Port $Port
 $SkillRoot = Split-Path -Parent $PSScriptRoot
-$StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
+$StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 $paths = Initialize-DreamSkinThemeStore -SkillRoot $SkillRoot -StateRoot $StateRoot
-$powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$startScript = Join-Path $PSScriptRoot 'start-dream-skin.ps1'
-$restoreScript = Join-Path $PSScriptRoot 'restore-dream-skin.ps1'
+$StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
+$paths = Get-DreamSkinThemePaths -StateRoot $StateRoot
 
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $mutex = [System.Threading.Mutex]::new($false, "Local\CodexDreamSkin.$sid.Tray")
@@ -39,12 +38,11 @@ try {
     )
   }
 
-  function Start-DreamSkinPowerShell {
-    param([Parameter(Mandatory = $true)][string]$Script, [string[]]$Arguments = @())
-    $scriptToken = ConvertTo-DreamSkinProcessArgument -Value $Script
-    $argumentLine = '-NoProfile -ExecutionPolicy Bypass -File ' + $scriptToken
-    if ($Arguments.Count -gt 0) { $argumentLine += ' ' + ($Arguments -join ' ') }
-    Start-Process -FilePath $powershell -ArgumentList $argumentLine | Out-Null
+  function Start-DreamSkinQuietOperation {
+    param([ValidateSet('start', 'restore')][string]$Mode, [string[]]$Arguments = @())
+    $launcher = Get-DreamSkinQuietLauncher -StateRoot $StateRoot
+    $argumentLine = ConvertTo-DreamSkinArgumentLine -Arguments (@($Mode, '-StateRoot', $StateRoot) + $Arguments)
+    Start-Process -FilePath $launcher -ArgumentList $argumentLine -WindowStyle Hidden | Out-Null
   }
 
   function Add-DreamSkinTrayItem {
@@ -81,7 +79,7 @@ try {
 
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '应用或重新应用' -Action {
       Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
-      Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$Port", '-PromptRestart')
+      Start-DreamSkinQuietOperation -Mode start -Arguments @('-Port', "$Port", '-PromptRestart')
     }
     $pauseText = if ($paused) { '继续显示皮肤' } else { '暂停皮肤' }
     $nextPaused = -not $paused
@@ -138,7 +136,7 @@ try {
     }
     [void]$menu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new())
     $null = Add-DreamSkinTrayItem -Items $menu.Items -Text '完全恢复 Codex' -Action {
-      Start-DreamSkinPowerShell -Script $restoreScript -Arguments @(
+      Start-DreamSkinQuietOperation -Mode restore -Arguments @(
         '-Port', "$Port", '-RestoreBaseTheme', '-PromptRestart'
       )
       $notify.Visible = $false
@@ -154,7 +152,7 @@ try {
   $notify.add_DoubleClick({
     try {
       Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
-      Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$Port", '-PromptRestart')
+      Start-DreamSkinQuietOperation -Mode start -Arguments @('-Port', "$Port", '-PromptRestart')
     } catch {
       Show-DreamSkinTrayError -Message $_.Exception.Message
     }

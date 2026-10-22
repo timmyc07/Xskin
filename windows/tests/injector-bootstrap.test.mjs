@@ -109,6 +109,7 @@ for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
   };
   const context = {
     process:events, Date:{now:() => clock}, STRONG_THEME_AUDIT_MS:30000,
+    TokenUsageReader:class {}, watchUsageOverlay() {return {close() {}};},
     console:{error() {}, log() {if (mode === 'late-shell') stop();}},
     setTimeout(callback, ms) {clock += ms; if(mode === 'stop') stop(); return setImmediate(callback);},
     async connectBrowserIdentityAnchor() {return anchor;},

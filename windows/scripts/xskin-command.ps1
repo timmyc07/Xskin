@@ -54,11 +54,14 @@ try {
   $request = if ($inputText.Trim()) { $inputText | ConvertFrom-Json } else { [pscustomobject]@{} }
   if ($request -is [array] -or $request -is [string] -or $null -eq $request) { throw 'Panel request must be an object.' }
   $panelOperation = Enter-DreamSkinOperationLock
+  $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
   $paths = Initialize-DreamSkinThemeStore -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+  $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
+  $paths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   $settingsPath = Join-Path $StateRoot 'studio.json'
   Assert-DreamSkinNoReparseComponents -Path $settingsPath
   switch ($Action) {
-    'state' { }
+    'state' { Initialize-XskinAutostart -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot }
     'import' {
       $videoPath = $null
       $converted = $null
@@ -105,7 +108,7 @@ try {
       Write-XskinSettings -StateRoot $StateRoot -Values @{ pending = [IO.Path]::GetFileName($candidate.Directory) }
       Invoke-XskinApply -ThemeDirectory $candidate.Directory -StateRoot $StateRoot -Apply {
         $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
-        & $runtime.Start -PromptRestart
+        & $runtime.Start -PromptRestart -StateRoot $StateRoot
       }
       Write-XskinSettings -StateRoot $StateRoot -Values @{ pending = $null }
       try { Remove-DreamSkinRuntimeTree -Path $candidate.Directory -StateRoot $StateRoot }
@@ -116,7 +119,7 @@ try {
         $request.maskOpacity -isnot [decimal] -and $request.maskOpacity -isnot [long]) { throw 'Mask opacity must be a number between 0 and 1.' }
       $live = Test-XskinApplied -StateRoot $StateRoot
       Set-XskinMask -Opacity $request.maskOpacity -StateRoot $StateRoot -Apply {
-        if ($live) { & (Join-Path $PSScriptRoot 'verify-dream-skin.ps1') }
+        if ($live) { & (Join-Path $PSScriptRoot 'verify-dream-skin.ps1') -StateRoot $StateRoot }
         if ($live -and $LASTEXITCODE -ne 0) { throw 'The overlay did not verify. Previous overlay restored.' }
       }
     }
@@ -135,11 +138,11 @@ try {
     }
     'launch' {
       $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
-      & $runtime.Start -PromptRestart
+      & $runtime.Start -PromptRestart -StateRoot $StateRoot
     }
     'restore' {
       Set-XskinAutostart -Enabled $false -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
-      & (Join-Path $PSScriptRoot 'restore-dream-skin.ps1') -PromptRestart
+      & (Join-Path $PSScriptRoot 'restore-dream-skin.ps1') -PromptRestart -StateRoot $StateRoot
     }
     'save' { $null = Save-DreamSkinCurrentTheme -Name ([string]$request.name) -StateRoot $StateRoot }
     'select' {

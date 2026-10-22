@@ -6,12 +6,15 @@ param(
   [switch]$RecoverConfigBackup,
   [switch]$PromptRestart,
   [switch]$ForceRestart,
-  [switch]$NoRelaunch
+  [switch]$NoRelaunch,
+  [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
 )
 
 $ErrorActionPreference = 'Stop'
+$StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 . (Join-Path $PSScriptRoot 'xskin-theme.ps1')
+$StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 
 function Stop-DreamSkinTrayProcess {
   $trayScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'tray-dream-skin.ps1'))
@@ -36,7 +39,6 @@ try {
   }
   Assert-DreamSkinPort -Port $Port
 
-  $StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
   Set-XskinAutostart -Enabled $false -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root

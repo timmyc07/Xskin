@@ -63,6 +63,7 @@
   window[DISABLED_KEY] = false;
 
   const previous = window[STATE_KEY];
+  previous?.usageOverlay?.dispose();
   previous?.disposeHost?.();
   let workVisible = false;
   const workViews = new Map();
@@ -873,6 +874,7 @@
     const root = document.documentElement;
     if (!root) return;
     syncWorkViews();
+    window[STATE_KEY]?.usageOverlay?.request();
     videoController?.syncLayout();
     metrics.ensureCalls += 1;
     const shell = rootPass ? applyRootState(root) : null;
@@ -884,6 +886,7 @@
     if (state?.installToken !== installToken) return false;
     window[DISABLED_KEY] = true;
     disposeHost();
+    state?.usageOverlay?.dispose();
     state?.disposeVideo?.();
     document.documentElement?.classList.remove("codex-dream-skin");
     document.documentElement?.removeAttribute(SHELL_ATTR);
@@ -943,7 +946,7 @@
   };
   const routeMarkers = '[data-app-shell-active-page], main[data-app-shell-main-surface], [role="main"], ' +
     '[data-testid="home-icon"], [data-feature="game-source"], [class~="group/home-suggestions"], [class*="_homeUtilityBar_"], ' +
-    `#${CHROME_ID}, #thread, main#main, #prompt-textarea, webview, [data-avatar-overlay-native-surface-id]`;
+    `#${CHROME_ID}, #thread, main#main, #prompt-textarea, webview, [data-avatar-overlay-native-surface-id], [data-composer-body]`;
   const observer = new MutationObserver((records) => {
     // Message streaming changes content, not the shell or home-route markers.
     const routeChanged = records.some((record) => record.type === "attributes" ||
@@ -1013,7 +1016,7 @@
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["data-app-shell-active-page"],
+    attributeFilter: ["data-app-shell-active-page", "data-app-action-sidebar-thread-selected"],
   });
   rootObserver.observe(document.documentElement, {
     attributes: true,

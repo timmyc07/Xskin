@@ -1,18 +1,22 @@
 [CmdletBinding()]
 param(
   [int]$Port = 9335,
-  [string]$ScreenshotPath
+  [string]$ScreenshotPath,
+  [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
 )
 
 $ErrorActionPreference = 'Stop'
+$StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $injector = Join-Path $PSScriptRoot 'injector.mjs'
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
+. (Join-Path $PSScriptRoot 'theme-windows.ps1')
+$StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 
 $operationLock = Enter-DreamSkinOperationLock
 $verifyExitCode = 1
 try {
-  $StatePath = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin\state.json'
+  $StatePath = Join-Path $StateRoot 'state.json'
   $state = Read-DreamSkinState -Path $StatePath
   if (-not $PortExplicit -and $null -ne $state -and $state.port) { $Port = [int]$state.port }
   Assert-DreamSkinPort -Port $Port
@@ -40,7 +44,7 @@ try {
 
   $arguments = @($injector, '--verify', '--port', "$Port", '--browser-id', $cdpIdentity.BrowserId,
     '--timeout-ms', '30000')
-  $themeDir = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin\active-theme'
+  $themeDir = Join-Path $StateRoot 'active-theme'
   $arguments += @('--theme-dir', $themeDir)
   if ($ScreenshotPath) { $arguments += @('--screenshot', $ScreenshotPath) }
   & $node.Path @arguments

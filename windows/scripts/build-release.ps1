@@ -35,7 +35,7 @@ $redistributables = Get-ChildItem -LiteralPath (Join-Path $studio 'VC\Redist\MSV
 $crt = Join-Path $redistributables[0].FullName 'x64\Microsoft.VC143.CRT'
 if (-not (Test-Path -LiteralPath $crt)) { throw 'The x64 Visual C++ redistributable is required for the portable package.' }
 Copy-Item -Path (Join-Path $crt '*.dll') -Destination $package
-foreach ($name in @('scripts','assets','references','README.md','README.en.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','VERSION','Install Xskin.cmd')) {
+foreach ($name in @('scripts','assets','references','README.md','README.en.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','VERSION')) {
   Copy-Item -LiteralPath (Join-Path $root $name) -Destination $package -Recurse
 }
 . (Join-Path $root 'scripts\common-windows.ps1')
@@ -44,6 +44,11 @@ $nodeLicense = Join-Path (Split-Path -Parent $nodeRuntime.Path) 'LICENSE'
 if (-not (Test-Path -LiteralPath $nodeLicense)) { throw 'The Node.js distribution license is required for packaging.' }
 Copy-Item -LiteralPath $nodeRuntime.Path -Destination (Join-Path $package 'scripts\node.exe')
 Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $package 'Node-LICENSE.txt')
+$quietCompiler = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+$quietLauncher = Join-Path $package 'scripts\xskin-quiet.exe'
+& $quietCompiler /nologo /target:winexe /reference:System.Windows.Forms.dll "/out:$quietLauncher" (Join-Path $package 'scripts\quiet-launcher.cs')
+if ($LASTEXITCODE -ne 0) { throw 'The GUI-only Xskin launcher could not be built.' }
+Copy-Item -LiteralPath $quietLauncher -Destination (Join-Path $package 'Install Xskin.exe')
 Copy-Item -LiteralPath (Join-Path $repository 'macos\LICENSE'), (Join-Path $repository 'macos\NOTICE.md') -Destination $package
 $zip = Join-Path $release "Xskin-$version-windows-x64.zip"
 Compress-Archive -Path $package -DestinationPath $zip -Force

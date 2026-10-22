@@ -16,12 +16,7 @@ try {
   if (-not $acquired) { exit 0 }
   $sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
   $context = @{ Seen = @{}; LastHandoff = [datetimeoffset]::MinValue }
-  # Starting the monitor at installation or login must leave existing windows alone.
-  foreach ($process in Get-Process -Name ChatGPT -ErrorAction SilentlyContinue) {
-    try {
-      if ($process.SessionId -eq $sessionId) { $context.Seen["$($process.Id):$($process.StartTime.ToUniversalTime().ToString('o'))"] = $true }
-    } catch { } # A process can exit during the initial snapshot.
-  }
+  # The launch-age guard leaves older windows alone and handles Codex starting before the login monitor.
   Assert-DreamSkinNoReparseComponents -Path (Join-Path $StateRoot 'autostart.json')
   $previous = Read-DreamSkinState -Path (Join-Path $StateRoot 'autostart.json')
   if ($previous -and $previous.lastHandoff) { $context.LastHandoff = [datetimeoffset]$previous.lastHandoff }

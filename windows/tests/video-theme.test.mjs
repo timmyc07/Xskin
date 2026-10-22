@@ -58,6 +58,26 @@ try {
   const metadata = path.join(temporary, "theme.json");
   await fs.writeFile(metadata, JSON.stringify(theme));
   const loaded = await loadPayload(temporary);
+  const realpath = fs.realpath;
+  const lstat = fs.lstat;
+  const virtualTheme = path.join(temporary, "virtual-theme");
+  const virtualConfig = path.join(virtualTheme, "theme.json");
+  try {
+    fs.realpath = async filename => path.resolve(filename) === virtualConfig ? realpath(metadata)
+      : path.resolve(filename) === virtualTheme ? virtualTheme : realpath(filename);
+    fs.lstat = async filename => lstat(path.resolve(filename) === virtualConfig ? metadata : filename);
+    const redirected = await loadPayload(virtualTheme);
+    assert.equal(redirected.theme.videoKey, loaded.theme.videoKey,
+      "MSIX file redirection must resolve media beside the canonical configuration file.");
+  } finally {
+    fs.realpath = realpath;
+    fs.lstat = lstat;
+  }
+  try {
+    fs.lstat = async filename => path.resolve(filename) === metadata ? { isFile: () => false } : lstat(filename);
+    await assert.rejects(loadPayload(temporary), /configuration must be a regular file/,
+      "A linked configuration cannot move the trusted media directory elsewhere.");
+  } finally { fs.lstat = lstat; }
   assert.equal(loaded.theme.maskOpacity, 0.62);
   assert.equal(loaded.theme.videoBytes, mp4.length, "The Mac renderer requires the original file length during handoff.");
   assert.ok(loaded.payload.includes("中文 $& theme"), "Replacement preserves literal dollar substitution sequences.");

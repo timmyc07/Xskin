@@ -41,9 +41,32 @@ try {
   const startupPath = path.join(temporary,'startup.lnk').replaceAll("'","''");
   await fs.writeFile(helpers,(await fs.readFile(helpers,'utf8')).replace(
     "return Join-Path ([Environment]::GetFolderPath('Startup')) 'Xskin Codex backgrounds.lnk'",
-    `return '${startupPath}'`));
+    `return '${startupPath}'`).replace(
+    "return 'Xskin-Codex-backgrounds-' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
+    `return 'Xskin-panel-${path.basename(temporary)}'`));
+  await fs.appendFile(path.join(runtimeRoot, "scripts/xskin-theme.ps1"), `
+function Get-XskinAutostart {
+  param([string]$StateRoot)
+  $enabled = Test-Path -LiteralPath (Join-Path $StateRoot 'automatic-enabled.txt')
+  return @{ Enabled = $enabled; Loaded = $enabled; Foreign = $false }
+}
+function Set-XskinAutostart {
+  param([bool]$Enabled, [string]$SkillRoot, [string]$StateRoot)
+  $file = Join-Path $StateRoot 'automatic-enabled.txt'
+  if ($Enabled) {
+    [IO.File]::WriteAllText($file, 'enabled')
+    [IO.File]::AppendAllText((Join-Path $StateRoot 'automatic-setups.txt'), 'setup')
+  } elseif (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ automaticSetupComplete = $true }
+}
+`);
   const initial = await run("state");
   assert.equal(initial.code, 0, initial.error);
+  assert.equal(initial.state.autostart, true);
+  assert.equal((await run("state")).state.autostart, true);
+  assert.equal(await fs.readFile(path.join(stateRoot, "automatic-setups.txt"), "utf8"), "setup");
+  assert.equal((await run("autostart", { enabled: false })).state.autostart, false);
+  assert.equal((await run("state")).state.autostart, false);
   assert.equal(initial.state.pending, false);
   assert.ok(initial.state.saved.length > 0);
   assert.equal(typeof initial.state.saved[0].directory, 'string');
@@ -97,5 +120,25 @@ try {
   assert.equal(importedMovie.state.maskOpacity, 0.27);
   assert.deepEqual(await fs.readFile(importedMovie.state.videoPath), movieBytes);
   assert.ok(importedMovie.state.imagePath, "A video uses the active image fallback without waiting for a poster screenshot.");
+  await fs.appendFile(path.join(runtimeRoot, "scripts/xskin-theme.ps1"),
+    "\nfunction Test-XskinApplied { param([string]$StateRoot) return $true }\n" +
+    "function Install-DreamSkinRuntimeEngine { param([string]$SkillRoot, [string]$StateRoot) return @{ Start = (Join-Path $PSScriptRoot 'start-dream-skin.ps1') } }\n");
+  for (const action of ["start", "verify", "restore"]) {
+    await fs.writeFile(path.join(runtimeRoot, `scripts/${action}-dream-skin.ps1`), `
+param([switch]$PromptRestart, [string]$StateRoot)
+if ([IO.Path]::GetFullPath($StateRoot) -ine '${stateRoot.replaceAll("'", "''")}') {
+  throw 'The panel did not forward its custom state root.'
+}
+[IO.File]::WriteAllText((Join-Path $StateRoot '${action}-root.txt'), $StateRoot)
+$global:LASTEXITCODE = 0
+`);
+  }
+  for (const [action, request] of [["launch", {}], ["mask", { maskOpacity: 0.31 }], ["restore", {}]]) {
+    const result = await run(action, request);
+    assert.equal(result.code, 0, result.error);
+  }
+  for (const action of ["start", "verify", "restore"]) {
+    assert.equal(await fs.readFile(path.join(stateRoot, `${action}-root.txt`), "utf8"), stateRoot);
+  }
 } finally { await fs.rm(temporary, { recursive: true, force: true }); }
 console.log("PASS: Flutter bridge UTF-8 round-trip, preview isolation, mask validation, pause and path boundaries.");

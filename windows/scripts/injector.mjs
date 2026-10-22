@@ -4,11 +4,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readImageMetadata } from "./image-metadata.mjs";
 import { inspectVideo, validateVideoName } from "./video-file.mjs";
+import { TokenUsageReader } from "./token-usage.mjs";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.6.0";
+const SKIN_VERSION = "1.7.0";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -327,8 +328,11 @@ function normalizedText(value, name, fallback, maxLength = 120) {
 const videoStamp = (stat) => `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
 
 async function loadTheme(themeDir) {
-  const realThemeDir = await fs.realpath(themeDir);
-  const themePath = path.join(realThemeDir, "theme.json");
+  const selectedThemePath = path.join(themeDir, "theme.json");
+  if (!(await fs.lstat(selectedThemePath)).isFile()) throw new Error("Theme configuration must be a regular file");
+  const themePath = await fs.realpath(selectedThemePath);
+  // MSIX can redirect individual files while leaving the selected directory path unchanged.
+  const realThemeDir = path.dirname(themePath);
   const themeText = await fs.readFile(themePath, "utf8");
   const raw = JSON.parse(themeText);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -433,9 +437,10 @@ async function loadTheme(themeDir) {
 
 export async function loadPayload(themeDir = path.join(root, "assets"), candidateTheme = null) {
   const loadedTheme = candidateTheme ?? await loadTheme(themeDir);
-  const [css, template] = await Promise.all([
+  const [css, template, tokenOverlay] = await Promise.all([
     fs.readFile(path.join(root, "assets", "dream-skin.css"), "utf8"),
     fs.readFile(path.join(root, "assets", "renderer-inject.js"), "utf8"),
+    fs.readFile(path.join(root, "assets", "token-overlay.js"), "utf8"),
   ]);
   const extension = path.extname(loadedTheme.imagePath).toLowerCase();
   const mime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
@@ -449,7 +454,8 @@ export async function loadPayload(themeDir = path.join(root, "assets"), candidat
     .replace("__DREAM_SKIN_ART_JSON__", () => JSON.stringify(artDataUrl))
     .replace("__DREAM_SKIN_THEME_JSON__", () => JSON.stringify(loadedTheme.theme))
     .replace("__DREAM_SKIN_VERSION_JSON__", () => JSON.stringify(SKIN_VERSION))
-    .replace("__DREAM_SKIN_STYLE_REVISION_JSON__", () => JSON.stringify(styleRevision));
+    .replace("__DREAM_SKIN_STYLE_REVISION_JSON__", () => JSON.stringify(styleRevision))
+    + `;\n(${tokenOverlay})();`;
   const { imageBytes: _imageBytes, ...themeState } = loadedTheme;
   return { ...themeState, payload };
 }
@@ -580,6 +586,66 @@ export async function attachVideoToSession(session, source) {
 async function applyToSession(session, loaded) {
   await session.evaluate(loaded.payload);
   await attachVideoToSession(session, loaded.videoSource);
+}
+
+async function sendUsageSnapshot(session, threadId, snapshot) {
+  await session.evaluate(`(() => {
+    const overlay = window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay;
+    const request = overlay?.request();
+    if (request?.visible && request.threadId === ${JSON.stringify(threadId)}) overlay.update(${JSON.stringify(snapshot)});
+  })()`);
+}
+
+export async function updateUsageOverlay(session, reader) {
+  const request = await session.evaluate('window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()');
+  if (!request?.visible) return;
+  const snapshot = request.threadId ? await reader.read(request.threadId) : null;
+  await sendUsageSnapshot(session, request.threadId, snapshot);
+}
+
+export function watchUsageOverlay(session, reader) {
+  let closed = false;
+  let timer = null;
+  let subscription = null;
+  let threadId;
+  let installation;
+  let lastHeartbeatAt = 0;
+  const tick = async () => {
+    try {
+      if (session.closed) { close(); return; }
+      const request = await session.evaluate('window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()');
+      if (closed) return;
+      const current = request?.visible ? request.threadId : undefined;
+      if (current !== threadId || request?.installation !== installation) {
+        subscription?.close();
+        subscription = null;
+        threadId = current;
+        installation = request?.installation;
+        lastHeartbeatAt = Date.now();
+        if (threadId) {
+          const active = reader.watch(threadId, snapshot => {
+            if (!closed && subscription === active) return sendUsageSnapshot(session, threadId, snapshot);
+          });
+          subscription = active;
+          await active.refresh(true);
+        } else if (request?.visible) await sendUsageSnapshot(session, threadId, null);
+      } else if (subscription && Date.now() - lastHeartbeatAt >= 5000) {
+        lastHeartbeatAt = Date.now();
+        await subscription.refresh(true);
+      }
+    } catch {}
+    finally {
+      if (!closed) timer = setTimeout(tick, 250);
+    }
+  };
+  const close = () => {
+    closed = true;
+    clearTimeout(timer);
+    subscription?.close();
+    subscription = null;
+  };
+  tick();
+  return { close };
 }
 
 export function earlyPayloadFor(payload, revision) {
@@ -737,6 +803,7 @@ async function verifySession(session) {
       videoKey: window.__CODEX_DREAM_SKIN_STATE__?.videoKey ?? null,
       stylePresent: Boolean(document.getElementById('codex-dream-skin-style')),
       video: window.__CODEX_DREAM_SKIN_STATE__?.videoStatus?.() ?? null,
+      usageOverlay: window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.status() ?? null,
       wallpaperLayout: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.wallpaper),
       wallpaperMask,
       startupFrames: {
@@ -851,6 +918,7 @@ async function capture(session, outputPath) {
 }
 
 async function runOneShot(options) {
+  const usageReader = new TokenUsageReader();
   const connected = await connectCodexTargets(options.port, options.timeoutMs, options.browserId);
   const loadedPayload = options.mode !== "remove"
     ? await loadPayload(options.themeDir) : null;
@@ -869,6 +937,7 @@ async function runOneShot(options) {
           await new Promise((resolve) => setTimeout(resolve, 1600));
           if (options.mode !== "remove") await applyToSession(session, loadedPayload);
         }
+        if (options.mode !== "remove") await updateUsageOverlay(session, usageReader);
         const verified = options.mode === "remove"
           ? await verifyRemovedSession(session)
           : (options.reload || options.mode === "once" || options.mode === "verify")
@@ -893,6 +962,8 @@ async function runOneShot(options) {
 }
 
 async function runWatch(options) {
+  const usageReader = new TokenUsageReader();
+  const usageWatchers = new Map();
   const identityAnchor = await connectBrowserIdentityAnchor(options.port, options.browserId);
   const sessions = new Map();
   const earlyScripts = new Map();
@@ -1010,6 +1081,8 @@ async function runWatch(options) {
       paused = nextPaused;
 
       if (pauseChanged || payloadChanged) {
+        for (const watcher of usageWatchers.values()) watcher.close();
+        usageWatchers.clear();
         for (const id of pendingTargets.keys()) await discardPending(id);
         for (const [id, session] of sessions) {
           try {
@@ -1062,6 +1135,8 @@ async function runWatch(options) {
       }
       for (const [id, session] of sessions) {
         if (!activeIds.has(id) || session.closed) {
+          usageWatchers.get(id)?.close();
+          usageWatchers.delete(id);
           await removeEarlyPayload(session, earlyScripts.get(id));
           earlyScripts.delete(id);
           fallbackTargets.delete(id);
@@ -1141,9 +1216,14 @@ async function runWatch(options) {
           rejectTarget(target, 2500, error);
         }
       }
+      if (!paused) for (const [id, session] of sessions) {
+        if (!usageWatchers.has(id)) usageWatchers.set(id, watchUsageOverlay(session, usageReader));
+      }
       await new Promise((resolve) => setTimeout(resolve, 1200));
     }
   } finally {
+    for (const watcher of usageWatchers.values()) watcher.close();
+    usageWatchers.clear();
     identityAnchor.close();
     for (const id of pendingTargets.keys()) await discardPending(id);
     for (const [id, session] of sessions) {

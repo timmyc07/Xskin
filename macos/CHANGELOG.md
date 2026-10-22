@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0 — 2026-10-22
+
+- Add a compact token overlay below the Codex task composer: show the current conversation's cumulative tokens, cached input tokens, remaining context percentage, subscription plan and remaining subscription quota when present in official local session logs. Keep missing values visibly unknown; cached tokens are a subset of input tokens, not additional consumption.
+- Show the latest model call's cache hit ratio, with cache-write tokens only when the source provides them. Do not infer permanent cache contents or expiry.
+- Watch the current conversation's exact session file with 20ms write coalescing, 250ms route/visibility checks and a 5-second metadata heartbeat. Serialize reads, deduplicate snapshots and read bounded incremental tails instead of repeatedly scanning session directories. Updates follow actual source writes; no simulated consumption is shown.
+- Scale the CSS fan animation to positive token deltas and stop it when idle, hidden or Reduce Motion is enabled. Read local usage records through the existing loopback injector without network requests or reading `auth.json`.
+- Add parser and renderer regression checks to the macOS test runner. The native app and standalone packages include the new runtime files through existing directory copying.
+
 ## 1.6.1 — 2026-10-22
 
 - Recognize the native ChatGPT Work shell without requiring a Codex active-page wrapper. Keep inactive pages excluded and use the same selectors for injection, routes, and verification.

@@ -6,14 +6,17 @@ param(
   [int]$NewLaunchPid,
   [string]$NewLaunchStartedAt,
   [string]$ProfilePath,
-  [switch]$ForegroundInjector
+  [switch]$ForegroundInjector,
+  [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
 )
 
 $ErrorActionPreference = 'Stop'
+$StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $Injector = Join-Path $PSScriptRoot 'injector.mjs'
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
+$StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 
 $lockWait = if ($NewLaunchPid) { 2000 } else { 0 }
 $operationLock = Enter-DreamSkinOperationLock -TimeoutMilliseconds $lockWait
@@ -29,7 +32,6 @@ try {
     }
   }
   $codex = $currentCodex
-  $StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root
   $StatePath = Join-Path $StateRoot 'state.json'
