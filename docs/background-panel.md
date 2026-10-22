@@ -35,13 +35,13 @@ Mask depth persists locally. The mask is a visual overlay: it does not re-encode
 
 English is the default. Use the in-app language selector to switch to **Traditional Chinese**, **Simplified Chinese**, or **Japanese**. Your selection is saved locally and restored the next time Xskin opens.
 
-## Open Codex (Xskin)
+## Open Codex with the saved background
 
 1. Apply the background you want to keep.
-2. Enable **Use background from Codex (Xskin)**.
-3. Fully exit Codex, then open **Codex (Xskin)** from the Windows Desktop/Start menu or macOS ~/Applications. Xskin does not need to stay open.
+2. On macOS, enable **Apply when official Codex opens**. Open the official app as usual; a new ordinary launch gracefully reopens once with the background. The panel can stay closed, including after login. An already-open session is left alone, and a refused quit is never forced.
+3. On Windows, enable **Use background from Codex (Xskin)**. Fully exit Codex, then open **Codex (Xskin)** from Desktop/Start. The panel can stay closed. Windows never automatically closes/reopens Codex.
 
-Pin that managed entry using the normal system UI. A new launch starts the official app once; ordinary existing sessions are left running with instructions to exit manually. Paused/disabled entries open ordinary Codex and retain pause. Upgrades retire only verified legacy monitors and preserve media, language and opacity. Historical managed Dock pins are restored; new setup does not replace official pins automatically.
+The optional macOS ~/Applications/Codex (Xskin).app starts directly with the background connection, avoiding the reopen. Pin it using normal system UI if preferred. Paused/disabled entries open ordinary Codex and retain pause. Upgrades manage only verified Xskin services/shortcuts and preserve media, language and opacity. Historical managed Dock pins are restored; new setup does not replace official pins automatically.
 
 A cold start still needs app loading and media decoding. CDP/CSS injection authorization is unconfirmed; see [validation and recovery](direct-launch-shortcut.md).
 

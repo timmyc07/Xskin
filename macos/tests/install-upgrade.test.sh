@@ -27,6 +27,7 @@ printf new > "$PROJECT_ROOT/version"
 cat > "$PROJECT_ROOT/scripts/install-dream-skin-macos.sh" <<'INSTALL'
 #!/bin/bash
 printf 'install\n' >> "$fixture/events"
+if [ -f "$fixture/new-agent" ]; then : > "$fixture/startup.plist"; fi
 [ ! -e "$fixture/fail-install" ]
 INSTALL
 for directory in "$PROJECT_ROOT" "$INSTALL_ROOT"; do
@@ -50,8 +51,9 @@ chmod +x "$PROJECT_ROOT/scripts/autostart-dream-skin-macos.sh"
 case "$2" in
   active|rollback|unknown) : > "$STATE_PATH"; : > "$AUTOSTART_AGENT_PATH" ;;
   paused) : > "$STATE_PATH" ;;
+  rollback-shortcut) : > "$STATE_ROOT/shortcut-enabled"; : > "$fixture/new-agent" ;;
 esac
-[ "$2" != rollback ] || : > "$fixture/fail-install"
+case "$2" in rollback*) : > "$fixture/fail-install" ;; esac
 discover_codex_app() { :; }
 require_macos_runtime() { :; }
 ensure_state_root() { :; }
@@ -78,6 +80,10 @@ if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" rollback >/dev/null 2>&1; then
 [ "$(cat "$TEMPORARY/rollback/installed/version")" = old ]
 /usr/bin/grep -Fxq resume:old "$TEMPORARY/rollback/events"
 /usr/bin/grep -Fxq startup:old "$TEMPORARY/rollback/events"
+if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" rollback-shortcut >/dev/null 2>&1; then exit 1; fi
+[ "$(cat "$TEMPORARY/rollback-shortcut/installed/version")" = old ]
+/usr/bin/grep -Fxq bootout "$TEMPORARY/rollback-shortcut/events"
+/usr/bin/grep -Fxq startup:old "$TEMPORARY/rollback-shortcut/events"
 if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" unknown >/dev/null 2>&1; then exit 1; fi
 [ "$(cat "$TEMPORARY/unknown/installed/version")" = old ]
 ! /usr/bin/grep -q install "$TEMPORARY/unknown/events"

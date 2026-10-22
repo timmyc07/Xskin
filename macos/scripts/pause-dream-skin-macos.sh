@@ -6,6 +6,13 @@
 set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd -P)/common-macos.sh"
 
+if [ "${1:-}" != --locked ]; then
+  ensure_state_root
+  [ ! -L "$STATE_ROOT/direct-launch.lock" ] || fail "The launcher lock must be an ordinary file."
+  exec /usr/bin/lockf -ks -t 60 "$STATE_ROOT/direct-launch.lock" /bin/bash "$0" --locked "$@"
+fi
+shift
+
 PORT=9341
 PORT_EXPLICIT="false"
 while [ "$#" -gt 0 ]; do
@@ -14,10 +21,6 @@ while [ "$#" -gt 0 ]; do
     *) fail "Unknown pause argument: $1" ;;
   esac
 done
-
-# Retire a legacy observer, preserving the shortcut preference.
-. "$SCRIPT_DIR/autostart-dream-skin-macos.sh"
-disable_autostart
 
 discover_codex_app
 require_macos_runtime

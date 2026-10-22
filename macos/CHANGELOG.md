@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1 — 2026-10-22 (source; physical startup validation pending)
+
+- Restore the macOS official-app entry at the user's request: the enabled login service observes new native launches and gracefully reopens each once to apply the background. The Xskin panel can stay closed. Windows retains its 1.8.0 shortcut-only startup and never automatically reopens Codex.
+- Verify the fresh process by executable, PID, start time, bundle path and age; request normal termination of that exact process only. Skip existing, paused, disabled and explicit-debug sessions. A refused quit or failed launch is not forcibly stopped or retried in a loop.
+- Retain the direct Codex (Xskin) entry as an optional single-launch path. Preserve settings/media, migrate enabled 1.8.0 preferences, serialize handoffs against direct launches and panel operations, and restore the previous service on update failure.
+
 ## 1.8.0 — 2026-10-22 (source; physical startup validation pending)
 
 - Use Codex (Xskin) for one explicit official launch. Retire legacy launch monitoring; ordinary existing apps and failed launches are never closed/reopened by startup.

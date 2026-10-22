@@ -16,6 +16,9 @@ PORT=9341
 PORT_EXPLICIT="false"
 FOREGROUND_INJECTOR="false"
 DIRECT_LAUNCH="false"
+STARTUP_PID=""
+STARTUP_STARTED_AT=""
+AUTOMATIC_HANDOFF="false"
 VERIFY_OUTPUT=""
 REQUESTED_AT="$(/bin/date +%s)"
 finish_start() {
@@ -27,6 +30,7 @@ while [ "$#" -gt 0 ]; do
     --port) PORT="${2:-}"; PORT_EXPLICIT="true"; shift 2 ;;
     --foreground-injector) FOREGROUND_INJECTOR="true"; shift ;;
     --direct-launch) DIRECT_LAUNCH="true"; shift ;;
+    --restart-new-launch) STARTUP_PID="${2:-}"; STARTUP_STARTED_AT="${3:-}"; AUTOMATIC_HANDOFF="true"; DIRECT_LAUNCH="true"; shift 3 ;;
     *) fail "Unknown start argument: $1" ;;
   esac
 done
@@ -44,7 +48,22 @@ fi
 DEBUG_READY="false"
 if verified_cdp_endpoint "$PORT"; then DEBUG_READY="true"; fi
 
-if codex_is_running && [ "$DEBUG_READY" = "false" ]; then
+if [ "$AUTOMATIC_HANDOFF" = true ]; then
+  . "$SCRIPT_DIR/autostart-dream-skin-macos.sh"
+  check_autostart_agent
+  [ -f "$AUTOSTART_AGENT_PATH" ] && [ -f "$STATE_ROOT/shortcut-enabled" ] \
+    || fail "Automatic apply is disabled."
+  [ ! -f "$STATE_PATH" ] || [ "$(state_field session)" != paused ] || fail "Automatic apply is paused."
+  new_codex_launch_matches "$STARTUP_PID" "$STARTUP_STARTED_AT" || fail "Automatic apply skipped an old or changed process."
+  [ "$DEBUG_READY" = false ] || exit 0
+  "$NODE" "$INJECTOR" --check-payload --theme-dir "$THEME_DIR" >/dev/null
+  if [ -f "$STATE_PATH" ]; then
+    stop_recorded_injector
+    /bin/rm -f "$STATE_PATH"
+  fi
+  PORT="$(select_available_port "$PORT")"
+  stop_new_codex_launch "$STARTUP_PID" "$STARTUP_STARTED_AT"
+elif codex_is_running && [ "$DEBUG_READY" = "false" ]; then
   fail "Codex is already open without a verified Xskin connection. Fully quit Codex, then open Codex (Xskin). Your app was left running."
 fi
 
@@ -55,7 +74,7 @@ fi
 
 INJECTOR_PID=""
 if [ "$DEBUG_READY" = "false" ]; then
-  PORT="$(select_available_port "$PORT")"
+  [ "$AUTOMATIC_HANDOFF" = true ] || PORT="$(select_available_port "$PORT")"
   printf 'Launching Codex with skin debug port %s…\n' "$PORT" >&2
   launch_codex_with_cdp "$PORT"
   # Start probing immediately instead of waiting for the native window to finish loading.

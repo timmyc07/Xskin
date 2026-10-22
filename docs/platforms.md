@@ -48,6 +48,7 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 | 对话 Token / 缓存 / 额度 / 方案 overlay | ✅（Codex 任务输入框下方） | ✅（Codex 任务输入框下方） |
 | 四語介面 / 拖放 / 獨立全版遮罩 | ✅ | ✅（1.5.1） |
 | 面板關閉後由 Codex (Xskin) 啟動 | ✅（1.8.0，受管 .app） | ✅（1.8.0，桌面／開始捷徑） |
+| 點官方 App 自動套用背景 | ✅（1.8.1，新的普通啟動正常重開一次） | ❌（使用受管捷徑，不自動重開） |
 | 本地主题保存 / 切换 | ✅（菜单栏） | ✅（系统托盘） |
 | 官方签名校验 | ✅ | Store 签名类型 + 包身份 |
 | 客户部署提示词 | ✅ | ❌（可用 Mac 文案改写） |
@@ -120,10 +121,10 @@ Windows 新任务的记录文件尚未创建时会暂时监听其确切 UUID 的
 
 ## 1.8.0 managed direct launch
 
-Both platforms use an explicit **Codex (Xskin)** entry. They request official OS activation once, reuse verified connections and leave ordinary existing apps running. No new-launch interception, automatic close/reopen or login watcher remains. Pinning uses normal system UI. Pause/disabled preferences make the shortcut open ordinary Codex and remain paused.
+Windows uses an explicit **Codex (Xskin)** entry. It requests official OS activation once, reuses verified connections and leaves ordinary existing apps running. No Windows automatic close/reopen or login watcher remains. Pinning uses normal system UI. Pause/disabled preferences make the shortcut open ordinary Codex and remain paused.
 
 Windows uses the existing quiet host → PowerShell → registered MSIX activation chain. The shortcut carries the physical StateRoot. A per-user locator and managed-engine location replace dependence on the removed logon task; custom and redirected data are preserved. Migration validates legacy task, process and shortcut identity. It stops the recorded injector before the legacy monitor, retains bundled Node, and resumes the previous runtime after a failed swap. New quiet hosts do not join inherited output pipes after their direct child exits.
 
-macOS uses LaunchServices and a managed app in ~/Applications, serializing concurrent clicks with a kernel file lock. The old verified LaunchAgent is retired and any previously managed Dock pin is restored. New installations do not edit Dock preferences. Both platforms retain four languages, media, opacity and overlay; macOS includes the Windows draft-ID, lifecycle fan, long-log and file-creation fixes.
+macOS 1.8.1 restores the official-app entry by explicit user choice. Its verified per-user LaunchAgent observes native app notifications, skips existing/paused/debug sessions and gracefully reopens each fresh ordinary launch once. The native helper validates the exact PID, bundle/path and age before asking it to terminate; it never force-quits. Failed relaunches and queued duplicate events cannot trigger a restart loop. The optional managed app in ~/Applications still starts directly, sharing a kernel lock with automatic handoffs. Pause preserves the service/preference but its state prevents handoffs. Updates migrate enabled 1.8.0 preferences and restore the prior service on failure. New installations do not edit Dock preferences. Both platforms retain four languages, media, opacity and overlay; macOS includes the Windows draft-ID, lifecycle fan, long-log and file-creation fixes.
 
 A separate explicit full Restore may close/reopen Codex after confirmation. Account/provider configuration is never changed. No official bundle, app.asar, WindowsApps, signature, Electron fuse or protection is modified. This boundary does not establish authorization for CDP/CSS injection: it remains unconfirmed. [Validation and recovery](direct-launch-shortcut.md) distinguish fixtures/CI from required physical cold-start, login, Store-update and home/task checks.

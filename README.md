@@ -64,9 +64,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-Source 1.8.0 uses **Codex (Xskin)** on both platforms. Fully exit Codex, then open this managed entry to apply your saved background and overlay. The Xskin panel can stay closed. Windows provides Desktop/Start shortcuts; macOS provides `~/Applications/Codex (Xskin).app`. Pin it using the normal system UI.
+macOS 1.8.1 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen.
 
-Upgrades remove only verified legacy launch monitors and preserve your data and preferences. Existing ordinary Codex sessions are left running; exit them manually before using the shortcut. Paused shortcuts open ordinary Codex without resuming. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
+Windows 1.8.0 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
 
 ### Keep streaming updates light
 
@@ -116,7 +116,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
 - Releases are platform-specific: **windows-v1.6.0** for Windows x64 and **v1.6.1** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
-- Managed Codex (Xskin) entries start the official app once, reuse an existing verified connection and never close/reopen ordinary launches. Published older downloads retain their historical behavior.
+- Windows uses Codex (Xskin) without automatic reopen. macOS supports the official entry with one graceful reopen per fresh launch, or the optional direct entry. Published older downloads retain their historical behavior.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
 - 4K decoding and playback load depend on frame rate, codec, and hardware. Preserving original quality does not guarantee identical resource use across files.
@@ -142,7 +142,7 @@ cd macos
 npm test
 ```
 
-Source 1.8.0 requires fully exiting an ordinary Codex session before opening Codex (Xskin). CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
+Windows 1.8.0 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.8.1 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
 
 </details>
 

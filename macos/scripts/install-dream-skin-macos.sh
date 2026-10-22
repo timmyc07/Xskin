@@ -23,6 +23,7 @@ deploy_project() {
   local temporary="$INSTALL_ROOT.installing.$$"
   local previous="$INSTALL_ROOT.previous.$$"
   local resume_watcher="false" resume_port="" startup_enabled="false"
+  local target="gui/$(/usr/bin/id -u)/$AUTOSTART_JOB_LABEL"
   trap '/bin/rm -rf "$INSTALL_ROOT.installing.$$"' EXIT
   /bin/rm -rf "$temporary"
   /bin/mkdir -p "$temporary"
@@ -43,11 +44,12 @@ deploy_project() {
   if [ -e "$INSTALL_ROOT" ] && [ ! -f "$STATE_ROOT/shortcut-setup-complete" ]; then
     /usr/bin/touch "$STATE_ROOT/shortcut-setup-complete"
   fi
-  if [ -f "$AUTOSTART_AGENT_PATH" ]; then
+  if [ -f "$STATE_ROOT/shortcut-enabled" ] || [ -f "$AUTOSTART_AGENT_PATH" ]; then
     startup_enabled="true"
-    . "$SCRIPT_DIR/autostart-dream-skin-macos.sh"
+  fi
+  . "$SCRIPT_DIR/autostart-dream-skin-macos.sh"
+  if [ -f "$AUTOSTART_AGENT_PATH" ]; then
     check_autostart_agent
-    local target="gui/$(/usr/bin/id -u)/$AUTOSTART_JOB_LABEL"
     if ! /bin/launchctl bootout "$target" 2>/dev/null; then
       ! /bin/launchctl print "$target" >/dev/null 2>&1 || fail "Could not stop automatic startup for the update."
     fi
@@ -73,7 +75,8 @@ deploy_project() {
     if [ -f "$STATE_PATH" ]; then
       stop_recorded_injector || fail "Update failed and the new injector could not stop; both runtimes were preserved."
     fi
-    if [ "$startup_enabled" = "true" ]; then
+    if [ -f "$AUTOSTART_AGENT_PATH" ]; then
+      check_autostart_agent
       if ! /bin/launchctl bootout "$target" 2>/dev/null; then
         ! /bin/launchctl print "$target" >/dev/null 2>&1 || fail "Update failed and automatic startup could not stop; both runtimes were preserved."
       fi
@@ -138,8 +141,8 @@ if [ "$CREATE_LAUNCHERS" = "true" ]; then
   write_launcher "$HOME/Desktop/Codex Dream Skin - Restore.command" "exec $restore_script --restore-base-theme --restart-codex"
 fi
 
-# Keep the old preference when migrating; a fresh install enables shortcut backgrounds.
-if [ -f "$AUTOSTART_AGENT_PATH" ] || [ ! -f "$STATE_ROOT/shortcut-setup-complete" ]; then
+# Preserve disabled preferences; enabled 1.8.0 shortcuts migrate to native-app monitoring.
+if [ -f "$AUTOSTART_AGENT_PATH" ] || [ -f "$STATE_ROOT/shortcut-enabled" ] || [ ! -f "$STATE_ROOT/shortcut-setup-complete" ]; then
   "$SCRIPT_DIR/autostart-dream-skin-macos.sh" enable
 else
   "$SCRIPT_DIR/setup-direct-launch.sh" --install

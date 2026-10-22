@@ -1,6 +1,6 @@
-# Codex (Xskin) 1.8.0: migration and validation
+# Windows 1.8.0 / macOS 1.8.1: migration and validation
 
-Source baseline: `945b90f` on `codex/fix-windows-startup-overlay`. Work branch: `codex/direct-launch-shortcut`. Updated 2026-10-22, Asia/Taipei. This source version is not a published release.
+Source baseline: `945b90f` on `codex/fix-windows-startup-overlay`. Windows work: `codex/direct-launch-shortcut`; macOS follow-up: `codex/macos-native-launch`. Updated 2026-10-22, Asia/Taipei. These source versions are not published releases. The user subsequently authorized one automatic graceful reopen on macOS only, retaining its official-app entry; Windows remains shortcut-only without automatic reopen.
 
 ## Authorization boundary
 
@@ -16,10 +16,10 @@ This change only manages Xskin's entry points, local runtime and existing backgr
 
 ## Behavior and migration
 
-- Fully exit ordinary Codex, then use **Codex (Xskin)**. Windows creates Desktop/Start links to its managed `xskin-quiet.exe start -StateRoot <actual-root>`; macOS creates `~/Applications/Codex (Xskin).app`. Pin through normal system UI.
-- Each cold start requests official activation once. Repeated Windows clicks reuse the verified injector; macOS serializes clicks and activates the existing verified app. Ordinary unconnected sessions are left running with manual-exit guidance. Startup failures do not close/reopen Codex.
+- Windows: fully exit ordinary Codex, then use **Codex (Xskin)**. Desktop/Start links target managed `xskin-quiet.exe start -StateRoot <actual-root>`. Each cold start requests official activation once; repeated clicks reuse the verified injector. Ordinary unconnected sessions are left running with manual-exit guidance. Startup failures never close/reopen Codex.
+- macOS 1.8.1: open the **official Codex app** as usual. The enabled per-user service observes new ordinary launches and gracefully reopens each once to apply the saved background/overlay. Installation/login leaves an existing session alone. PID/start-time/executable/bundle/path/age checks restrict the quit request to the fresh process; a refused quit is never forced. Queued duplicate and managed-relaunch events are consumed without another handoff, including after failure. The optional `~/Applications/Codex (Xskin).app` starts directly without that reopen. Pin through normal system UI.
 - Paused or disabled shortcut backgrounds open ordinary Codex without clearing pause. Explicit Apply/Resume is required to restore a skin. A separate explicit full Restore may ask to close/reopen Codex.
-- Login does not launch Codex or a monitor. The shortcuts work without the Xskin panel. Migration removes only matching legacy tasks/LaunchAgents/Startup links. Foreign same-name shortcuts are preserved or cause setup to fail before replacing them.
+- Windows login does not launch Codex or a monitor. macOS login starts only the verified observer, never Codex itself. Both work without the Xskin panel. Migration manages only matching Xskin tasks/LaunchAgents/Startup links. Foreign same-name shortcuts are preserved or cause setup to fail before replacing them.
 - Windows carries physical Unicode/custom StateRoot in the shortcut and retains `%USERPROFILE%\.xskin-state-root.json` outside AppData before retiring the task. Managed engines also resolve their own store. MSIX storage is resolved from an existing file handle. The locator contains only its Xskin owner marker and a path, no account data. [Microsoft documents HKCU/AppData virtualization](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization); the locator therefore uses the ordinary user-profile directory, and does not modify package capabilities.
 - Windows runtime upgrade stops verified injector pipe holders before the legacy monitor. The new quiet launcher waits for its direct PowerShell process without the infinite wait's stream-reader join, and cancels readers afterwards. Live grandchildren may keep their streams but cannot hold the launcher open. No global Node shutdown or added arbitrary delay is used.
 - Engine swaps retain bundled Node, theme media, preferences and pause; failed swaps restore and resume the prior runtime. Codex stays open during upgrade. macOS also restores historical managed Dock entries during migration; new setup does not replace official pins automatically.
@@ -27,6 +27,8 @@ This change only manages Xskin's entry points, local runtime and existing backgr
 The earlier Windows overlay fixes remain intact and are now shared with macOS: draft conversation ID resolution, stable serialized installation tokens, task lifecycle fan timing, incremental long-log recovery, new-file tracking and exact-thread data isolation.
 
 ## Actual results
+
+The table below records the completed 1.8.0 checks. macOS 1.8.1 restores a different startup policy; its follow-up test results and outstanding physical checks are recorded below the table.
 
 | Check | Result |
 | --- | --- |
@@ -47,10 +49,20 @@ GitHub reported an Actions Results incident while this work ran; the workflow su
 
 Windows-only tests include an inherited-stream reproduction with a live Node grandchild, Unicode/emoji/space shortcuts, foreign-name preservation, physical-store selection after task removal, injector identity, retained bundled Node and engine-swap rollback. CI cannot replace interactive login, physical shortcut clicks or Store-update checks.
 
+### macOS 1.8.1 follow-up
+
+- Full macOS `npm test` passed, including the unchanged overlay/config/media suite, four-language validation, owned LaunchAgent registration/removal, failed registration, fresh-process identity, duplicate/delayed events, three automatic handoff fixtures, pause retention, declined quit, invalid payload and migration rollback from 1.8.0.
+- The final handoff preflight change was separately rechecked with the native-start/pause fixtures. Native arm64 1.8.1 build passed.
+- Local 1.8.1 installation passed: the official process, theme/media digest and config bytes stayed unchanged; the native observer is running as one verified helper. Installed panel, engine and skill copies match the new source. Strict official and Xskin bundle signature checks pass. Previous panel/skill copies are retained in ignored `build/local-backups/native-launch-<timestamp>/`.
+- Windows source/runtime files are unchanged from `147fc27`; the completed Windows CI above still covers that runtime.
+- Three physical macOS official-entry starts with background/overlay visual confirmation remain pending. The passive observer recorded one ordinary official-app launch before this policy was restored, with no new Xskin verification record; this does not count as a successful background cold start. No tool restriction was bypassed to operate or capture Codex.
+
 ## Install and restore
 
-Build from this branch; do not assume the older release ZIP contains 1.8.0. Windows: run `Install Xskin.exe` from the complete new package, or its `scripts/install-dream-skin.ps1 -StateRoot <existing-root>`. macOS: build with `macos/scripts/build-native-studio.sh`, then install its runtime with `install-dream-skin-macos.sh --no-launch`. Both retain existing media/preferences. Fully quit ordinary Codex yourself before opening Codex (Xskin).
+Build from this branch; do not assume older release ZIPs contain these versions. Windows: run `Install Xskin.exe` from the 1.8.0 package, or `scripts/install-dream-skin.ps1 -StateRoot <existing-root>`. macOS: build 1.8.1 with `macos/scripts/build-native-studio.sh`, then install its runtime with `install-dream-skin-macos.sh --no-launch`. An enabled 1.8.0 preference installs the native observer; disabled/paused preferences remain disabled/paused. Existing Codex stays open. On the next fresh launch, use the official app normally; an ordinary session gracefully reopens once. Both platforms retain existing media/preferences. Fully quit ordinary Codex yourself before using the optional direct Codex (Xskin) entry.
 
-To stop using the skin, Pause or turn off shortcut backgrounds. Use the official app normally after fully exiting the current session. To uninstall entry points, use the platform Restore command with `-Uninstall` / `--uninstall`; only owned entry points are removed and saved media/preferences remain. Full base-theme restoration uses the existing recoverable appearance-key backup and remains a separately requested action. Preserve the state directory when troubleshooting; do not delete auth.json or account data. Engine transaction backups are retained if a rollback cannot complete safely.
+To stop using the skin, Pause or turn off automatic backgrounds. macOS Pause keeps the observer/preference but its paused state blocks handoffs; explicit Apply resumes. Disable/Restore stops only the owned observer. Use the official app normally after fully exiting the current session. To uninstall entry points, use the platform Restore command with `-Uninstall` / `--uninstall`; only owned entry points are removed and saved media/preferences remain. Full base-theme restoration uses the existing recoverable appearance-key backup and remains a separately requested action. Preserve the state directory when troubleshooting; do not delete auth.json or account data. Engine transaction backups are retained if a rollback cannot complete safely.
+
+For a local macOS rollback to the saved 1.8.0 shortcut policy, disable automatic backgrounds first, install the backed-up skill runtime with `scripts/install-dream-skin-macos.sh --no-launch`, and restore the saved Xskin panel/skill copies while Xskin is closed. Re-enable the 1.8.0 shortcut preference if desired. Retain the state directory and media; rolling back the program does not require restoring account files or quitting the current official app.
 
 The automated checks pass. Before declaring physical startup behavior and authorization confirmed, complete the pending physical Windows checks above, inspect home/task on both platforms and obtain an applicable authorization basis for CDP/CSS injection.

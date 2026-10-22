@@ -78,8 +78,8 @@ The optional macOS menu controller includes “更換影片背景…”. Image s
 
 - The macOS video edition uses the runtime included in this Skill folder. Keep the whole folder when installing or packaging. The Windows wrapper requires the matching Windows package/source; it does not download an older runtime.
 - Official `Codex.app`, `app.asar`, `WindowsApps`, signatures, accounts, chats, projects, API keys, and model providers remain unchanged.
-- Startup never closes/reopens official Codex. An ordinary existing session requires manual exit before Codex (Xskin). Full Restore is a separate explicitly requested operation.
-- Use the managed Codex (Xskin) entry for backgrounds; no login observer is installed.
+- macOS automatic apply observes fresh official-app launches and gracefully reopens each once when enabled. Existing, paused and debug sessions are skipped; a refused quit is never forced. Windows startup never closes/reopens official Codex.
+- macOS keeps its per-user login observer without requiring the panel. The optional Codex (Xskin) entry starts directly without that reopen. Windows uses only its managed shortcut.
 - Custom themes use an HTTPS image URL or a local image selected by the user. Full-interface showcase screenshots are visual references, not theme backgrounds.
 - Decorative layers do not receive pointer events, so native controls remain clickable.
 - A theme is considered active only after Verify passes.
@@ -148,9 +148,9 @@ bash scripts/dream-skin-macos.sh switch-theme "THEME_ID"
 
 `switch-theme` uses live reapplication when the verified CDP session exists. Otherwise the safe starter leaves ordinary running Codex open and requires manual exit.
 
-### Managed Codex (Xskin) entry
+### Official macOS app and optional direct entry
 
-Use `autostart enable` to prepare ~/Applications/Codex (Xskin).app and enable shortcut backgrounds. Fully quit ordinary Codex manually before launching it. `autostart disable` retains the entry and opens ordinary Codex; paused sessions also remain paused. Xskin can stay closed, including after login. Retire only the verified old LaunchAgent; never intercept or close a fresh official launch. Pin using the normal Dock UI. CDP/CSS authorization remains unconfirmed; see ../docs/direct-launch-shortcut.md.
+Use `autostart enable` to observe future official Codex launches through the verified per-user login service. Each fresh ordinary launch gracefully reopens once; existing/paused/debug sessions are skipped, failed handoffs are not retried, and no forced termination is used. The panel can stay closed. `autostart disable` removes only the owned service and keeps the current background. Pause retains the enabled preference/service but skips future launches until explicit Apply. The optional ~/Applications/Codex (Xskin).app starts directly with the background connection and avoids that reopen; fully quit an ordinary existing session before using it. Pin through normal Dock UI. Windows remains shortcut-only without automatic reopen. CDP/CSS authorization remains unconfirmed; see https://github.com/timmyc07/Xskin/blob/codex/macos-native-launch/docs/direct-launch-shortcut.md.
 
 ### Start, status, pause, and menu bar
 

@@ -31,7 +31,7 @@ Commands:
   apply-video-url URL           Install, apply, and verify an HTTPS MP4 background
   apply-custom-file PATH        One-click install, apply, and verify a local image theme
   custom-install-status         Read the custom installation result without restarting
-  autostart enable|disable|status  Manage backgrounds from Codex (Xskin)
+  autostart enable|disable|status  Apply backgrounds from official Codex launches
   panel [--json]                Open the native macOS Xskin app
   source                         Validate the bundled macOS video runtime
   doctor [--require-live]        Validate Codex, runtime, payload, and optional live session
