@@ -80,6 +80,15 @@ function Invoke-DreamSkinNative {
     assert.equal(result.code, 0, result.output);
     assert.equal(await fs.readFile(path.join(state, "events.txt"), "utf8"), "lock\nlaunch\ninjector\nverify\nunlock\nlock\nactivate\nunlock\n");
   }
+  const moved = path.join(temporary, 'different-engine');
+  assert.equal((await run('cold', moved)).code, 0);
+  const savedPath = path.join(moved, 'state.json');
+  const prior = JSON.parse(await fs.readFile(savedPath, 'utf8'));
+  prior.injectorPath = path.join(temporary, 'old-engine', 'injector.mjs');
+  await fs.writeFile(savedPath, JSON.stringify(prior));
+  const migrated = await run('repeat', moved);
+  assert.equal(migrated.code, 0, migrated.output);
+  assert.equal(await fs.readFile(path.join(moved, 'events.txt'), 'utf8'), 'lock\nlaunch\ninjector\nverify\nunlock\nlock\nstop-injector\ninjector\nverify\nunlock\n');
   const ordinary = path.join(temporary, "ordinary");
   const result = await run("ordinary", ordinary);
   assert.equal(result.code, 1, result.output);

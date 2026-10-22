@@ -115,7 +115,10 @@ try {
     $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
   }
   if (-not $Resume -and $previousState -and $previousState.browserId -ceq $cdpIdentity.BrowserId -and
-    $previousState.port -eq $Port -and (Stop-DreamSkinRecordedInjector -State $previousState -CheckOnly)) {
+    $previousState.port -eq $Port -and
+    (Test-DreamSkinPathEqual -Left $previousState.injectorPath -Right $Injector) -and
+    (Test-DreamSkinPathEqual -Left $previousState.themeDir -Right $themePaths.Active) -and
+    (Stop-DreamSkinRecordedInjector -State $previousState -CheckOnly)) {
     $null = Start-DreamSkinCodex -Codex $codex
     Write-Host 'Xskin is already active; reusing its injector.'
     return

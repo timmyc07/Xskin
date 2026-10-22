@@ -328,27 +328,27 @@ function Install-DreamSkinRuntimeEngine {
       }
     }
     if ($null -ne $resumeState) {
-        $daemon = $null
-        try {
-          $resumeState.nodePath = (Get-DreamSkinNodeRuntime -RuntimePath (Join-Path $engine.Scripts 'node.exe')).Path
-          $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
-            $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
-            '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
-            '--pause-file', (Join-Path $fullStateRoot 'paused'))
-          $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
-            -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
-            -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
-            -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
-          Start-Sleep -Milliseconds 500
-          if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
-          $resumeState.injectorPid = $daemon.Id
-          $resumeState.injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
-          if (-not $resumeState.injectorStartedAt) { throw 'The resumed watcher identity could not be recorded.' }
-          Write-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json') -State $resumeState
-        } catch {
-          if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
-          throw
-        }
+      $daemon = $null
+      try {
+        $resumeState.nodePath = (Get-DreamSkinNodeRuntime -RuntimePath (Join-Path $engine.Scripts 'node.exe')).Path
+        $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
+          $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
+          '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
+          '--pause-file', (Join-Path $fullStateRoot 'paused'))
+        $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
+          -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
+          -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
+          -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
+        Start-Sleep -Milliseconds 500
+        if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
+        $resumeState.injectorPid = $daemon.Id
+        $resumeState.injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
+        if (-not $resumeState.injectorStartedAt) { throw 'The resumed watcher identity could not be recorded.' }
+        Write-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json') -State $resumeState
+      } catch {
+        if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
+        throw
+      }
     }
   }
 }

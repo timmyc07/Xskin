@@ -33,13 +33,13 @@ The earlier Windows overlay fixes remain intact and are now shared with macOS: d
 | macOS full `npm test` | Passed on this Mac after updating its existing Xskin connection to 1.8.0. Includes config preservation, identity checks, overlay, install rollback and three cold-start fixtures. |
 | macOS native build | Passed, arm64 1.8.0, local `build/Xskin.app`. |
 | macOS doctor/live verification | Passed, official Codex 26.1016.51333; strict official app/runtime signature checks pass. |
-| macOS live engine upgrade | Passed without restarting Codex: official process IDs, active theme/media SHA-256 values and language unchanged. No private evidence committed. |
+| macOS live engine upgrade | Passed without restarting Codex: official process IDs, active theme/media SHA-256 values and language unchanged. No private evidence committed. The local native panel and installed skill/runtime copies are also 1.8.0; their former versions are backed up under ignored build/local-backups. |
 | PowerShell parsing | Passed using PowerShell 7 on macOS; does not establish Windows runtime behavior. |
 | Windows startup/installer fixtures | Passed under local PowerShell 7 with physical temporary paths. Three cold-start fixtures and repeated, ordinary, paused and failure cases pass. This is not Windows cold-start evidence. |
 | Flutter analyze | Passed. |
 | Flutter tests on macOS | 5 passed, 1 skipped because its process bridge requires Windows. |
 | Windows full runner/package CI | Pending push/Windows CI result; update this row with the actual outcome. |
-| Real Windows three cold starts, new login and Store update | Not performed here. Requires a Windows interactive session with official Codex installed. |
+| Real Windows three cold starts, new login and Store update | Not performed here. The user confirmed that no remote execution connection is available; retain this manual checklist. Requires an interactive Windows session with official Codex installed. |
 | Real home/task visual checks | Not completed. Native computer-use access to Codex was denied by tool safety restrictions; no alternative capture/navigation was used to bypass that denial. |
 | Physical macOS cold starts | Not performed: current Codex session was preserved. The three-launch result above uses isolated fixtures. |
 
