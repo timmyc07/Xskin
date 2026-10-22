@@ -8,12 +8,13 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "xskin-panel-"));
 const stateRoot = path.join(temporary, "state");
+const runtimeRoot = path.join(temporary, "runtime");
 const run = async (action, request = {}) => {
   const requestPath = path.join(temporary, "request.json");
   await fs.writeFile(requestPath, JSON.stringify(request));
   return new Promise((resolve, reject) => {
     const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-      path.join(root, "scripts/xskin-command.ps1"), "-Action", action, "-StateRoot", stateRoot,
+      path.join(runtimeRoot, "scripts/xskin-command.ps1"), "-Action", action, "-StateRoot", stateRoot,
       "-RequestPath", requestPath], { windowsHide: true, timeout: 30000 });
     let output = "";
     let errors = "";
@@ -33,6 +34,14 @@ const run = async (action, request = {}) => {
   });
 };
 try {
+  for (const directory of ['scripts','assets']) {
+    await fs.cp(path.join(root,directory),path.join(runtimeRoot,directory),{recursive:true});
+  }
+  const helpers = path.join(runtimeRoot,'scripts/autostart-windows.ps1');
+  const startupPath = path.join(temporary,'startup.lnk').replaceAll("'","''");
+  await fs.writeFile(helpers,(await fs.readFile(helpers,'utf8')).replace(
+    "return Join-Path ([Environment]::GetFolderPath('Startup')) 'Xskin Codex backgrounds.lnk'",
+    `return '${startupPath}'`));
   const initial = await run("state");
   assert.equal(initial.code, 0, initial.error);
   assert.equal(initial.state.pending, false);
@@ -53,6 +62,7 @@ try {
     assert.match(invalid.error, /Mask opacity/);
   }
   const paused = await run("pause");
+  assert.equal(paused.code, 0, paused.error);
   for (const maskOpacity of [0, 1]) {
     const stale = await run("apply", { maskOpacity, imagePath: source });
     assert.equal(stale.code, 1);

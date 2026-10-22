@@ -16,7 +16,7 @@ function Get-DreamSkinAutostartProcess {
   if (-not $state -or -not $state.processId) { return $null }
   $process = Get-Process -Id ([int]$state.processId) -ErrorAction SilentlyContinue
   if (-not $process -or $process.HasExited) { return $null }
-  if (-not $state.startedAt -or $process.StartTime.ToUniversalTime().ToString('o') -cne $state.startedAt) { return $null }
+  if (-not $state.startedAt -or [datetimeoffset]$process.StartTime.ToUniversalTime() -ne [datetimeoffset]$state.startedAt) { return $null }
   $info = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$state.processId)" -ErrorAction Stop
   $expectedShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   if ($info -and

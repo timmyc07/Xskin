@@ -888,6 +888,10 @@ try {
   $payloadTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $Root 'scripts\injector.mjs'), '--check-payload')
   if ($payloadTest.ExitCode -ne 0) { throw 'Injector self-test failed.' }
+  $payloadVersion = (($payloadTest.Output -join "`n") | ConvertFrom-Json).version
+  if ($payloadVersion -cne (Read-DreamSkinUtf8File -Path (Join-Path $Root 'VERSION')).Trim()) {
+    throw 'The injector version does not match the Windows release version.'
+  }
   $managedPayloadTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $Root 'scripts\injector.mjs'), '--check-payload', '--theme-dir', $themePaths.Active)
   if ($managedPayloadTest.ExitCode -ne 0) { throw "Managed theme payload validation failed: $($managedPayloadTest.Output -join [Environment]::NewLine)" }
