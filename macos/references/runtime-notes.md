@@ -1,5 +1,8 @@
 # Runtime notes
 
+- Native-header follow-up: web `--bg-*` tokens do not cover native `--color-surface*` paint. Map both families, clear utility-header pseudo paint/blur and structural settings containers, and keep control/image colors. Verify reports the loaded CSS hash and visible header coverage; an absent header is untested, not proof of transparency. Official route visual checks remain pending.
+
+
 - Unreleased 1.8.3 recovers missing usage/limits/lifecycle independently in bounded reverse reads, then resumes incremental reads. An unidentified task has no row; missing records and host heartbeat loss have explicit states. Remount changes the stable serialized installation token once to trigger immediate resubscription.
 - Shared semantic surfaces cover native/Work route-local dark/light/theme scopes. Main surfaces stay clear, cards/dialogs/menus use increasing tint, and floating panels retain their controls. The rules are scoped away from Dot and disappear with Pause; no per-message DOM scan is added. See the repository surface-materials report for validation limits.
 

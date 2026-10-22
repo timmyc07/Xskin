@@ -1,6 +1,6 @@
 # Xskin for Windows 1.8.1
 
-未發布的 **1.8.2 原始碼**已補上長工具輸出前的用量回補、等待／重新連線提示，以及頁面頂欄、清單、設定、選單與對話框的共用半透明材質。[覆蓋與驗證](https://github.com/timmyc07/Xskin/blob/codex/fix-usage-availability/docs/surface-materials.md)。下方已發布下載仍是 1.8.1。
+未發布的 **1.8.2 原始碼**已補上長工具輸出前的用量回補、等待／重新連線提示，以及頁面頂欄、清單、設定、選單與對話框的共用半透明材質。[覆蓋與驗證](https://github.com/timmyc07/Xskin/blob/codex/fix-usage-availability/docs/surface-materials.md)。下方已發布下載仍是 1.8.1。 後續另補原生材質色票與黏性頂欄裝飾層；官方各頁面的實機目視驗證仍待完成。
 
 [下載 Windows 1.8.1](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.1/Xskin-1.8.1-windows-x64.zip) · [發行說明與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1) · [English](README.en.md)
 

@@ -2,6 +2,8 @@
 
 ## 1.8.3 — 2026-10-23 (unreleased)
 
+- Follow up the still-opaque native headers: map the missing `--color-surface*` family, clear utility-header paint/blur and structural settings containers. Verify reports missing header coverage and rejects stale CSS or painted header layers; actual official-route visual verification remains pending.
+
 - Recover the latest usage, rate limits and lifecycle independently when a long tool-output tail hides earlier records. Keep reads bounded to 1 MiB and revisit only newly appended ranges after initial attachment.
 - Replace all-empty metrics with an explicit waiting/reconnecting message, hide the row until the local task is identified, and refresh immediately after composer remounts. Lifecycle-only timestamps no longer reject the first valid token snapshot.
 - Theme shared native/Work page surfaces and nested theme scopes, including plugin/Space/Drive headers, site lists, settings cards and portal menus/dialogs. Preserve control colors, document thumbnails, geometry and Dot isolation; Pause removes the scoped material rules.

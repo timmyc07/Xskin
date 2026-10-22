@@ -11,7 +11,14 @@
       --bg-primary: #191919; --bg-secondary: #252525; --bg-tertiary: #303030;
       --bg-elevated-primary: #191919; --main-surface-primary: #191919;
       --sidebar-surface-primary: #191919; --text-primary: #eee; --text-secondary: #aaa;
+      --color-surface: #181818; --color-surface-secondary: #242424;
+      --color-surface-elevated: #242424; --color-token-dropdown-background: #303030;
     }
+    .bg-surface, [class~="electron:bg-surface"] { background: var(--color-surface); }
+    .bg-surface-secondary { background: var(--color-surface-secondary); }
+    .native-header { position: sticky; }
+    .native-header::before { content: ""; position: absolute; inset: 0; background: var(--color-surface); backdrop-filter: blur(12px); pointer-events: none; z-index: -1; }
+    .native-header::after { content: ""; position: absolute; inset: 100% 0 auto; height: 8px; background: linear-gradient(var(--color-surface), transparent); pointer-events: none; }
     #root { min-height: 100vh; padding: 24px; color: var(--text-primary); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px; }
     .panel { min-width: 0; border: 1px solid #8298a344; border-radius: 18px; overflow: hidden; }
@@ -34,7 +41,12 @@
   <div id="root">
     <h1>Xskin 材質回歸測試 · 僅含範例內容</h1>
     <p>已操作：<span id="clicks">0</span></p>
+    <main data-app-shell-main-surface>
+    <div data-app-shell-focus-area="main">
     <div class="grid">
+      <section class="panel dark"><div data-material="native-clear" data-native-header class="native-header sticky z-30 bg-surface" data-sticky><h2>原生空間／外掛頂欄</h2></div><div class="content">原生色票與前後裝飾層均須清除。</div></section>
+      <section class="panel dark"><div data-material="native-clear" data-native-header data-app-shell-header-layout class="native-header bg-surface"><h2>原生頁面頂欄</h2></div><div class="content">搜尋與建立操作保留原位。</div></section>
+      <section class="panel dark" data-app-shell-focus-area="main"><div><div class="content h-full electron:bg-surface" data-material="native-clear">原生設定全高容器<div class="content bg-surface-secondary" data-material="card">設定群組</div></div></div></section>
       <section class="panel dark"><h2 data-material="clear" class="bg-token-bg-primary">外掛程式／搜尋頂欄</h2><div class="content">保留搜尋、篩選和新增操作。</div></section>
       <section class="panel light"><h2 data-material="clear" class="bg-token-main-surface-primary">空間／頁面／簡報頂欄</h2><div class="content">巢狀主題也使用同一份材質。</div></section>
       <section class="panel dark" data-theme="dark"><h2 data-material="clear" class="bg-token-bg-primary">雲端硬碟頂欄</h2><div class="content">檔案名稱均為測試資料。</div></section>
@@ -45,6 +57,7 @@
       <div class="panel bg-token-bg-elevated-primary" role="listbox" data-material="floating"><h2>下拉選單</h2><div class="content"><button role="option" aria-selected="false">範例選項</button></div></div>
       <div class="panel bg-token-bg-elevated-primary" role="dialog" data-material="dialog"><h2>對話框</h2><div class="content"><button>完成</button></div></div>
     </div>
+    </div></main>
     <details><summary>檢查結果</summary><pre id="results"></pre></details>
   </div>
   <script>
@@ -65,9 +78,17 @@
       const results = [...document.querySelectorAll('[data-material]')].map(node => {
         const background = getComputedStyle(node).backgroundColor;
         const alpha = background.startsWith('rgba') ? Number(background.match(/,\s*([\d.]+)\)$/)?.[1]) : 1;
-        const expected = !active ? alpha === 1 : node.dataset.material === 'clear' ? alpha === 0 : alpha > 0 && alpha < 1;
+        const expected = !active ? alpha === 1 : node.dataset.material === 'clear' || (node.dataset.material === 'native-clear' && surface === 'codex') ? alpha === 0 : alpha > 0 && alpha < 1;
         return { material: node.dataset.material, background, pass: expected };
       });
+      for (const node of document.querySelectorAll('[data-native-header]')) {
+        for (const pseudo of ['::before', '::after']) {
+          const style = getComputedStyle(node, pseudo);
+          results.push({nativeHeader: pseudo, background: style.backgroundColor, pass: !active || surface !== 'codex' || (
+            style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.backgroundImage === 'none' && style.backdropFilter === 'none'
+          )});
+        }
+      }
       const control = getComputedStyle(document.querySelector('[role="switch"]')).backgroundColor;
       results.push({ nativeControl: control, pass: control === 'rgb(48, 128, 255)' });
       const inverted = getComputedStyle(document.querySelector('.text-token-bg-primary'));

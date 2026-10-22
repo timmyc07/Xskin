@@ -255,6 +255,12 @@ html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work
   --sidebar-surface-primary: transparent !important;
   --sidebar-surface-secondary: var(--ds-surface) !important;
   --surface: transparent !important;
+  --color-surface: var(--ds-surface) !important;
+  --color-surface-secondary: var(--ds-surface) !important;
+  --color-surface-tertiary: var(--ds-raised-surface) !important;
+  --color-surface-elevated: var(--ds-dialog-surface) !important;
+  --color-surface-elevated-secondary: var(--ds-raised-surface) !important;
+  --color-token-dropdown-background: var(--ds-floating-surface) !important;
   --menu-background: var(--ds-floating-surface) !important;
   --menu-foreground: var(--ds-text) !important;
   --text-primary: var(--ds-text) !important;
@@ -271,6 +277,19 @@ html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work
 
 html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) [role="dialog"] {
   background: var(--ds-dialog-surface) !important;
+}
+
+/* Native utility headers paint their own layers, independently of web tokens. */
+html.codex-dream-skin[data-dream-surface="codex"] [data-app-shell-main-surface] :is([data-app-shell-header-layout], [data-sticky][class*="_shell_"], .sticky.z-30.bg-surface):not(:has([data-composer-body])),
+html.codex-dream-skin[data-dream-surface="codex"] [data-app-shell-main-surface] :is([data-app-shell-header-layout], [data-sticky][class*="_shell_"], .sticky.z-30.bg-surface):not(:has([data-composer-body]))::before,
+html.codex-dream-skin[data-dream-surface="codex"] [data-app-shell-main-surface] :is([data-app-shell-header-layout], [data-sticky][class*="_shell_"], .sticky.z-30.bg-surface):not(:has([data-composer-body]))::after {
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+html.codex-dream-skin[data-dream-surface="codex"] [data-app-shell-focus-area] > .bg-surface,
+html.codex-dream-skin[data-dream-surface="codex"] [data-app-shell-focus-area="main"] > div > [class~="h-full"][class~="electron:bg-surface"] {
+  background: transparent !important;
 }
 
 /* Primary-background colors also label inverted buttons; keep those readable. */

@@ -457,7 +457,7 @@ export async function loadPayload(themeDir = path.join(root, "assets"), candidat
     .replace("__DREAM_SKIN_STYLE_REVISION_JSON__", () => JSON.stringify(styleRevision))
     + `;\n(${tokenOverlay})();`;
   const { imageBytes: _imageBytes, ...themeState } = loadedTheme;
-  return { ...themeState, payload };
+  return { ...themeState, payload, styleRevision };
 }
 
 async function fileExists(filePath) {
@@ -754,6 +754,21 @@ async function verifySession(session) {
       ['rgba(0, 0, 0, 0)', 'transparent'].includes(getComputedStyle(node).backgroundColor) &&
       getComputedStyle(node).backgroundImage === 'none'
     );
+    const utilityHeaders = surface === 'codex' ? [...document.querySelectorAll(
+      '[data-app-shell-main-surface] :is([data-app-shell-header-layout], [data-sticky][class*="_shell_"], .sticky.z-30.bg-surface)' +
+      ':not([data-app-shell-active-page="false"] *):not(:has([data-composer-body]))'
+    )].filter(node => box(node)?.visible).map(node => {
+      const layers = [null, '::before', '::after'].map(pseudo => {
+        const style = getComputedStyle(node, pseudo);
+        const painted = !pseudo || !['none', 'normal'].includes(style.content);
+        return {painted, backgroundColor: style.backgroundColor,
+          backgroundImage: style.backgroundImage !== 'none', backdropFilter: style.backdropFilter};
+      });
+      return {layers, clear: layers.every(layer => !layer.painted || (
+        ['rgba(0, 0, 0, 0)', 'transparent'].includes(layer.backgroundColor) &&
+        !layer.backgroundImage && layer.backdropFilter === 'none'
+      ))};
+    }) : [];
     const wallpaperMask = {
       opacity: maskAlpha ? Number(maskAlpha[1] ?? 1) : null,
       uniform: maskStyle.backgroundImage === 'none',
@@ -802,6 +817,8 @@ async function verifySession(session) {
       themeId: window.__CODEX_DREAM_SKIN_STATE__?.themeId ?? null,
       videoKey: window.__CODEX_DREAM_SKIN_STATE__?.videoKey ?? null,
       stylePresent: Boolean(document.getElementById('codex-dream-skin-style')),
+      styleRevision: document.getElementById('codex-dream-skin-style')?.dataset?.dreamSkinStyleRevision ?? null,
+      utilityHeaders,
       video: window.__CODEX_DREAM_SKIN_STATE__?.videoStatus?.() ?? null,
       usageOverlay: window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.status() ?? null,
       wallpaperLayout: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.wallpaper),
@@ -845,10 +862,11 @@ async function verifySession(session) {
     const maskPass = !result.wallpaperLayout || (
       wallpaperMask.opacity !== null && wallpaperMask.uniform && wallpaperMask.fullViewport &&
       wallpaperMask.pointerEvents === 'none' && wallpaperMask.mainClear && wallpaperMask.sidebarClear &&
-      wallpaperMask.headerClear && wallpaperMask.messagingClear
+      wallpaperMask.headerClear && wallpaperMask.messagingClear && utilityHeaders.every(header => header.clear)
     );
     result.pass = Boolean(basePass && homePass && maskPass && (!result.video || result.video.suspended || (result.video.ready && result.videoBox?.visible && result.videoPointerEvents === 'none')));
     result.softNotes = {
+      utilityHeaderNotPresent: utilityHeaders.length === 0,
       projectButtonOptional: !result.projectButton?.visible,
       composerOptionalOnNonTaskRoutes: !result.composer?.visible,
       suggestionCardsOptional: result.homeRoute && result.visibleCardCount === 0,
@@ -943,6 +961,10 @@ async function runOneShot(options) {
           : (options.reload || options.mode === "once" || options.mode === "verify")
             ? await waitForVerifiedSession(session, options.timeoutMs, loadedPayload.theme, options.prepareFirstFrame)
             : await verifySession(session);
+        if (options.mode !== "remove") {
+          verified.styleMatches = verified.styleRevision === loadedPayload.styleRevision;
+          verified.pass &&= verified.styleMatches;
+        }
         results.push({ targetId: target.id, markers: probe.markers, result: verified });
         if (options.screenshot && !screenshotCaptured) {
           await capture(session, options.screenshot);

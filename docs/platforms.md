@@ -72,7 +72,7 @@ Windows 新任务的记录文件尚未创建时会暂时监听其确切 UUID 的
 
 ### 2026-10-23 overlay layout validation
 
-The subsequent unreleased macOS 1.8.3 / Windows 1.8.2 source addresses missing long-tail usage and utility/settings/menu material coverage. Full macOS tests/native build, 91 browser-fixture checks and the [Windows runner/Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39829869364) passed. The live Mac update preserved the official process, selected media/theme, config bytes and language. See [surface coverage and actual validation](surface-materials.md); earlier release results below remain historical. Complete official-page visual checks and physical Windows checks remain pending.
+The subsequent unreleased macOS 1.8.3 / Windows 1.8.2 source addresses missing long-tail usage and utility/settings/menu material coverage. Before the native-header follow-up, full macOS tests/native build, 91 browser-fixture checks and the [Windows runner/Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39829869364) passed. The live Mac update preserved the official process, selected media/theme, config bytes and language. The subsequent header fix adds native surface tokens, clears sticky-header decoration and makes Verify report missing header coverage / reject stale CSS. See [surface coverage and actual validation](surface-materials.md); earlier release results below remain historical. Complete official-page visual checks and physical Windows checks remain pending.
 
 macOS 1.8.2 / Windows 1.8.1 move the usage strip above the input in normal flow and hide empty Home rows. The native toolbar keeps its placement, size and corners. Dark/light image surfaces use alpha 0.58/0.70; video composer and toolbar share alpha 0.38.
 

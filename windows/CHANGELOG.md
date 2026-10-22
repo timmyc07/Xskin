@@ -2,6 +2,8 @@
 
 ## 1.8.2 — 2026-10-23 (unreleased)
 
+- Follow up the still-opaque native headers: map the missing `--color-surface*` family, clear utility-header paint/blur and structural settings containers. Verify reports missing header coverage and rejects stale CSS or painted header layers; actual official-route visual verification remains pending.
+
 - Recover usage and rate limits outside long tool-output tails, independently of task lifecycle, without rescanning old history on each heartbeat.
 - Show waiting/reconnecting status instead of an all-empty metrics row; hide unidentified tasks and refresh remounted composers immediately. Accept first token timestamps after lifecycle-only snapshots.
 - Share translucent page/settings/menu materials with macOS, including nested theme scopes; retain native controls, document previews and Dot isolation. Startup remains shortcut-only with no automatic close/reopen. Flutter metadata is 1.8.2+14.

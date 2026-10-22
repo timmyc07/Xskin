@@ -155,7 +155,10 @@ for (const blockedLayer of [-1, 0, 1, 2, 3, 'image']) {
       document:{body:node, documentElement:{classList:{contains:() => true},
         scrollWidth:100, clientWidth:100, scrollHeight:100, clientHeight:100},
         querySelector:selector => selectors.codex.includes(selector) ? node : null,
-        querySelectorAll:selector => {assert.equal(selector, messagingSelector); return layers;},
+        querySelectorAll:selector => {
+          if (selector.includes("data-app-shell-header-layout")) return [];
+          assert.equal(selector, messagingSelector); return layers;
+        },
         getElementById:id => ['codex-dream-skin-style', 'codex-dream-skin-chrome'].includes(id) ? node : null},
     });
   }};
@@ -164,3 +167,39 @@ for (const blockedLayer of [-1, 0, 1, 2, 3, 'image']) {
   assert.equal(result.pass, blockedLayer === -1,
     'Native Your dot verification must reject every opaque inner messaging surface, including background images.');
 }
+
+// Missing headers are a coverage gap; painted header layers must fail verification.
+for (const blocked of ['none', 'background', 'before', 'after', 'blur', 'unused-pseudo', 'hidden', 'missing']) {
+  const clearStyle = {backgroundColor:'rgba(0, 0, 0, 0)', backgroundImage:'none', backdropFilter:'none', pointerEvents:'none'};
+  const header = {getBoundingClientRect:() => ({x:0,y:0,width:blocked === 'hidden' ? 0 : 100,height:40})};
+  const node = {querySelector:() => null, style:clearStyle,
+    getBoundingClientRect:() => ({x:0,y:0,width:100,height:100})};
+  const session = {async evaluate(expression) {
+    return vm.runInNewContext(expression, {
+      innerWidth:100, innerHeight:100,
+      window:{__CODEX_DREAM_SKIN_STATE__:{surface:'codex',version,themeId:'headers',wallpaper:true}},
+      getComputedStyle:(element, pseudo) => {
+        if (element === header) return {...clearStyle, content:pseudo ? '""' : 'normal',
+          ...((blocked === 'background' && !pseudo) || (blocked === 'before' && pseudo === '::before')
+            ? {backgroundColor:'rgb(24, 24, 24)'} : {}),
+          ...(blocked === 'after' && pseudo === '::after' ? {backgroundImage:'linear-gradient(black, transparent)'} : {}),
+          ...(blocked === 'blur' && !pseudo ? {backdropFilter:'blur(12px)'} : {}),
+          ...(blocked === 'unused-pseudo' && pseudo ? {content:'none',backgroundColor:'rgb(24, 24, 24)'} : {}),
+        };
+        return pseudo ? {...clearStyle, backgroundColor:'rgba(0, 0, 0, 0.62)',
+          position:'fixed',top:'0px',right:'0px',bottom:'0px',left:'0px'} : element.style;
+      },
+      document:{body:node,documentElement:{classList:{contains:() => true},
+        scrollWidth:100,clientWidth:100,scrollHeight:100,clientHeight:100},
+        querySelector:selector => selectors.codex.includes(selector) ? node : null,
+        querySelectorAll:selector => selector.includes('data-app-shell-header-layout') && blocked !== 'missing' ? [header] : [],
+        getElementById:id => ['codex-dream-skin-style','codex-dream-skin-chrome'].includes(id) ? node : null},
+    });
+  }};
+  const result = await waitForVerifiedSession(session, 250, {id:'headers',maskOpacity:0.62});
+  assert.equal(result.pass, ['none','unused-pseudo','hidden','missing'].includes(blocked),
+    `Utility header verification must reject a painted ${blocked} layer.`);
+  assert.equal(result.softNotes.utilityHeaderNotPresent, ['hidden','missing'].includes(blocked),
+    'A missing/hidden header must be reported as untested, not as a verified transparent header.');
+}
+console.log('PASS: native utility header backgrounds, gradients, pseudo layers and blur are verified without reading page content.');

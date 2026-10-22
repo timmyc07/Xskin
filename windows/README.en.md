@@ -1,6 +1,6 @@
 # Xskin for Windows 1.8.1
 
-The unreleased **1.8.2 source** recovers usage before long tool-output tails, replaces empty metrics with waiting/reconnecting status, and themes shared page/settings/menu materials. [Coverage and validation](https://github.com/timmyc07/Xskin/blob/codex/fix-usage-availability/docs/surface-materials.md). Published downloads below remain 1.8.1.
+The unreleased **1.8.2 source** recovers usage before long tool-output tails, replaces empty metrics with waiting/reconnecting status, and themes shared page/settings/menu materials. [Coverage and validation](https://github.com/timmyc07/Xskin/blob/codex/fix-usage-availability/docs/surface-materials.md). Published downloads below remain 1.8.1. The native-header follow-up also handles native surface colors and sticky-header decoration; actual official-route visual validation is still pending.
 
 [Download Windows 1.8.1](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.1/Xskin-1.8.1-windows-x64.zip) · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1) · [繁體中文](README.md)
 
