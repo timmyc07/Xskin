@@ -28,6 +28,7 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
   const options = { env: { ...process.env, HOME: home }, timeout: 200000, maxBuffer: 1024 * 1024 };
   let closed = false;
   let busy = false;
+  let stateRevision = 0;
   let pickerController = null;
   let pickerDone = null;
 
@@ -47,7 +48,7 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
       return languages.has(value) ? value : "en";
     } catch { return "en"; }
   };
-  const sanitized = async raw => {
+  const sanitized = async (raw, isCurrent) => {
     if (!raw || typeof raw !== "object" || !/^\d+\.\d+\.\d+$/.test(raw.version) ||
       !Number.isFinite(raw.maskOpacity) || raw.maskOpacity < 0 || raw.maskOpacity > 1 ||
       typeof raw.autostart !== "boolean" || typeof raw.autostartLoaded !== "boolean") throw failure("invalid_response");
@@ -62,7 +63,7 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
     const active = media(raw.active, "active");
     const selection = media(raw.selection, "selection");
     let previews = {};
-    try { previews = await preview.update(raw); }
+    try { previews = await preview.update(raw, isCurrent); }
     catch (error) { if (error?.errorCode !== "invalid_media") throw error; }
     for (const [slot, value] of [["active", active], ["selection", selection]]) {
       if (!value) continue;
@@ -75,34 +76,56 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
       maskOpacity: raw.maskOpacity, autostart: raw.autostart, autostartLoaded: raw.autostartLoaded,
       pendingRecovery: raw.pendingRecovery === true, language: await language(), needsSetup: false };
   };
-  const parse = async result => {
+  const parse = async (result, isCurrent) => {
     let raw;
     try { raw = JSON.parse(result.stdout); } catch { throw failure("invalid_response"); }
-    return sanitized(raw);
+    return sanitized(raw, isCurrent);
   };
-  const status = async () => {
+  const status = async (retried = false) => {
     if (closed) throw failure("closed");
+    const revision = stateRevision;
+    const isCurrent = () => revision === stateRevision;
+    const retry = () => {
+      if (retried) throw failure("operation_busy");
+      return status(true);
+    };
     try {
       const [script, config] = await Promise.all([fs.lstat(backend), fs.lstat(path.join(stateRoot, "theme/theme.json"))]);
       if (!script.isFile() || !config.isFile()) throw failure("invalid_setup");
     } catch (error) {
       if (error.code !== "ENOENT") throw failure("invalid_setup");
-      await preview.update({});
-      return { version, platform: "macos", active: null, selection: null, maskOpacity: 0.62,
+      if (!isCurrent()) return retry();
+      try { await preview.update({}, isCurrent); }
+      catch (error) { if (isCurrent()) throw error; return retry(); }
+      const result = { version, platform: "macos", active: null, selection: null, maskOpacity: 0.62,
         autostart: false, autostartLoaded: false, pendingRecovery: false, language: await language(), needsSetup: true };
+      return isCurrent() ? result : retry();
     }
-    return parse(await command(process.execPath, [backend, "status"], { timeout: 15000 }));
+    try {
+      const response = await command(process.execPath, [backend, "status"], { timeout: 15000 });
+      if (isCurrent()) {
+        const result = await parse(response, isCurrent);
+        if (isCurrent()) return result;
+      }
+    } catch (error) { if (isCurrent()) throw error; }
+    return retry();
   };
   const mutate = async operation => {
     if (closed) throw failure("closed");
     if (busy) throw failure("operation_busy");
     busy = true;
+    stateRevision += 1;
     try { return await operation(); }
-    finally { busy = false; }
+    finally { stateRevision += 1; busy = false; }
   };
   // Confirmed transactions keep the backend's bounded apply and rollback deadlines.
-  const dispatch = async (name, value) => parse(await command("/bin/bash", [wrapper, "--embedded", name, ...(value === undefined ? [] : [value])],
-    { timeout: name === "apply" || name === "mask" ? 0 : options.timeout }));
+  const dispatch = async (name, value) => {
+    const response = await command("/bin/bash", [wrapper, "--embedded", name, ...(value === undefined ? [] : [value])],
+      { timeout: name === "apply" || name === "mask" ? 0 : options.timeout });
+    // A late read must not replace capabilities published by a newer transaction.
+    stateRevision += 1;
+    return parse(response);
+  };
 
   return {
     readMedia: (id, offset, signal) => preview.read(id, offset, signal),
@@ -139,7 +162,7 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
     }),
     apply: id => mutate(async () => {
       if (typeof id !== "string" || !uuid.test(id)) throw failure("select_media");
-      return dispatch("apply", id);
+      return { ...await dispatch("apply", id), appliedSelectionId: id };
     }),
     mask: opacity => mutate(async () => {
       if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1 || Math.abs(opacity * 100 - Math.round(opacity * 100)) > 1e-9) throw failure("invalid_mask");

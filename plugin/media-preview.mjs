@@ -15,6 +15,7 @@ export async function createMediaPreview({ stateRoot }) {
   stateRoot = path.resolve(stateRoot);
   let entries = new Map();
   let closed = false;
+  let updates = Promise.resolve();
 
   const openMedia = async entry => {
     const relative = path.relative(stateRoot, entry.path);
@@ -75,22 +76,27 @@ export async function createMediaPreview({ stateRoot }) {
   };
 
   return {
-    async update(media) {
-      if (closed) throw invalid();
-      const approved = await Promise.all([
-        approve("active", media.active).catch(() => null),
-        approve("selection", media.selection).catch(() => null),
-      ]);
-      if (closed) throw invalid();
-      entries = new Map(approved.filter(Boolean).map(entry => [entry.token, entry]));
-      return Object.fromEntries(approved.map((entry, index) => [index === 0 ? "active" : "selection",
-        entry ? { id: entry.token, mimeType: entry.type } : null]));
+    async update(media, isCurrent = () => true) {
+      const pending = updates.then(async () => {
+        if (closed || !isCurrent()) throw invalid();
+        const approved = await Promise.all([
+          approve("active", media.active).catch(() => null),
+          approve("selection", media.selection).catch(() => null),
+        ]);
+        if (closed || !isCurrent()) throw invalid();
+        entries = new Map(approved.filter(Boolean).map(entry => [entry.token, entry]));
+        return Object.fromEntries(approved.map((entry, index) => [index === 0 ? "active" : "selection",
+          entry ? { id: entry.token, mimeType: entry.type } : null]));
+      });
+      updates = pending.catch(() => {});
+      return pending;
     },
     async read(mediaId, offset, signal) {
       const entry = typeof mediaId === "string" && /^[a-f0-9]{64}$/.test(mediaId) ? entries.get(mediaId) : null;
       if (closed || signal?.aborted || !entry || !Number.isSafeInteger(offset) || offset < 0) throw invalid();
       try {
         const { handle, stat } = await openMedia(entry);
+        let chunk;
         try {
           if (offset >= stat.size) throw invalid();
           const bytes = Buffer.alloc(Math.min(PREVIEW_CHUNK_BYTES, stat.size - offset));
@@ -100,9 +106,12 @@ export async function createMediaPreview({ stateRoot }) {
             if (!bytesRead) throw invalid();
             count += bytesRead;
           }
-          if (closed || signal?.aborted || identity(await handle.stat()) !== identity(stat)) throw invalid();
-          return { offset, total: stat.size, mimeType: entry.type, data: bytes.toString("base64") };
+          const after = await handle.stat();
+          if (identity(after) !== identity(stat)) throw invalid();
+          chunk = { offset, total: stat.size, mimeType: entry.type, data: bytes.toString("base64") };
         } finally { await handle.close(); }
+        if (closed || signal?.aborted || entries.get(mediaId) !== entry) throw invalid();
+        return chunk;
       } catch { throw invalid(); }
     },
     async close() {

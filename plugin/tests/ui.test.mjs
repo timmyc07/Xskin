@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
@@ -258,7 +259,7 @@ async function uiFixture(initialState, initialHostContext = { theme: "dark", sty
       this.dataset = { text: this.attributes.get("data-text") };
       this.value = this.attributes.get("value") ?? "";
       this.listeners = new Map();
-      this.style = { setProperty(key, value) { this[key] = value; } };
+      this.style = { setProperty(key, value) { this[key] = value; }, removeProperty(key) { delete this[key]; } };
       this.textContent = "";
       this.mediaEvents = [];
       this.paused = true;
@@ -354,6 +355,7 @@ async function uiFixture(initialState, initialHostContext = { theme: "dark", sty
     Blob, atob, AbortController });
   await new Promise(resolve => setImmediate(resolve));
   return { elements, document, calls, mediaCalls, revoked, blobs, app, motionQuery,
+    receiveState(next) { currentState = next; app.handlers.get("toolresult")(result(next)); },
     setResponse(next) { response = next; }, setMediaResponse(next) { mediaResponse = next; } };
 }
 
@@ -373,6 +375,25 @@ test("initial and changing host safe areas preserve partial updates and allow ze
   assert.equal(styles["--studio-safe-right"], "0px");
   assert.equal(styles["--studio-safe-bottom"], "0px");
   assert.equal(styles["--studio-safe-left"], "0px");
+});
+
+test("host height and maxHeight cap oversized frames, preserve partial context and clear unbounded or invalid dimensions", async () => {
+  const ui = await uiFixture(state(), { containerDimensions: { width: 1280, height: 680 } });
+  const styles = ui.document.documentElement.style;
+  const change = context => ui.app.handlers.get("hostcontextchanged")(context);
+  assert.equal(styles["--studio-height"], "680px");
+  change({ theme: "light" });
+  assert.equal(styles["--studio-height"], "680px");
+  change({ containerDimensions: { maxWidth: 1280, maxHeight: 560 } });
+  assert.equal(styles["--studio-height"], "560px");
+  change({ containerDimensions: { width: 600 } });
+  assert.equal(styles["--studio-height"], undefined, "An explicit unbounded height removes the old cap");
+  for (const dimensions of [null, {}, { height: 0 }, { height: -1 }, { height: Infinity }, { maxHeight: NaN }, { height: "680" }]) {
+    change({ containerDimensions: { height: 680 } });
+    change({ containerDimensions: dimensions });
+    assert.equal(styles["--studio-height"], undefined);
+  }
+  await ui.app.onteardown();
 });
 
 test("language select stays available during first setup, prevents busy changes and restores a failed choice", async () => {
@@ -632,4 +653,135 @@ test("background decoding failures are visible, Refresh retries, and pause remov
   assert.equal(ui.elements.video.src, pendingUrl);
   assert.equal(ui.revoked.includes(pendingUrl), false);
   await ui.app.onteardown();
+});
+
+test("unavailable media hides player instructions and one shared failure produces only the preview error", async () => {
+  const active = { ...state().selection, applied: true };
+  const ui = await uiFixture(state({ active, selection: null }));
+  assert.equal(ui.elements["video-hint"].hidden, true, "A transferred Blob is not yet a playable video");
+  await ui.elements.video.emit("loadedmetadata");
+  assert.equal(ui.elements["video-hint"].hidden, false);
+  await ui.elements["background-video"].emit("error");
+  assert.equal(ui.elements["background-error"].hidden, false, "An independently failed background remains visible while preview succeeds");
+  await ui.elements.video.emit("error");
+  assert.equal(ui.elements["preview-error"].hidden, false);
+  assert.equal(ui.elements["background-error"].hidden, true, "The same failed media must not produce duplicate warnings");
+  assert.equal(ui.elements["video-hint"].hidden, true);
+  assert.equal(ui.elements.video.hidden, true);
+  assert.equal(ui.elements["preview-mask"].hidden, true);
+  assert.equal(ui.elements.badge.textContent, translate("active"), "A local preview error must not misreport the successful engine Apply");
+  await ui.app.onteardown();
+});
+
+test("confirmed Apply promotes a completed 77.6 MiB synthetic original without retransferring or changing its bytes", { timeout: 30000 }, async () => {
+  const initial = state({ active: null, selection: null, needsSetup: true });
+  const pending = { ...state().selection, bytes: 81362219 };
+  const active = { ...pending, applied: true, previewId: "4".repeat(64) };
+  const ui = await uiFixture(initial);
+  const content = Buffer.alloc(512 * 1024);
+  for (let i = 0; i < content.length; i++) content[i] = i % 251;
+  const expected = createHash("sha256");
+  let allowedId = pending.previewId;
+  ui.setMediaResponse(request => {
+    assert.equal(request.arguments.mediaId, allowedId, "Apply revokes the former pending capability");
+    const offset = request.arguments.offset;
+    const bytes = content.subarray(0, Math.min(content.length, pending.bytes - offset));
+    if (request.arguments.mediaId === pending.previewId) expected.update(bytes);
+    return { _meta: { "com.xskin/media": { offset, total: pending.bytes, mimeType: "video/mp4", data: bytes.toString("base64") } } };
+  });
+  ui.setResponse(async request => {
+    if (request.name === "xskin_choose_media") return result({ ...initial, selection: pending, needsSetup: false });
+    if (request.name === "xskin_apply") {
+      assert.equal(request.arguments.selectionId, pending.id);
+      allowedId = active.previewId;
+      return result({ ...initial, active, selection: null, needsSetup: false, appliedSelectionId: pending.id });
+    }
+    assert.equal(request.name, "xskin_status");
+    return result({ ...initial, active, selection: null, needsSetup: false });
+  });
+  try {
+    await ui.elements.choose.emit("click");
+    await new Promise(resolve => setImmediate(resolve));
+    const originalUrl = ui.elements.video.src;
+    const reads = ui.mediaCalls.length;
+    assert.equal(reads, 156);
+    assert.equal(ui.blobs.length, 1);
+    assert.equal(ui.blobs[0].size, pending.bytes);
+    assert.equal(createHash("sha256").update(Buffer.from(await ui.blobs[0].arrayBuffer())).digest("hex"), expected.digest("hex"));
+    await ui.elements.video.emit("loadedmetadata");
+    await ui.elements.apply.emit("click");
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ui.elements.video.src, originalUrl);
+    assert.equal(ui.elements["background-video"].src, originalUrl);
+    assert.equal(ui.elements["preview-error"].hidden, true);
+    assert.equal(ui.elements["background-error"].hidden, true);
+    assert.equal(ui.mediaCalls.length, reads, "A confirmed exact selection promotion reuses the complete original Blob");
+    assert.equal(ui.blobs.length, 1);
+    assert.equal(ui.revoked.includes(originalUrl), false);
+    for (let i = 0; i < 3; i++) await ui.elements.refresh.emit("click");
+    assert.equal(ui.mediaCalls.length, reads, "Repeated healthy Refresh calls never retransmit the original media");
+    assert.equal(ui.elements.video.src, originalUrl);
+  } finally { await ui.app.onteardown(); }
+});
+
+test("Apply discards an unfinished revoked pending read and shares only the new active capability", async () => {
+  const initial = state({ active: null, selection: null });
+  const pending = state().selection;
+  const active = { ...pending, applied: true, previewId: "5".repeat(64) };
+  const ui = await uiFixture(initial);
+  let finishOld;
+  let oldSignal;
+  ui.setMediaResponse((request, options) => {
+    if (request.arguments.mediaId === pending.previewId) {
+      oldSignal = options.signal;
+      return new Promise(resolve => { finishOld = resolve; });
+    }
+    assert.equal(request.arguments.mediaId, active.previewId);
+    return { _meta: { "com.xskin/media": { offset: 0, total: active.bytes,
+      mimeType: "video/mp4", data: Buffer.alloc(active.bytes, 7).toString("base64") } } };
+  });
+  ui.receiveState({ ...initial, selection: pending });
+  ui.setResponse(async () => result({ ...initial, active, selection: null, appliedSelectionId: pending.id }));
+  await ui.elements.apply.emit("click");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(oldSignal.aborted, true);
+  finishOld({ isError: true });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ui.elements.video.src, ui.elements["background-video"].src);
+  assert.equal(ui.elements["preview-error"].hidden, true);
+  assert.equal(ui.elements["background-error"].hidden, true);
+  assert.equal(ui.blobs.length, 1, "A late revoked read must not become a Blob");
+  assert.equal(ui.mediaCalls.filter(call => call.arguments.mediaId === active.previewId).length, 1);
+  await ui.app.onteardown();
+});
+
+test("only the exact confirmed Apply may promote a completed selection, and hidden promoted video reloads its new capability", async () => {
+  for (const scenario of ["confirmed", "missing-relation", "wrong-selection", "failed-result", "decode-failed"]) {
+    const pending = state().selection;
+    const active = { ...pending, applied: true, previewId: "6".repeat(64) };
+    const ui = await uiFixture(state());
+    const previousUrl = ui.elements.video.src;
+    if (scenario === "decode-failed") await ui.elements.video.emit("error");
+    ui.setResponse(async () => ({ ...result(state({ active, selection: null,
+      ...(scenario === "missing-relation" ? {} : { appliedSelectionId: scenario === "wrong-selection" ? "22222222-2222-4222-8222-222222222222" : pending.id }),
+    })), ...(scenario === "failed-result" ? { isError: true } : {}) }));
+    await ui.elements.apply.emit("click");
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ui.elements.video.src === previousUrl, scenario === "confirmed", scenario);
+    assert.equal(ui.mediaCalls.length, scenario === "confirmed" ? 1 : 2, scenario);
+    if (scenario === "confirmed") {
+      ui.document.hidden = true;
+      await ui.document.emit("visibilitychange");
+      assert.ok(ui.revoked.includes(previousUrl));
+      ui.document.hidden = false;
+      await ui.document.emit("visibilitychange");
+      await new Promise(resolve => setImmediate(resolve));
+      assert.notEqual(ui.elements.video.src, previousUrl);
+      assert.equal(ui.mediaCalls.length, 2);
+      assert.equal(ui.mediaCalls[1].arguments.mediaId, active.previewId);
+      assert.equal(ui.elements.video.src, ui.elements["background-video"].src);
+    }
+    await ui.app.onteardown();
+    assert.equal(ui.revoked.filter(url => url === previousUrl).length, 1, scenario);
+  }
 });

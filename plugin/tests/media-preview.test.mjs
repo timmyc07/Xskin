@@ -69,6 +69,162 @@ test("private media capabilities preserve Unicode paths and stream every origina
   }
 });
 
+test("concurrent identical status updates return the same readable capabilities", async t => {
+  const { preview, active, selection, video } = await fixture(t);
+  const statuses = await Promise.all(Array.from({ length: 4 }, () => preview.update({ active, selection })));
+  for (const status of statuses) {
+    assert.deepEqual(status, statuses[0], "A successful status cannot immediately revoke an identical concurrent response");
+    assert.deepEqual(Buffer.from((await preview.read(status.selection.id, 0)).data, "base64"),
+      video.subarray(0, PREVIEW_CHUNK_BYTES));
+  }
+});
+
+test("Apply promotion replaces the pending capability with a stable active capability", async t => {
+  const { preview, active, selection, theme, pending, video, rejectRead } = await fixture(t);
+  const chosen = await preview.update({ active, selection });
+  const appliedPath = path.join(theme, "applied.mp4");
+  await fs.copyFile(selection.path, appliedPath);
+  await fs.rm(pending, { recursive: true });
+  const applied = { ...selection, path: appliedPath };
+  const statuses = await Promise.all([preview.update({ active: applied }), preview.update({ active: applied })]);
+  assert.deepEqual(statuses[0], statuses[1]);
+  assert.notEqual(statuses[0].active.id, chosen.selection.id, "A moved/copied file must not retain the former file capability");
+  assert.equal(statuses[0].selection, null);
+  await rejectRead(chosen.selection.id, 0);
+  await rejectRead(chosen.active.id, 0);
+  const chunks = [];
+  for (let offset = 0; offset < video.length; offset += PREVIEW_CHUNK_BYTES) {
+    chunks.push(Buffer.from((await preview.read(statuses[0].active.id, offset)).data, "base64"));
+  }
+  assert.deepEqual(Buffer.concat(chunks), video, "New active media retains all of the imported MP4 bytes");
+});
+
+test("revoking a capability also rejects a chunk already waiting on its file read", async t => {
+  const { preview, active, selection, rejectRead } = await fixture(t);
+  const approved = await preview.update({ active, selection });
+  const originalOpen = fs.open;
+  let started;
+  const reading = new Promise(resolve => { started = resolve; });
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  fs.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (args[0] === selection.path) {
+      const read = handle.read.bind(handle);
+      handle.read = async (...values) => {
+        started();
+        await held;
+        return read(...values);
+      };
+    }
+    return handle;
+  };
+  try {
+    const rejected = rejectRead(approved.selection.id, 0);
+    await reading;
+    await preview.update({ active });
+    release();
+    await rejected;
+    assert.deepEqual(await preview.update({ active }), { active: approved.active, selection: null });
+  } finally {
+    release();
+    fs.open = originalOpen;
+  }
+});
+
+test("a snapshot superseded during approval cannot publish or revoke current capabilities", async t => {
+  const { preview, active, selection } = await fixture(t);
+  const current = await preview.update({ active });
+  const originalOpen = fs.open;
+  let started;
+  const approving = new Promise(resolve => { started = resolve; });
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  let isCurrent = true;
+  fs.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (args[0] === selection.path) {
+      const read = handle.read.bind(handle);
+      handle.read = async (...values) => { started(); await held; return read(...values); };
+    }
+    return handle;
+  };
+  try {
+    const stale = assert.rejects(preview.update({ selection }, () => isCurrent), { errorCode: "invalid_media" });
+    await approving;
+    isCurrent = false;
+    release();
+    await stale;
+    assert.equal((await preview.read(current.active.id, 0)).mimeType, "image/png",
+      "Rejected stale approval must preserve the already published current capability");
+    assert.deepEqual(await preview.update({ active }), current, "The queue remains usable after a stale approval");
+  } finally {
+    release();
+    fs.open = originalOpen;
+  }
+});
+
+test("revocation during the final file stat still rejects the pending chunk", async t => {
+  const { preview, active, selection, rejectRead } = await fixture(t);
+  const approved = await preview.update({ active, selection });
+  const originalOpen = fs.open;
+  let started;
+  const checking = new Promise(resolve => { started = resolve; });
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  fs.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (args[0] === selection.path) {
+      const stat = handle.stat.bind(handle);
+      let checks = 0;
+      handle.stat = async () => {
+        const result = await stat();
+        if (++checks === 2) { started(); await held; }
+        return result;
+      };
+    }
+    return handle;
+  };
+  try {
+    const rejected = rejectRead(approved.selection.id, 0);
+    await checking;
+    await preview.update({ active });
+    release();
+    await rejected;
+  } finally {
+    release();
+    fs.open = originalOpen;
+  }
+});
+
+test("revocation while closing the file still rejects the chunk before delivery", async t => {
+  const { preview, active, selection, rejectRead } = await fixture(t);
+  const approved = await preview.update({ active, selection });
+  const originalOpen = fs.open;
+  let started;
+  const closing = new Promise(resolve => { started = resolve; });
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  fs.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (args[0] === selection.path) {
+      const close = handle.close.bind(handle);
+      handle.close = async () => { started(); await held; return close(); };
+    }
+    return handle;
+  };
+  try {
+    const rejected = rejectRead(approved.selection.id, 0);
+    await closing;
+    await preview.update({ active });
+    release();
+    await rejected;
+  } finally {
+    release();
+    fs.open = originalOpen;
+  }
+});
+
 test("a sparse 256 MiB original MP4 reads its first and final chunks without buffering the full file", async t => {
   const { preview, selection, videoPath } = await fixture(t);
   const tail = Buffer.from("original-tail-中文 🌙");

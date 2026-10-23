@@ -1,12 +1,12 @@
-# Xskin for Windows 1.8.5
+# Xskin for Windows 1.8.4
 
-**1.8.5** joins the overlay corners and moves usage inside the composer layout. The 16-case own-browser reservation model and automated checks passed; physical three-start, login/Store and route checks remain pending. Startup is shortcut-only without automatic close/reopen. The macOS in-app panel and user confirmation do not validate Windows. See [test scope](../docs/in-app-studio.md#composer-spacing-follow-up).
+**1.8.5 candidate (not published)** retains the joined overlay corners and composer-layout fix. Physical three-start, login/Store and route checks remain pending. Public downloads below stay on 1.8.4; startup remains shortcut-only without automatic close/reopen. See [validation scope](../docs/in-app-studio.md#composer-spacing-follow-up).
 
 1.8.4 retains the latest valid plan reported in the same conversation and identifies it as history, not live account status. Zero cache writes are “unconfirmed” with a source-value tooltip; missing fields never become zero. [Field meanings, sources and validation](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md). Windows physical acceptance remains pending.
 
 **1.8.2** recovers long-history usage, adds waiting/reconnecting status and native translucent materials. Final review removes duplicate tail reads and waits for the matching CSS during updates. [Review and validation limits](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/release-1.8.3-review.md). Official-page visuals and physical cold starts remain unverified.
 
-[Download Windows 1.8.5](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.5/Xskin-1.8.5-windows-x64.zip) · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5) · [繁體中文](README.md)
+[Download Windows 1.8.4](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.4/Xskin-1.8.4-windows-x64.zip) · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4) · [繁體中文](README.md)
 
 Extract the entire package and run `Install Xskin.exe`, or open `xskin.exe` for first-use setup. Installation and upgrades preserve an open Codex, bundled Node, media, language, opacity and pause settings. No separate Node/Flutter installation is required for packaged users.
 

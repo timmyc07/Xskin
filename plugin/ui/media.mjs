@@ -40,7 +40,7 @@ export function createMediaPreviews(app) {
       if (!identity) throw new Error("invalid_preview");
       let entry = entries.get(identity);
       if (!entry) {
-        entry = { controller: new AbortController(), users: 0, listeners: new Set(), url: null };
+        entry = { identity, controller: new AbortController(), users: 0, listeners: new Set(), url: null };
         entries.set(identity, entry);
         entry.promise = loadPreview(app, media, { signal: entry.controller.signal,
           onProgress: progress => { for (const listener of entry.listeners) listener(progress); } }).then(url => {
@@ -60,9 +60,21 @@ export function createMediaPreviews(app) {
         if (!entry.users) {
           entry.controller.abort();
           if (entry.url) URL.revokeObjectURL(entry.url);
-          if (entries.get(identity) === entry) entries.delete(identity);
+          if (entries.get(entry.identity) === entry) entries.delete(entry.identity);
         }
       } };
+    },
+    promote(previous, active) {
+      const before = mediaIdentity(previous);
+      const after = mediaIdentity(active);
+      const entry = entries.get(before);
+      if (!entry?.url || !after || entry.controller.signal.aborted || previous.kind !== active.kind ||
+        previous.bytes !== active.bytes || previous.previewMimeType !== active.previewMimeType ||
+        (entries.has(after) && entries.get(after) !== entry)) return false;
+      entries.delete(before);
+      entry.identity = after;
+      entries.set(after, entry);
+      return true;
     },
   };
 }

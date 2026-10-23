@@ -15,11 +15,13 @@ let currentPreview = null;
 let previewController = null;
 let previewUrl = null;
 let previewLoading = false;
+let previewReady = false;
 let previewProgress = 0;
 let backgroundIdentity = null;
 let backgroundController = null;
 let backgroundUrl = null;
 let backgroundFailed = false;
+let applyingSelection = null;
 const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let busyFocus = null;
 let wasBusy = false;
@@ -34,6 +36,7 @@ function releasePreview() {
   elements.image.removeAttribute("src");
   previewUrl = null;
   previewLoading = false;
+  previewReady = false;
 }
 
 function releaseBackground() {
@@ -81,7 +84,6 @@ function renderBackground(state) {
   elements["background-image"].hidden = !url || media?.kind !== "image";
   elements["studio-background"].hidden = !identity || !url;
   elements["background-mask"].style.opacity = String(state?.maskOpacity ?? .62);
-  elements["background-error"].hidden = !backgroundFailed;
   backgroundPlayback();
 }
 
@@ -117,15 +119,16 @@ function renderMedia(state) {
   const identity = mediaIdentity(media);
   if (controller.view.busy !== "xskin_status" &&
     (identity !== currentPreview || (identity && !previewController && !document.hidden))) startPreview(media, identity);
-  elements.image.hidden = !previewUrl || media?.kind !== "image";
-  elements.video.hidden = !previewUrl || media?.kind !== "video";
+  if (media && (!identity || media.previewError)) elements["preview-error"].hidden = false;
+  const failed = !elements["preview-error"].hidden;
+  elements.image.hidden = failed || !previewUrl || media?.kind !== "image";
+  elements.video.hidden = failed || !previewUrl || media?.kind !== "video";
   elements.empty.hidden = Boolean(media);
-  elements["preview-mask"].hidden = !previewUrl;
+  elements["preview-mask"].hidden = failed || !previewUrl;
   elements["preview-mask"].style.opacity = String(draftOpacity ?? state?.maskOpacity ?? .62);
-  elements["video-hint"].hidden = !media || media.kind !== "video";
+  elements["video-hint"].hidden = failed || !previewReady || !media || media.kind !== "video";
   elements["preview-status"].hidden = !previewLoading;
   elements["preview-status"].textContent = previewLoading ? `${t("loadingPreview")} ${previewProgress}%` : "";
-  if (media && (!identity || media.previewError)) elements["preview-error"].hidden = false;
   elements.image.alt = t("previewAlt");
   elements.video.setAttribute("aria-label", t("previewAlt"));
   elements["media-name"].textContent = media?.name ?? "";
@@ -139,6 +142,12 @@ function renderMedia(state) {
 function render(view) {
   if (disposed) return;
   const { state, busy, error, notice } = view;
+  // Only the confirmed Apply result links this staged file to its new capability.
+  if (busy === "xskin_apply" && !error && applyingSelection && state?.appliedSelectionId === applyingSelection.id &&
+    !state.selection && state.active?.applied && !previewLoading && previewUrl &&
+    elements["preview-error"].hidden && currentPreview === mediaIdentity(applyingSelection)) {
+    previews.promote(applyingSelection, state.active);
+  }
   if (busy && !wasBusy && document.activeElement?.matches("button, select, input")) busyFocus = document.activeElement;
   wasBusy = Boolean(busy);
   document.documentElement.lang = language();
@@ -170,6 +179,7 @@ function render(view) {
   elements.retry.disabled = Boolean(busy);
   renderBackground(state);
   renderMedia(state);
+  elements["background-error"].hidden = !backgroundFailed || (backgroundIdentity === currentPreview && !previewReady);
   if (!busy && busyFocus) {
     const target = busyFocus;
     busyFocus = null;
@@ -180,6 +190,13 @@ function render(view) {
 function hostContext(context) {
   if (context?.theme) applyDocumentTheme(context.theme);
   if (context?.styles?.variables) applyHostStyleVariables(context.styles.variables);
+  if (context && Object.hasOwn(context, "containerDimensions")) {
+    const dimensions = context.containerDimensions;
+    const height = dimensions && typeof dimensions === "object"
+      ? Object.hasOwn(dimensions, "height") ? dimensions.height : dimensions.maxHeight : null;
+    if (Number.isFinite(height) && height > 0) document.documentElement.style.setProperty("--studio-height", `${height}px`);
+    else document.documentElement.style.removeProperty("--studio-height");
+  }
   if (context?.safeAreaInsets) {
     for (const edge of ["top", "right", "bottom", "left"]) {
       const value = context.safeAreaInsets[edge];
@@ -207,7 +224,12 @@ function visibility() {
 }
 
 elements.choose.addEventListener("click", () => controller.choose());
-elements.apply.addEventListener("click", () => controller.apply());
+elements.apply.addEventListener("click", async () => {
+  if (controller.view.busy) return;
+  applyingSelection = controller.view.state?.selection;
+  try { await controller.apply(); }
+  finally { applyingSelection = null; }
+});
 elements.refresh.addEventListener("click", () => {
   if (!elements["preview-error"].hidden || backgroundFailed) {
     releasePreview();
@@ -261,12 +283,15 @@ for (const [node, kind, readyEvent] of [[elements.image, "image", "load"], [elem
   };
   node.addEventListener("error", () => {
     if (!current()) return;
+    previewReady = false;
     elements["preview-status"].hidden = true;
     elements["preview-error"].textContent = t("previewError");
     elements["preview-error"].hidden = false;
+    render(controller.view);
   });
   node.addEventListener(readyEvent, () => {
-    if (!current() || (kind === "video" && document.hidden)) return;
+    if (!current() || (kind === "video" && (document.hidden || node.error))) return;
+    previewReady = true;
     elements["preview-error"].hidden = true;
     render(controller.view);
   });

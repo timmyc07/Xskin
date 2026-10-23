@@ -14,7 +14,7 @@ const view = () => {
   const internalOverflows = [...overflowNodes].filter(node => node.clientWidth > 0 && node.scrollWidth - node.clientWidth > 1)
     .map(node => ({ node: node.id || node.className || node.tagName, client: node.clientWidth, scroll: node.scrollWidth }));
   const textOverflows = [];
-  for (const card of document.querySelectorAll(".setting-row, .preference-row, .actions, .media-info, .error")) {
+  for (const card of document.querySelectorAll(".setting-row, .preference-row, .actions, .media-info, .error, #preview-error")) {
     const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const text = walker.currentNode;
@@ -49,6 +49,10 @@ const view = () => {
     primaryBackground: getComputedStyle(element("apply")).backgroundColor,
     paddingBottom: parseFloat(getComputedStyle(element("studio")).paddingBottom),
     reservedBottom: parseFloat(getComputedStyle(document.body).paddingBottom),
+    viewportCap: styles.getPropertyValue("--studio-height"), bodyHeight: document.body.getBoundingClientRect().height,
+    bodyPaddingRight: parseFloat(getComputedStyle(document.body).paddingRight),
+    scrollbar: { width: getComputedStyle(scrollport).scrollbarWidth, color: getComputedStyle(scrollport).scrollbarColor,
+      track: getComputedStyle(scrollport, "::-webkit-scrollbar-track").backgroundColor },
     scrollport: { ...bounds, scrollTop: scrollport.scrollTop, maxScroll: scrollport.scrollHeight - scrollport.clientHeight },
     reservedHits,
     internalOverflows, textOverflows,
@@ -56,6 +60,8 @@ const view = () => {
     settingsHeading: { bounds: heading, fieldset: rect(element("settings")), labelledBy: element("settings").getAttribute("aria-labelledby") },
     insetBottom: styles.getPropertyValue("--studio-safe-bottom"),
     previewError: !element("preview-error").hidden,
+    previewErrorLocation: { withinStage: element("preview-stage").contains(element("preview-error")), bounds: rect(element("preview-error")) },
+    videoHint: !element("video-hint").hidden,
     error: element("error").textContent, errorVisible: !element("error-box").hidden,
     errorLocation: { withinPreview: document.querySelector(".preview-section").contains(element("error-box")),
       bounds: rect(element("error-box")), actions: rect(document.querySelector(".actions")) },
@@ -72,7 +78,8 @@ const view = () => {
     })),
     image: { src: element("image").getAttribute("src"), loaded: element("image").complete && element("image").naturalWidth > 0 },
     background: { visible: !element("studio-background").hidden, imageLoaded: element("background-image").complete && element("background-image").naturalWidth > 0,
-      src: element("background-image").getAttribute("src"), bounds: rect(element("studio-background")) },
+      src: element("background-image").getAttribute("src"), videoSrc: element("background-video").getAttribute("src"),
+      videoReady: element("background-video").readyState, bounds: rect(element("studio-background")) },
     video: { src: element("video").getAttribute("src"), ready: element("video").readyState,
       width: element("video").videoWidth, paused: element("video").paused, autoplay: element("video").autoplay },
   };

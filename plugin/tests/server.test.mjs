@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
 import { Client, InMemoryTransport, SdkError, SdkErrorCode } from "@modelcontextprotocol/client";
 import { createMcpServer, RESOURCE } from "../server.mjs";
+import { createMediaPreview, PREVIEW_CHUNK_BYTES } from "../media-preview.mjs";
 import manifest from "../package.json" with { type: "json" };
 
 const selectionId = "11111111-2222-4333-8444-555555555555";
@@ -114,6 +118,57 @@ test("invalid or unknown tool inputs never reach the local backend", async t => 
   }
   await assert.rejects(client.callTool({ name: "xskin_execute_command", arguments: { command: "fixture" } }), { name: "ProtocolError" });
   assert.deepEqual(calls, []);
+});
+
+test("successful Apply exposes its exact selection relation only in private operation metadata", async t => {
+  let confirmed = false;
+  const { client } = await fixture(t, { apply: async id => {
+    if (!confirmed) throw Object.assign(new Error("Fixture Apply rolled back"), { errorCode: "apply_failed_restored" });
+    return { ...state, appliedSelectionId: id };
+  } });
+  const failed = await client.callTool({ name: "xskin_apply", arguments: { selectionId } });
+  assert.equal(failed.isError, true);
+  assert.deepEqual(failed._meta, { "com.xskin/error": "apply_failed_restored" });
+  confirmed = true;
+  const applied = await client.callTool({ name: "xskin_apply", arguments: { selectionId } });
+  assert.equal(applied._meta["com.xskin/studio"].appliedSelectionId, selectionId);
+  assert.equal(applied.structuredContent, undefined);
+  assert.doesNotMatch(JSON.stringify(applied.content), new RegExp(selectionId));
+  const refreshed = await client.callTool({ name: "xskin_status", arguments: {} });
+  assert.equal(Object.hasOwn(refreshed._meta["com.xskin/studio"], "appliedSelectionId"), false);
+});
+
+test("concurrent real MCP status responses retain readable session-private media capabilities", async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "xskin-protocol-preview-"));
+  const stateRoot = path.join(directory, "背景 中文 🌙 with spaces");
+  const theme = path.join(stateRoot, "theme");
+  await fs.mkdir(theme, { recursive: true });
+  const image = await fs.readFile(new URL("../../macos/assets/portal-hero.png", import.meta.url));
+  const file = path.join(theme, "fixture.png");
+  await fs.writeFile(file, image);
+  const preview = await createMediaPreview({ stateRoot });
+  t.after(async () => { await preview.close(); await fs.rm(directory, { recursive: true, force: true }); });
+  const { client } = await fixture(t, {
+    close: () => preview.close(),
+    status: async () => {
+      const approved = await preview.update({ active: { kind: "image", path: file, bytes: image.length } });
+      return { ...state, active: { ...state.active, bytes: image.length,
+        previewId: approved.active.id, previewMimeType: approved.active.mimeType } };
+    },
+    readMedia: (...args) => preview.read(...args),
+  });
+  const responses = await Promise.all(Array.from({ length: 4 }, () => client.callTool({ name: "xskin_status", arguments: {} })));
+  const capability = responses[0]._meta["com.xskin/studio"].active.previewId;
+  for (const response of responses) {
+    assert.equal(response.isError, undefined);
+    assert.equal(response._meta["com.xskin/studio"].active.previewId, capability);
+    const chunk = await client.callTool({ name: "xskin_read_media", arguments: { mediaId: capability, offset: 0 } });
+    assert.equal(chunk.isError, undefined);
+    assert.equal(chunk.structuredContent, undefined);
+    assert.equal(chunk._meta["com.xskin/media"].total, image.length);
+    assert.deepEqual(Buffer.from(chunk._meta["com.xskin/media"].data, "base64"), image.subarray(0, PREVIEW_CHUNK_BYTES));
+    assert.doesNotMatch(JSON.stringify([response.content, chunk.content]), /背景|fixture\.png|previewId|base64/);
+  }
 });
 
 test("backend errors expose only a safe code, never private paths or logs", async t => {

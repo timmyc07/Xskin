@@ -2,10 +2,20 @@ import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/
 import { version } from "../package.json";
 
 const frame = document.querySelector("iframe");
+const fixtureParams = new URL(location.href).searchParams;
+const iframeHeight = Number(fixtureParams.get("frame")) || 680;
+const visibleHeight = Number(fixtureParams.get("clip")) || iframeHeight;
+const dimensionMode = fixtureParams.get("dimension") ?? "fixed";
+frame.style.height = `${iframeHeight}px`;
+frame.parentElement.style.height = `${visibleHeight}px`;
+frame.parentElement.style.overflow = "hidden";
+const dimensions = width => dimensionMode === "max" ? { width, maxHeight: visibleHeight } : { width, height: visibleHeight };
 const report = document.getElementById("report");
 const fixtureId = "11111111-1111-4111-8111-111111111111";
 const imageId = "1".repeat(64);
 const videoId = "2".repeat(64);
+const appliedMedia = new Map();
+let appliedSequence = 3;
 const name = "Fixture 中文 🌌 " + "long-name-".repeat(12);
 const files = JSON.parse(document.getElementById("fixture-data").textContent);
 const mediaBytes = Object.fromEntries(Object.entries(files).map(([key, file]) => [key,
@@ -16,17 +26,20 @@ let state = { version, platform: "macos", active: { ...sample("image"), applied:
   selection: { ...sample("image"), id: fixtureId }, maskOpacity: .62, autostart: false,
   autostartLoaded: false, pendingRecovery: false, language: "en", needsSetup: false };
 let failNext = false;
-const composerHeight = 148;
+const composerHeight = Number(fixtureParams.get("composer")) || 148;
+document.querySelector(".composer").style.height = `${composerHeight}px`;
+const insetMode = fixtureParams.get("insets") ?? "reported";
+const safeInsets = insetMode === "absent" ? {} : { safeAreaInsets: { top: 12, right: 8, bottom: insetMode === "zero" ? 0 : composerHeight, left: 6 } };
 const calls = [];
 const mediaCalls = [];
-const reply = () => ({ content: [], _meta: { "com.xskin/studio": structuredClone(state) } });
+const reply = (extra = {}) => ({ content: [], _meta: { "com.xskin/studio": { ...structuredClone(state), ...extra } } });
 const bridge = new AppBridge(null, { name: "Xskin fixture host", version: "1" }, { serverTools: {}, logging: {} },
-  { hostContext: { theme: "dark", containerDimensions: { width: 600, height: 680 },
-    safeAreaInsets: { top: 12, right: 8, bottom: composerHeight, left: 6 } } });
+  { hostContext: { theme: "dark", containerDimensions: dimensions(600),
+    ...safeInsets } });
 bridge.oncalltool = async ({ name: tool, arguments: args }) => {
   if (tool === "xskin_read_media") {
     mediaCalls.push(structuredClone(args));
-    const file = args.mediaId === imageId ? mediaBytes.image : args.mediaId === videoId ? mediaBytes.video : null;
+    const file = args.mediaId === imageId ? mediaBytes.image : args.mediaId === videoId ? mediaBytes.video : appliedMedia.get(args.mediaId);
     if (!file || !Number.isInteger(args.offset) || args.offset < 0 || args.offset >= file.bytes.length) throw new Error("Invalid fixture media request");
     const chunk = file.bytes.subarray(args.offset, args.offset + 512 * 1024);
     let binary = "";
@@ -44,7 +57,14 @@ bridge.oncalltool = async ({ name: tool, arguments: args }) => {
       state.active ??= { ...sample("image"), applied: false };
       state.needsSetup = false;
       break;
-    case "xskin_apply": state.active = { ...state.selection, applied: true }; state.selection = null; break;
+    case "xskin_apply": {
+      const selection = state.selection;
+      const previewId = (++appliedSequence).toString(16).padStart(64, "0");
+      appliedMedia.set(previewId, mediaBytes[selection.kind]);
+      state.active = { ...selection, previewId, applied: true };
+      state.selection = null;
+      return reply({ appliedSelectionId: selection.id });
+    }
     case "xskin_mask": state.maskOpacity = args.opacity; break;
     case "xskin_pause": state.active.applied = false; break;
     case "xskin_resume": state.active.applied = true; break;
@@ -82,8 +102,14 @@ const checkLayout = (view, label) => {
   check(view.textOverflows.length === 0, `${label} text outside card/control: ${JSON.stringify(view.textOverflows[0])}`);
   const { stage, section, media } = view.previewGeometry;
   check(Math.abs(stage.width - section.width) <= 1, `${label} preview must fill its section width`);
-  check(Math.abs(stage.height - stage.width * 9 / 16) <= 1, `${label} preview must retain 16:9`);
-  for (const edge of ["left", "right", "top", "bottom"]) check(Math.abs(media[edge] - stage[edge]) <= 2, `${label} media bounds must fill stage ${edge}`);
+  if (view.previewError) {
+    const error = view.previewErrorLocation.bounds;
+    check(view.previewErrorLocation.withinStage && Math.abs(stage.height - error.height) <= 2, `${label} preview failure must size to its own message`);
+    check(!view.videoHint, `${label} a failed player must not advertise paused playback`);
+  } else {
+    check(Math.abs(stage.height - stage.width * 9 / 16) <= 1, `${label} preview must retain 16:9`);
+    for (const edge of ["left", "right", "top", "bottom"]) check(Math.abs(media[edge] - stage[edge]) <= 2, `${label} media bounds must fill stage ${edge}`);
+  }
   check(view.settingsHeading.labelledBy === "settings-heading" && view.settingsHeading.bounds.bottom <= view.settingsHeading.fieldset.top + 1, `${label} section heading must stay outside its labelled card`);
 };
 const wait = async (predicate, description) => {
@@ -97,8 +123,8 @@ const changeHost = async () => {
   const dark = theme === "dark";
   frame.parentElement.style.width = `${width}px`;
   frame.style.colorScheme = document.getElementById("canvas").value;
-  bridge.setHostContext({ theme, containerDimensions: { width, height: 680 },
-    safeAreaInsets: { top: 12, right: 8, bottom: composerHeight, left: 6 }, styles: { variables: {
+  bridge.setHostContext({ theme, containerDimensions: dimensions(width),
+    ...safeInsets, styles: { variables: {
       "--font-sans": "system-ui, sans-serif", "--color-background-primary": dark ? "#181818" : "#ffffff",
       "--color-background-secondary": dark ? "#232323" : "#f7f7f7", "--color-background-inverse": dark ? "#ffffff" : "#171717",
       "--color-text-primary": dark ? "#f3f3f3" : "#171717", "--color-text-secondary": dark ? "#aaaaaa" : "#666666",
@@ -111,10 +137,21 @@ const changeHost = async () => {
 for (const id of ["width", "theme", "language", "canvas"]) document.getElementById(id).addEventListener("change", changeHost);
 document.getElementById("video").onclick = async () => { state.selection = { ...sample("video"), id: fixtureId }; await update(); };
 document.getElementById("empty").onclick = async () => { state.active = state.selection = null; state.needsSetup = true; await update(); };
+document.getElementById("broken").onclick = async () => {
+  state.active = { ...sample("video"), applied: true, previewId: "f".repeat(64) };
+  state.selection = null;
+  state.needsSetup = false;
+  state.language = "zh-Hant";
+  frame.parentElement.style.width = "1280px";
+  document.body.classList.add("sample-mode");
+  await update();
+  await qa("top");
+};
 document.getElementById("teardown").onclick = async () => { await bridge.teardownResource({}); report.textContent = "Own fixture teardown completed."; };
 document.getElementById("showcase").onclick = async () => {
-  const height = Math.max(680, innerHeight - 90);
-  frame.style.height = `${height}px`;
+  const height = iframeHeight > visibleHeight ? visibleHeight : Math.max(680, innerHeight - 90);
+  frame.style.height = `${iframeHeight > visibleHeight ? iframeHeight : height}px`;
+  frame.parentElement.style.height = `${height}px`;
   frame.parentElement.style.width = "1280px";
   state.active = { ...sample("image"), name: "Sample landscape.png", applied: true };
   state.selection = null;
@@ -128,7 +165,8 @@ document.getElementById("showcase").onclick = async () => {
 };
 document.getElementById("run").onclick = async () => {
   const lines = [];
-  const receipt = { fixture: "Cross-origin MCP App over an opaque canvas, sample media only", officialAppTested: false, cases: [] };
+  const receipt = { fixture: "Cross-origin MCP App over an opaque canvas, sample media only", officialAppTested: false, insetMode,
+    iframeHeight, visibleHeight, composerHeight, dimensionMode, cases: [] };
   document.getElementById("run").disabled = true;
   try {
     await ready;
@@ -148,6 +186,8 @@ document.getElementById("run").onclick = async () => {
       check(view.settingsBackground.includes("0.72"), "settings must retain a translucent host surface");
       check(view.primaryBackground === (theme === "dark" ? "rgb(255, 255, 255)" : "rgb(23, 23, 23)"), "host primary button token");
       check(view.overflow <= 1, `horizontal overflow ${width}/${theme}/${language}`);
+      check(view.scrollbar.width === "thin" && view.scrollbar.track === "rgba(0, 0, 0, 0)", "scrollbar must retain a thin transparent track");
+      check(Math.abs(view.scrollport.right - (view.width - view.bodyPaddingRight)) <= 1, "scrollbar must stay at the viewport edge instead of the content column");
       checkLayout(view, `${width}/${theme}/${language}`);
       check(view.checkedLanguage === language, "language select must match saved preference");
       check(Math.abs((view.languageRow.label.top + view.languageRow.label.bottom) / 2 - (view.languageRow.control.top + view.languageRow.control.bottom) / 2) <= 1,
@@ -161,7 +201,8 @@ document.getElementById("run").onclick = async () => {
       const positions = [];
       for (const fraction of [0, .25, .5, .75, 1]) {
         view = await qa("fraction", { fraction });
-        check(view.scrollport.bottom <= view.height - composerHeight + 1, "entire scrollport must stay above composer at every scroll position");
+        check(view.scrollport.bottom <= visibleHeight - composerHeight + 1,
+          `entire scrollport must stay above actual host clip/composer: bottom=${view.scrollport.bottom}, clip=${visibleHeight}, composer=${composerHeight}, iframe=${view.height}`);
         check(view.reservedHits.length === 0, "interactive content must never paint or receive hits inside the composer reservation");
         for (const [id, control] of Object.entries(view.controls)) {
           if (!control.hidden && control.box.width > 0 && control.box.top >= view.scrollport.top && control.box.bottom <= view.scrollport.bottom)
@@ -170,7 +211,7 @@ document.getElementById("run").onclick = async () => {
         positions.push({ fraction, scrollTop: view.scrollport.scrollTop, viewportBottom: view.scrollport.bottom, reservedHits: view.reservedHits.length });
       }
       view = await qa("scroll", { id: "pause" });
-      check(view.controls.pause.box.bottom <= view.height - composerHeight, "last setting must scroll above host composer");
+      check(view.controls.pause.box.bottom <= visibleHeight - composerHeight, "last setting must scroll above host composer");
       check(view.controls.pause.hit, "last setting must be clickable");
       state.active.applied = false;
       await bridge.sendToolResult({ ...reply(), isError: true, _meta: { ...reply()._meta, "com.xskin/error": "apply_failed_restored" } });
@@ -180,7 +221,9 @@ document.getElementById("run").onclick = async () => {
       state.active.applied = true;
       await qa("click", { id: "refresh" });
       await wait(view => !view.errorVisible && !view.controls.pause.disabled, "refresh");
-      receipt.cases.push({ width, canvas, theme, language, safeAreaBottom: composerHeight, pauseBottom: view.controls.pause.box.bottom, viewportHeight: view.height, overflow: view.overflow, previewGeometry: view.previewGeometry, internalOverflows: view.internalOverflows, textOverflows: view.textOverflows, positions });
+      receipt.cases.push({ width, canvas, theme, language, safeAreaBottom: insetMode === "reported" ? composerHeight : 0,
+        pauseBottom: view.controls.pause.box.bottom, viewportHeight: view.height, bodyHeight: view.bodyHeight, viewportCap: view.viewportCap,
+        scrollbar: view.scrollbar, overflow: view.overflow, previewGeometry: view.previewGeometry, internalOverflows: view.internalOverflows, textOverflows: view.textOverflows, positions });
       lines.push(`PASS ${width}px canvas=${canvas} UI=${theme} ${language}: Blob preview, applied background, contained scrollport, focus, recovery`);
     }
     receipt.largeTextCases = [];
@@ -190,7 +233,7 @@ document.getElementById("run").onclick = async () => {
       await changeHost();
       let view = await qa("fontScale", { scale: 2 });
       checkLayout(view, `320/200%/${theme}/${language}`);
-      check(view.scrollport.bottom <= view.height - composerHeight + 1 && view.reservedHits.length === 0, "large text must remain inside reserved scrollport");
+      check(view.scrollport.bottom <= visibleHeight - composerHeight + 1 && view.reservedHits.length === 0, "large text must remain inside reserved scrollport");
       receipt.largeTextCases.push({ width: 320, theme, language, scale: 2, filenameLength: state.selection.name.length, previewGeometry: view.previewGeometry, internalOverflows: view.internalOverflows, textOverflows: view.textOverflows });
     }
     await qa("fontScale", { scale: 1 });
@@ -207,10 +250,14 @@ document.getElementById("run").onclick = async () => {
     await wait(view => !view.errorVisible, "clear choose error");
     bridge.setHostContext({ theme: "light" });
     let view = await qa();
-    check(parseFloat(view.insetBottom) === composerHeight, "partial context must preserve insets");
+    check(parseFloat(view.insetBottom) === (insetMode === "reported" ? composerHeight : 0), "partial context must preserve insets");
+    const compactComposerHeight = 42;
+    document.querySelector(".composer").style.height = `${compactComposerHeight}px`;
     bridge.setHostContext({ safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 } });
     view = await wait(view => parseFloat(view.insetBottom) === 0, "zero inset reset");
-    check(view.reservedBottom === 96 && view.scrollport.bottom <= view.height - 96 + 1, "zero inset must reserve an entire 96px viewport region");
+    check(view.reservedBottom === 96 && view.scrollport.bottom <= visibleHeight - compactComposerHeight + 1, "zero inset fallback must contain the sample compact composer");
+    receipt.zeroInset = { testedComposerHeight: compactComposerHeight, reservedBottom: view.reservedBottom, viewportBottom: view.scrollport.bottom };
+    document.querySelector(".composer").style.height = `${composerHeight}px`;
     await changeHost();
     const maskCalls = calls.length;
     await qa("focus", { id: "mask" });
@@ -219,8 +266,13 @@ document.getElementById("run").onclick = async () => {
     await qa("change", { id: "mask", value: "85" });
     view = await wait(view => state.maskOpacity === .85 && !view.controls.mask.disabled, "mask commit");
     check(view.controls.mask.focused, "slider must recover keyboard focus");
+    const beforeApply = await qa();
+    const readsBeforeApply = mediaCalls.length;
     await qa("click", { id: "apply" });
-    await wait(view => state.selection === null && !view.controls.pause.disabled, "apply");
+    const afterApply = await wait(view => state.selection === null && !view.controls.pause.disabled, "apply");
+    check(afterApply.previewGeometry && mediaCalls.length === readsBeforeApply, "confirmed Apply must promote its complete preview instead of retransferring media");
+    check(afterApply.image.src === beforeApply.image.src && afterApply.background.src === beforeApply.image.src,
+      "the new active capability must preserve the original preview Blob for both roles");
     await qa("click", { id: "pause" });
     view = await wait(view => !state.active.applied && !view.controls.resume.disabled, "pause");
     check(!view.background.visible, "pause must hide the local background layer");
@@ -236,6 +288,25 @@ document.getElementById("run").onclick = async () => {
     await update();
     view = await wait(view => view.video.ready >= 1 && view.video.width > 0, "real MP4 Blob metadata");
     check(view.video.src.startsWith("blob:") && view.video.paused && !view.video.autoplay, "video must decode a paused Blob preview");
+    const originalVideoUrl = view.video.src;
+    const readsBeforeVideoApply = mediaCalls.length;
+    await qa("click", { id: "apply" });
+    view = await wait(view => state.selection === null && !view.controls.pause.disabled && view.video.ready >= 1 && view.background.videoReady >= 1, "MP4 Apply promotion");
+    check(view.video.src === originalVideoUrl && view.background.videoSrc === originalVideoUrl && mediaCalls.length === readsBeforeVideoApply,
+      "confirmed video Apply must retain its complete original Blob without another transfer");
+    receipt.applyPromotions = { imageRetained: afterApply.image.src === beforeApply.image.src, videoRetained: view.video.src === originalVideoUrl, videoBackgroundShared: view.background.videoSrc === originalVideoUrl, videoExtraReads: mediaCalls.length - readsBeforeVideoApply };
+    state.selection = { ...sample("video"), id: fixtureId, previewId: "f".repeat(64) };
+    await update();
+    receipt.previewErrors = [];
+    for (const width of [320, 600, 1280]) for (const language of ["en", "zh-Hant", "zh-Hans", "ja"]) {
+      document.getElementById("width").value = String(width);
+      document.getElementById("language").value = language;
+      await changeHost();
+      view = await wait(view => view.previewError, "failed preview message");
+      checkLayout(view, `preview error ${width}/${language}`);
+      receipt.previewErrors.push({ width, language, stage: view.previewGeometry.stage, message: view.previewErrorLocation.bounds, videoHint: view.videoHint });
+    }
+    lines.push("PASS 12 failed-preview layouts: compact in-stage message and no paused-player hint");
     state.active = state.selection = null;
     state.needsSetup = true;
     await update();

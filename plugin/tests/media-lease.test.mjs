@@ -58,3 +58,30 @@ test("a cancelled late read cannot replace a newly acquired entry with the same 
   shared.release();
   await assert.rejects(fetch(url));
 });
+
+test("a completed promotion transfers ownership to the new capability and releases the URL only once", async () => {
+  const reads = [];
+  const cache = createMediaPreviews({ async callServerTool(request) { reads.push(request); return chunk; } });
+  const previous = media("a");
+  const active = media("b");
+  const pending = cache.acquire(previous);
+  assert.equal(cache.promote(previous, active), false, "An unfinished read cannot be relabelled");
+  const url = await pending.promise;
+  assert.equal(cache.promote(previous, { ...active, bytes: 9 }), false);
+  assert.equal(cache.promote(previous, { ...active, previewMimeType: "image/png" }), false);
+  assert.equal(cache.promote(previous, active), true);
+  const background = cache.acquire(active);
+  const preview = cache.acquire(active);
+  assert.equal(await background.promise, url);
+  assert.equal(await preview.promise, url);
+  pending.release();
+  background.release();
+  assert.equal((await fetch(url)).ok, true);
+  preview.release();
+  await assert.rejects(fetch(url));
+  const reopened = cache.acquire(active);
+  assert.notEqual(await reopened.promise, url);
+  assert.equal(reads.length, 2);
+  assert.equal(reads[1].arguments.mediaId, active.previewId, "Reopening uses only the new approved capability");
+  reopened.release();
+});

@@ -145,8 +145,12 @@ try {
   assert.equal(resumed.selection.id, id, "Resume preserves a separate pending selection instead of applying it");
   assert.equal(resumed.maskOpacity, 0.27);
   assert.equal(resumed.autostart, true, "Resume never changes the automatic apply preference");
-  assert.equal((await studio.apply(id)).active.applied, true);
-  assert.equal((await studio.status()).selection, null);
+  const appliedSelection = await studio.apply(id);
+  assert.equal(appliedSelection.active.applied, true);
+  assert.equal(appliedSelection.appliedSelectionId, id, "Only a confirmed Apply identifies the selection it promoted");
+  const afterApply = await studio.status();
+  assert.equal(afterApply.selection, null);
+  assert.equal(Object.hasOwn(afterApply, "appliedSelectionId"), false, "The successful operation relation is not persisted or inferred by later status reads");
   const peer = await createStudio(runtime, { home, execute, platform: "darwin" });
   try {
     const peerState = await peer.status();
@@ -262,7 +266,108 @@ try {
   await assert.rejects(studio.pause(), error => error.errorCode === "operation_busy" && !error.message.includes(home));
   failure = "PRIVATE_CHILD_STDOUT";
   await assert.rejects(studio.pause(), error => error.errorCode === "operation_failed" && !error.message.includes("PRIVATE_CHILD"));
+  await assert.rejects(studio.status(), error => error.errorCode === "operation_failed" && !error.message.includes("PRIVATE_CHILD"),
+    "A failing status with no intervening mutation preserves its safe backend error");
+  failure = JSON.stringify({ errorCode: "invalid_background", error: home });
+  await assert.rejects(studio.status(), error => error.errorCode === "invalid_background" && !error.message.includes(home));
   failure = null;
+  const validRaw = raw;
+  raw = null;
+  try { await assert.rejects(studio.status(), { errorCode: "invalid_response" }); }
+  finally { raw = validRaw; }
+  for (const stage of ["beforeMutation", "duringMutation", "afterApproval", "commandFailure", "invalidResponse"]) {
+    const duringMutation = stage === "duringMutation";
+    let releaseOldStatus;
+    const oldStatusHeld = new Promise(resolve => { releaseOldStatus = resolve; });
+    let statusStarted;
+    const oldStatusStarted = new Promise(resolve => { statusStarted = resolve; });
+    let statusReads = 0;
+    let releaseCommit;
+    const commitHeld = new Promise(resolve => { releaseCommit = resolve; });
+    let applyStarted;
+    const applyStart = new Promise(resolve => { applyStarted = resolve; });
+    let releaseLanguage;
+    const languageHeld = new Promise(resolve => { releaseLanguage = resolve; });
+    let languageStarted;
+    const languageStart = new Promise(resolve => { languageStarted = resolve; });
+    let holdLanguage = duringMutation || stage === "afterApproval";
+    const pendingPath = path.join(stateRoot, "studio", `import-${id}`, "pending.png");
+    await fs.mkdir(path.dirname(pendingPath), { recursive: true });
+    await fs.writeFile(pendingPath, image);
+    const raceRaw = { ...structuredClone(raw), selection: { id, name: "新背景", kind: "image", path: pendingPath, bytes: image.length } };
+    const raceStudio = await createStudio(runtime, { home, platform: "darwin", execute: async (file, args) => {
+      if (file === "/usr/bin/defaults") {
+        if (holdLanguage) { holdLanguage = false; languageStarted(); await languageHeld; }
+        return { stdout: "ja\n" };
+      }
+      if (file === process.execPath) {
+        const stdout = JSON.stringify(raceRaw);
+        if (++statusReads === 1) {
+          statusStarted();
+          if (stage !== "afterApproval") await oldStatusHeld;
+          if (stage === "commandFailure") throw Object.assign(new Error("PRIVATE_FIXTURE_ERROR"), {
+            stdout: JSON.stringify({ errorCode: "invalid_background" }), stderr: home,
+          });
+          if (stage === "invalidResponse") return { stdout: "PRIVATE_INVALID_JSON" };
+        }
+        return { stdout };
+      }
+      assert.equal(file, "/bin/bash");
+      assert.deepEqual(args.slice(1), ["--embedded", "apply", id]);
+      applyStarted();
+      if (duringMutation) await commitHeld;
+      const appliedPath = path.join(theme, "promoted.png");
+      await fs.copyFile(pendingPath, appliedPath);
+      raceRaw.active = { ...raceRaw.selection, path: appliedPath, applied: true };
+      raceRaw.selection = null;
+      await fs.rm(path.dirname(pendingPath), { recursive: true });
+      return { stdout: JSON.stringify(raceRaw) };
+    } });
+    try {
+      let applying;
+      if (duringMutation) { applying = raceStudio.apply(id); await applyStart; }
+      const oldStatus = raceStudio.status();
+      await oldStatusStarted;
+      let applied;
+      if (duringMutation) { releaseCommit(); await languageStart; }
+      else {
+        if (stage === "afterApproval") await languageStart;
+        applied = await raceStudio.apply(id);
+        releaseLanguage();
+      }
+      releaseOldStatus();
+      const refreshed = await oldStatus;
+      if (duringMutation) { releaseLanguage(); applied = await applying; }
+      assert.equal(refreshed.active.previewId, applied.active.previewId,
+        `${stage}: a delayed status must not publish stale media or revoke a newer Apply capability`);
+      assert.equal(refreshed.selection, null);
+      assert.equal(applied.appliedSelectionId, id);
+      assert.equal(Object.hasOwn(refreshed, "appliedSelectionId"), false);
+      assert.equal(statusReads, 2, "A stale read refreshes the committed state instead of publishing its former snapshot");
+      assert.deepEqual(Buffer.from((await raceStudio.readMedia(applied.active.previewId, 0)).data, "base64"), image.subarray(0, 512 * 1024));
+    } finally {
+      releaseOldStatus();
+      releaseCommit();
+      releaseLanguage();
+      await raceStudio.close();
+    }
+  }
+  let repeatedReads = 0;
+  let changeDuringRead = true;
+  const changingStudio = await createStudio(runtime, { home, platform: "darwin", execute: async (file, args) => {
+    if (file === "/usr/bin/defaults") return { stdout: "ja\n" };
+    if (file === process.execPath) {
+      repeatedReads += 1;
+      if (changeDuringRead) await changingStudio.mask(0.31);
+    } else assert.deepEqual(args.slice(1), ["--embedded", "mask", "0.31"]);
+    return { stdout: JSON.stringify(raw) };
+  } });
+  try {
+    await assert.rejects(changingStudio.status(), { errorCode: "operation_busy" });
+    assert.equal(repeatedReads, 2, "A second overlapping change returns busy instead of retrying indefinitely");
+    changeDuringRead = false;
+    assert.equal((await changingStudio.status()).active.name, raw.active.name);
+  } finally { await changingStudio.close(); }
   holdPicker = new Promise(resolve => { release = resolve; });
   const closingPicker = studio.choose();
   const pickerRejected = assert.rejects(closingPicker, { errorCode: "cancelled" });

@@ -56,7 +56,7 @@ const page = `<!doctype html><meta charset="utf-8"><meta name="viewport" content
 <label>Theme<select id="theme"><option>dark</option><option>light</option></select></label>
 <label>Embedder scheme<select id="canvas"><option>light</option><option>dark</option></select></label>
 <label>Language<select id="language"><option>en</option><option>zh-Hant</option><option>zh-Hans</option><option>ja</option></select></label>
-<button id="run">Run browser checks</button><button id="video">Video fixture</button><button id="empty">Empty fixture</button><button id="showcase">Preview sample</button><button id="teardown">Teardown</button></nav>
+<button id="run">Run browser checks</button><button id="video">Video fixture</button><button id="empty">Empty fixture</button><button id="showcase">Preview sample</button><button id="broken">Failed preview sample</button><button id="teardown">Teardown</button></nav>
 <pre id="report">Loading own SDK fixture…</pre><pre id="receipt" hidden></pre><div class="frame-wrap"><iframe id="app" data-origin="${appOrigin}" title="Xskin embedded fixture" sandbox="allow-scripts allow-same-origin"></iframe><div class="composer">Sample host composer · the settings must scroll above this reserved area.</div></div>
 <script id="fixture-data" type="application/json">${JSON.stringify(fixtures)}</script><script src="/host.js"></script>`;
 const server = http.createServer((request, response) => {
