@@ -5,7 +5,7 @@
 ### Make Codex feel like your workspace.
 
 Bring your favorite images and original 4K videos into Codex.<br>
-Import, preview, and apply inside Codex on macOS or from the native macOS and Flutter Windows apps.
+Import, preview, and apply inside Codex on macOS and Windows, or use the standalone apps.
 
 [![macOS](https://img.shields.io/badge/macOS-1.9.4-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.9.4)
 [![Windows](https://img.shields.io/badge/Windows-1.8.5-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5)
@@ -25,7 +25,17 @@ English by default · Traditional Chinese · Simplified Chinese · Japanese
 
 ![Codex Home on macOS with an applied full-window MP4 background and translucent input controls](docs/images/xskin-codex-video-home.png)
 
-*An applied video background on Codex Home. The screenshots in this README were provided by the maintainer and show macOS; they are interface examples, not bundled wallpapers.*
+*An applied video background on Codex Home for macOS. Screenshots in this README were provided by the maintainer; they are interface examples, not bundled wallpapers.*
+
+## Windows in action
+
+Windows Codex Home with two different backgrounds, showing the full-window appearance, native window controls, navigation and translucent input. These screenshots show the Windows source/local-build version described in the [Windows guide](windows/README.md).
+
+| Eye close-up background | Sunset character background |
+| --- | --- |
+| ![Codex Home on Windows with an eye close-up background, native window controls and a translucent input](docs/images/xskin-windows-home-eye.png) | ![Codex Home on Windows with a sunset character background, native navigation and a translucent input](docs/images/xskin-windows-home-sunset.png) |
+
+*Maintainer-provided Windows screenshots. The pictured background media are not bundled with Xskin.*
 
 ## Your media. Your atmosphere.
 
@@ -33,18 +43,18 @@ A quiet photograph. A moving landscape. A workspace that feels a little more lik
 
 | Choose your scene | See it before you apply | Feel at home | Keep your setup |
 | --- | --- | --- | --- |
-| Import local images and MP4s, including original 4K video. | Check the composition, filename, media type, and file size before applying. | Choose files and control video previews inside Codex on macOS; standalone apps also support drag and drop. | Keep your background, mask depth, pending import, and language preference locally. |
+| Import local images and MP4s, including original 4K video. | Check the composition, filename, media type, and file size before applying. | Choose files and control video previews inside Codex on macOS and Windows; standalone apps also support drag and drop. | Keep your background, mask depth, pending import, and language preference locally. |
 
 ## Preview and tune inside Codex
 
-Open **More → Xskin** on macOS to choose media, preview it, and manage the saved background in one panel.
+Open **More → Xskin** with the matching macOS or Windows plugin to choose media, preview it, and manage the saved background in one panel.
 
 | Preview and apply | Background settings |
 | --- | --- |
 | ![Xskin 1.9.4 inside Codex showing an MP4 preview, filename, file size, and Apply background button](docs/images/xskin-plugin-preview.png) | ![Xskin background settings showing 62 percent mask depth, automatic apply, Pause background, and the language selector](docs/images/xskin-plugin-settings.png) |
 | Select **Choose image or video**, play the paused preview when needed, then select **Apply background**. | Adjust **Mask depth**, enable **Apply when official Codex opens**, pause the background, or choose your interface language. |
 
-The panel shares saved media and preferences with the standalone macOS app. Choosing a file only prepares a preview; it replaces the current background after a successful Apply. The applied background also stays visible behind the Xskin panel.
+The panel shares saved media and preferences with the standalone app on the same platform. Choosing a file only prepares a preview; it replaces the current background after a successful Apply. The applied background also stays visible behind the Xskin panel.
 
 ![An alternate full-window background on Codex Home with the familiar project, files, and plugins controls](docs/images/xskin-codex-alternate-home.png)
 
