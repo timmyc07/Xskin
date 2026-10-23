@@ -1,6 +1,6 @@
 # Xskin for Windows 1.8.4
 
-**1.8.5 candidate (not yet published)** reduces the overlay/composer gap from 8 to 2 CSS pixels while preserving the native input and controls. Stable downloads below remain 1.8.4; startup remains shortcut-only with no automatic reopen.
+**1.8.5 candidate (not yet published)** joins the overlay to the input’s upper corners without a gap, preserving the native input and controls. Stable downloads below remain 1.8.4; startup remains shortcut-only with no automatic reopen.
 
 1.8.4 保留同一對話紀錄最後合法回報的方案，並明示它不是即時帳戶狀態。快取寫入來源為 0 時顯示「未確認」，提示保留來源值與預設值限制；缺少欄位不補 0。[欄位語義、來源及驗證](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md)。Windows 實機驗收仍待完成。
 

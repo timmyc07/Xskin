@@ -1,6 +1,6 @@
 # Xskin
 
-> **macOS 1.9.0 candidate: in-app background studio.** The updated local plugin provides a global **Xskin** navigation entry (under **More** when placed there by the host) for choosing, previewing and applying backgrounds, mask depth and Pause/Resume. It shares existing settings. Actual desktop-entry acceptance is pending; stable downloads remain 1.8.5 and Windows stable downloads remain 1.8.4; the 1.8.5 candidate only tightens overlay/composer spacing. See [installation, connection requirements and validation](docs/in-app-studio.md).
+> **macOS 1.9.0 candidate: in-app background studio.** The updated local plugin provides a global **Xskin** navigation entry (under **More** when placed there by the host) for choosing, previewing and applying backgrounds, mask depth and Pause/Resume. It shares existing settings. The user confirmed More → Xskin opens; the complete background-changing workflow still awaits desktop acceptance; stable downloads remain 1.8.5 and Windows stable downloads remain 1.8.4; the 1.8.5 candidate joins the overlay to the composer’s upper corners. See [installation, connection requirements and validation](docs/in-app-studio.md).
 
 English is now the primary documentation language.
 

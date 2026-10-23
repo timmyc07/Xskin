@@ -15,7 +15,7 @@ codex plugin add codex-background-studio@codex-background-studio-local
 
 The existing CLI supports these commands (`codex-cli 0.163.0-alpha.11.1` was checked locally). Reload/restart the desktop app if its plugin tools or global navigation have not refreshed. In the Plugins directory, verify that the local Xskin plugin is enabled. Asking to “Open Xskin” invokes the same MCP App. Installing the plugin and opening its panel do not apply settings.
 
-The companion Windows 1.8.5 candidate only tightens the usage strip/composer spacing; its startup remains shortcut-only and it has no in-app studio.
+The companion Windows 1.8.5 candidate joins the usage strip to the composer’s upper corners; its startup remains shortcut-only and it has no in-app studio.
 
 This MCP server requires macOS and local execution. Windows keeps its separate 1.8.4 package and shortcut-only startup. Do not install this macOS launcher as a Windows MCP server.
 
@@ -57,7 +57,7 @@ Dependency versions: MCP server/client **2.3.1**, MCP Apps **2.0.3**, Zod **4.6.
 
 Official references: [sidebar apps](https://developers.openai.com/plugins/build/extensions#sidebar-apps), [pinned global-entrypoint specification](https://github.com/openai/mcp-extensions/blob/36f8b38df179144b44d157133bbc5f7c6e353ace/docs/spec.md#global-entrypoint), [MCP App UI](https://developers.openai.com/plugins/build/chatgpt-ui), [plugin packaging](https://developers.openai.com/plugins/build/plugins), [desktop-only submission](https://developers.openai.com/plugins/deploy/desktop-only), [SDK 2.3.1](https://github.com/modelcontextprotocol/typescript-sdk/tree/v2.3.1).
 
-Protocol, backend, preview and UI tests are isolated from customer data. A read-only bundled-server check on this Mac connected and returned existing settings without opening native Xskin. Host **More → Xskin** placement and the complete actual embedded interaction still require desktop acceptance; an isolated browser or protocol test does not establish that result. Official native computer-use access was rejected, so no alternate capture/navigation bypass is used.
+Protocol, backend, preview and UI tests are isolated from customer data. A read-only bundled-server check on this Mac connected and returned existing settings without opening native Xskin. The user confirmed on 2026-10-23 that **More → Xskin** is visible and opens the in-app panel. The complete choose → preview → Apply → updated background interaction still requires desktop acceptance; an isolated browser or protocol test does not establish that result. Official native computer-use access was rejected, so no alternate capture/navigation bypass is used.
 
 ## Roll back
 
@@ -67,4 +67,4 @@ If an engine upgrade fails and restores a version older than 1.9.0, its launcher
 
 ## Composer spacing follow-up
 
-The usage strip previously added an 8 CSS-pixel bottom margin (about 16 physical pixels at 2× scale). The macOS 1.9.0 / Windows 1.8.5 candidates reduce only that margin to 2 CSS pixels. Native composer shape, controls, normal flow, Home hiding and narrow wrapping remain intact. This spacing change does not add or reposition native navigation.
+The macOS 1.9.0 / Windows 1.8.5 candidates remove the usage strip’s bottom gap and extend its lower edge around the input’s upper corners. A single decorative pseudo-element paints only the two corner cutouts; its center stays transparent and it ignores pointer events. The existing 22px composer radius is shared by a CSS token, without new DOM wrappers, layout reads, observers or timers. Native input geometry, controls, normal flow, Home hiding and narrow wrapping remain intact.

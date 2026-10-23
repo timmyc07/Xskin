@@ -2,14 +2,14 @@
 
 ## 1.9.0 — candidate, desktop acceptance pending
 
-- Reduce the usage strip's composer spacing from 8 to 2 CSS pixels, preserving the official input shape and controls, normal flow, Home hiding and narrow-window wrapping.
+- Join the usage strip to the input with no bottom gap and lower corner cutouts that follow the input’s upper curves. Keep the center transparent, decorative paint non-interactive, and native geometry, Home hiding and narrow wrapping intact.
 
 - Fix the missing MCP/sidebar entry in the first candidate: launch the packaged executable with the required contained `./` command. Test the actual portable manifest's execution, permissions and Unicode paths; plugin installation alone is not proof that its MCP server loaded.
 
 - Add an official MCP App global Xskin entrypoint and a four-language in-app background panel. Reuse native imports, previews, pending selection, atomic apply, mask, startup preferences and saved background Pause/Resume.
 - Keep embedded Apply/mask/rollback/Resume on an existing verified connection. Never launch or quit Codex from these operations; prepare first imports without silently enabling automatic startup or rewriting official appearance preferences.
 - Keep private state outside model-visible content. Serve approved media only through random loopback preview URLs with bounded MP4 ranges and exact-origin CSP; release previews and cancel owned file pickers on connection close.
-- Bundle locked SDKs and their licenses in self-contained release files. Native Xskin remains an explicit fallback; Windows stable downloads stay on 1.8.4, with a separate 1.8.5 spacing-only candidate. See [evidence and host acceptance limits](../docs/in-app-studio.md).
+- Bundle locked SDKs and their licenses in self-contained release files. Native Xskin remains an explicit fallback; Windows stable downloads stay on 1.8.4, with a separate 1.8.5 overlay-shape candidate. See [evidence and host acceptance limits](../docs/in-app-studio.md).
 
 ## 1.8.5 — 2026-10-23
 

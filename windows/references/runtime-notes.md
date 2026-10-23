@@ -1,6 +1,6 @@
 # Runtime notes
 
-- 1.8.5 candidate reduces overlay/composer spacing from 8 to 2 CSS pixels. Windows remains shortcut-only without automatic close/reopen; physical cold-start and route checks remain pending.
+- 1.8.5 candidate removes the overlay/composer gap and fills only the outside of the input’s upper corners with a non-interactive decorative layer. The center stays transparent; no extra DOM, observers or layout reads are added. Windows remains shortcut-only without automatic close/reopen; physical cold-start and route checks remain pending.
 
 - 1.8.4 shares same-session plan retention and cache-write availability semantics with macOS. Plans are the conversation's latest valid report, not live account information. A source-reported zero cache-write count is unconfirmed with its value explained in the tooltip; missing fields never become zero. The reader does not infer a plan from quota or writes from uncached input, and it adds no credential access. See https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md for pinned public-source evidence and pending physical checks.
 

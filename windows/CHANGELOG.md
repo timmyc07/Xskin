@@ -2,7 +2,7 @@
 
 ## 1.8.5 — candidate, not yet published
 
-- Reduce the usage strip's composer spacing from 8 to 2 CSS pixels while preserving native input geometry, normal flow and narrow-window wrapping. Startup remains shortcut-only with no automatic close/reopen. Flutter package metadata is 1.8.5+17.
+- Join the usage strip to the input without a gap. Its lower edge fills only the outside of the input’s upper curves, with a transparent center and no pointer interception. Preserve native input geometry, normal flow and narrow wrapping. Startup remains shortcut-only with no automatic close/reopen. Flutter package metadata is 1.8.5+17.
 
 ## 1.8.4 — 2026-10-23
 
