@@ -143,7 +143,7 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.9.0",
+    version: "1.9.1",
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,
@@ -218,7 +218,7 @@ async function importMedia(file) {
     }
     const { raw, extension: posterExtension, imagePath } = await loadTheme(themeRoot);
     const imageName = `background-studio-${id}${video ? posterExtension : ".jpg"}`;
-    const config = { ...raw, id: `custom-studio-${id}`, name: Array.from(name.slice(0, -extension.length)).slice(0, 80).join(""), image: imageName, appearance: "dark", layout: "wallpaper", art: { safeArea: "none", taskMode: "ambient", focusX: 0.5, focusY: 0.5 } };
+    const config = { ...raw, id: `custom-studio-${id}`, name, image: imageName, appearance: "dark", layout: "wallpaper", art: { safeArea: "none", taskMode: "ambient", focusX: 0.5, focusY: 0.5 } };
     if (video) {
       config.video = `background-studio-${id}.mp4`;
       await fs.rename(uploaded, path.join(directory, config.video));

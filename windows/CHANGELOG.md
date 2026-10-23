@@ -3,6 +3,7 @@
 ## 1.8.5 — candidate, not yet published
 
 - Join the usage strip to the input without a gap. Its lower edge fills only the outside of the input’s upper curves, with a transparent center and no pointer interception. Preserve native input geometry, normal flow and narrow wrapping. Startup remains shortcut-only with no automatic close/reopen. Flutter package metadata is 1.8.5+17.
+- Place the strip immediately before the composer body inside its layout container, including nested wrappers, while preserving toolbar order, stable subscriptions and Home/dispose behavior. No forced scroll, runtime observer or polling is added. The 16-case self-owned ResizeObserver browser model covers height reservation, removal and retained reader position; it does not prove the official app's internal measurement or Windows physical behavior. Three physical cold starts, login/Store updates and route visuals remain pending.
 
 ## 1.8.4 — 2026-10-23
 

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-TW" class="codex-dream-skin" data-dream-surface="codex" data-dream-art-wide="true" data-dream-shell="dark">
+<meta charset="utf-8">
+<title>Xskin own composer reservation model</title>
+<link rel="stylesheet" href="../../assets/dream-skin.css">
+<style>
+  body { margin: 0; font: 14px system-ui; }
+  #stage { position: relative; height: 440px; background: #142333; color: white; }
+  #scroller { position: absolute; inset: 0; overflow-y: auto; box-sizing: border-box; }
+  #messages p { margin: 0; min-height: 60px; }
+  #footer { position: absolute; bottom: 0; inset-inline: 0; }
+  [data-composer-layout], .nested { display: flex; flex-direction: column; }
+  [data-composer-body] { height: 120px; box-sizing: border-box; }
+  #toolbar { height: 32px; box-sizing: border-box; }
+  #report { white-space: pre-wrap; background: white; color: black; }
+</style>
+<div id="root"><main data-app-shell-main-surface><div data-app-shell-active-page="true"><div id="stage"></div></div></main></div>
+<a hidden data-app-action-sidebar-thread-selected="true" aria-current="page" data-app-action-sidebar-thread-host-id="local" data-app-action-sidebar-thread-kind="local" data-app-action-sidebar-thread-id="local:01a161f4-8a44-7f02-9cee-9c9f8b750413"></a>
+<pre id="report">Running the self-owned layout model; no official app is inspected.</pre>
+<script type="module">
+const source = await (await fetch("../../assets/token-overlay.js")).text();
+const oldSource = source.replace("const anchor = composer;", 'const anchor = composer?.closest("[data-composer-layout]") ?? composer;');
+const stage = document.getElementById("stage"), report = document.getElementById("report");
+const check = (value, message) => { if (!value) throw new Error(message); };
+const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+const receipt = { scope: "self-owned ResizeObserver reservation contract; not evidence of official internals", cases: [] };
+try {
+  check(oldSource !== source, "The negative control must restore the old outside-layout placement");
+  for (const width of [320, 900]) for (const nested of [false, true]) for (const toolbarAbove of [false, true]) for (const old of [true, false]) {
+    window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.dispose();
+    document.documentElement.classList.remove("codex-dream-skin");
+    stage.style.width = `${width}px`;
+    stage.innerHTML = '<div id="scroller"><div id="messages"></div></div><div id="footer"><div data-composer-layout><div data-composer-body><textarea aria-label="Sample input"></textarea></div></div><div id="toolbar"><button>Sample toolbar</button></div></div>';
+    const scroller = stage.querySelector("#scroller"), messages = stage.querySelector("#messages");
+    const footer = stage.querySelector("#footer"), toolbar = stage.querySelector("#toolbar");
+    const layout = stage.querySelector("[data-composer-layout]"), composer = stage.querySelector("[data-composer-body]");
+    for (let index = 0; index < 20; index++) { const p = document.createElement("p"); p.textContent = `Sample message ${index}`; messages.append(p); }
+    if (nested) { const wrapper = document.createElement("div"); wrapper.className = "nested"; layout.append(wrapper); wrapper.append(composer); }
+    if (toolbarAbove) footer.prepend(toolbar);
+    let reserved = 0, measurements = 0;
+    // This fixture models a host reserving only its observed composer-layout height.
+    const observer = new ResizeObserver(() => {
+      const atBottom = Math.abs(scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop) < 1;
+      reserved = layout.getBoundingClientRect().height + toolbar.getBoundingClientRect().height;
+      measurements++;
+      scroller.style.paddingBottom = `${reserved}px`;
+      if (atBottom) scroller.scrollTop = scroller.scrollHeight;
+    });
+    scroller.scrollTop = scroller.scrollHeight;
+    observer.observe(layout);
+    await settle();
+    const beforeSkinReserved = reserved;
+    check(Math.abs(footer.getBoundingClientRect().height - reserved) < .5, "Unskinned content must reserve the native footer");
+    scroller.scrollTop = 200;
+    const beforeSkinScroll = scroller.scrollTop;
+    document.documentElement.classList.add("codex-dream-skin");
+    window.__CODEX_DREAM_SKIN_STATE__ = { surface: "codex" };
+    Function(`return (${old ? oldSource : source})()` )();
+    const overlay = window.__CODEX_DREAM_SKIN_STATE__.usageOverlay;
+    overlay.update({ threadId: "01a161f4-8a44-7f02-9cee-9c9f8b750413", totalTokens: 198400000, inputTokens: 198000000, cachedInputTokens: 195500000, outputTokens: 400000, contextRemainingPercent: 33.4, primary: { remainingPercent: 73, windowMinutes: 10080 }, planType: "prolite", lastInputTokens: 10000, lastCachedInputTokens: 10000, sampledAt: Date.now(), running: true });
+    await settle();
+    const afterSkinScroll = scroller.scrollTop;
+    check(Math.abs(afterSkinScroll - beforeSkinScroll) < .5, "Applying a skin must not pull a reader back to the bottom");
+    scroller.scrollTop = scroller.scrollHeight;
+    await settle();
+    const row = document.getElementById("codex-dream-skin-usage");
+    const missing = footer.getBoundingClientRect().height - reserved;
+    const overlap = messages.lastElementChild.getBoundingClientRect().bottom - footer.getBoundingClientRect().top;
+    const result = { width, nested, toolbarAbove, old, measurements, rowHeight: row.getBoundingClientRect().height, missing, overlap, beforeSkinReserved, beforeSkinScroll, afterSkinScroll };
+    receipt.cases.push(result);
+    check(measurements > 0, "The native browser ResizeObserver must perform the reservation");
+    check(old ? missing > 10 && overlap > 10 : Math.abs(missing) < .5 && overlap <= .5, "Reservation mismatch");
+    if (!old) {
+      check(row.parentElement === composer.parentElement && row.nextElementSibling === composer, "The row must remain immediately before the input within the measured layout");
+      check((toolbarAbove ? footer.firstElementChild : footer.lastElementChild) === toolbar, "The toolbar order must remain unchanged");
+    }
+    scroller.scrollTop = 200;
+    overlay.dispose();
+    document.documentElement.classList.remove("codex-dream-skin");
+    await settle();
+    check(!document.getElementById("codex-dream-skin-usage"), "Dispose must remove the strip and its corner decoration");
+    check(Math.abs(footer.getBoundingClientRect().height - reserved) < .5, "Removing the strip must release its reserved height");
+    result.removedReserved = reserved;
+    result.removedScroll = scroller.scrollTop;
+    check(Math.abs(reserved - beforeSkinReserved) < .5, "Removing the skin restores the original reserved height");
+    check(Math.abs(scroller.scrollTop - 200) < .5, "Removing a skin must preserve a reader's scroll position");
+    observer.disconnect();
+  }
+  receipt.passed = true;
+} catch (error) { receipt.passed = false; receipt.error = error.message; }
+window.__xskinReservationReceipt = receipt;
+report.textContent = JSON.stringify(receipt, null, 2);
+</script>

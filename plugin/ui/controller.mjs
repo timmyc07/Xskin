@@ -1,6 +1,7 @@
 export const STUDIO_META = "com.xskin/studio";
 export const LANGUAGES = ["en", "zh-Hant", "zh-Hans", "ja"];
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+const INVALID_SELECTION = ["select_media", "invalid_selection", "missing_selection", "invalid_local_file", "source_changed"];
 const ERROR_KEYS = {
   unsupported_platform: "unsupported", invalid_setup: "setupError", invalid_response: "responseError",
   operation_busy: "busyError", select_media: "chooseAgain", invalid_selection: "chooseAgain",
@@ -12,6 +13,7 @@ const ERROR_KEYS = {
 export function createStudioController(app, render) {
   const view = { state: null, busy: null, error: null, notice: null, retry: null };
   let disposed = false;
+  let pickerController = null;
   const publish = () => { if (!disposed) render(view); };
   const receive = result => {
     const state = result?._meta?.[STUDIO_META];
@@ -27,25 +29,50 @@ export function createStudioController(app, render) {
   };
   const run = async (name, args = {}) => {
     if (disposed || view.busy) return false;
+    const picker = name === "xskin_choose_media" ? new AbortController() : null;
+    if (picker) pickerController = picker;
     view.busy = name;
     view.error = view.notice = null;
     publish();
+    let selectionExpired = false;
+    let responseReceived = false;
     try {
-      const result = await app.callServerTool({ name, arguments: args }, { timeout: 210000 });
+      const result = await app.callServerTool({ name, arguments: args }, { timeout: 210000,
+        ...(picker ? { signal: picker.signal } : {}) });
+      responseReceived = true;
       if (disposed) return false;
-      if (!receive(result) || result.isError) throw new Error("operation_failed");
+      const accepted = receive(result);
+      if (result.isError && name === "xskin_apply" && INVALID_SELECTION.includes(result._meta?.["com.xskin/error"])) {
+        selectionExpired = true;
+        try {
+          const refreshed = await app.callServerTool({ name: "xskin_status", arguments: {} }, { timeout: 210000 });
+          if (!disposed) receive(refreshed);
+        } catch {}
+        if (disposed) return false;
+        if (view.state?.selection?.id === args.selectionId) view.state = { ...view.state, selection: null };
+        view.error = "chooseAgain";
+      }
+      if (!accepted || result.isError) throw new Error("operation_failed");
       view.retry = null;
       view.notice = view.state.cancelled ? "cancelled" : name === "xskin_choose_media" ? "ready"
         : name === "xskin_apply" ? "applied" : name === "xskin_pause" ? "paused"
-        : name === "xskin_resume" ? "resumed" : "";
+        : name === "xskin_resume" ? "resumed" : name === "xskin_recover" ? "recovered" : "";
       return true;
     } catch {
       if (!disposed) {
-        view.error ??= "failed";
-        view.retry = () => run(name, args);
+        if (!responseReceived && name !== "xskin_status") {
+          try {
+            const refreshed = await app.callServerTool({ name: "xskin_status", arguments: {} }, { timeout: 210000 });
+            if (!disposed) receive(refreshed);
+          } catch {}
+        }
+        if (disposed) return false;
+        view.error ??= responseReceived ? "failed" : "unconfirmed";
+        view.retry = selectionExpired || !responseReceived ? () => run("xskin_status") : () => run(name, args);
       }
       return false;
     } finally {
+      if (pickerController === picker) pickerController = null;
       view.busy = null;
       publish();
     }
@@ -66,6 +93,6 @@ export function createStudioController(app, render) {
     language(language) {
       return LANGUAGES.includes(language) ? run("xskin_set_language", { language }) : Promise.resolve(false);
     },
-    dispose() { disposed = true; },
+    dispose() { disposed = true; pickerController?.abort(); },
   };
 }

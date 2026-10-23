@@ -1,6 +1,6 @@
 # 平台对照
 
-macOS **1.9.0 candidate** adds an official MCP App global Xskin entrypoint and an in-app background panel. The host controls its placement in the left navigation/More menu. This is macOS/local execution only; Windows stable downloads remain **1.8.4**; the **1.8.5 candidate** joins the overlay to the composer’s upper corners. The user confirmed More → Xskin opens; the complete background-changing workflow still awaits desktop acceptance. See [implementation, startup boundaries and tests](in-app-studio.md).
+macOS **1.9.1 candidate** repairs the official MCP App Xskin panel with private 512 KiB media chunks, local Blob previews, Refresh and explicit interrupted-change recovery; it opens no HTTP preview port. The user confirmed **More → Xskin** opens; the updated preview and complete Apply workflow still await actual host acceptance. This panel requires macOS/local execution. Published downloads remain macOS **1.8.5** and Windows **1.8.4**. The macOS **1.9.1** / Windows **1.8.5** candidates retain the joined overlay corners and move the usage strip inside composer layout height. A 16-case self-owned browser model covers that reservation contract; it does not establish the official app's internal layout or replace Windows physical cold-start/route acceptance. See [implementation, startup boundaries and tests](in-app-studio.md).
 
 ## 运行模型（两边相同）
 

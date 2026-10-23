@@ -1,20 +1,39 @@
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge";
+import { version } from "../package.json";
 
 const frame = document.querySelector("iframe");
 const report = document.getElementById("report");
 const fixtureId = "11111111-1111-4111-8111-111111111111";
+const imageId = "1".repeat(64);
+const videoId = "2".repeat(64);
 const name = "Fixture 中文 🌌 " + "long-name-".repeat(12);
-const sample = kind => ({ name, kind, bytes: 4096,
-  previewUrl: `${location.origin}/sample.${kind === "video" ? "mp4" : "svg"}` });
-let state = { version: "1.9.0", platform: "macos", active: { ...sample("image"), applied: true },
+const files = JSON.parse(document.getElementById("fixture-data").textContent);
+const mediaBytes = Object.fromEntries(Object.entries(files).map(([key, file]) => [key,
+  { mimeType: file.mimeType, bytes: Uint8Array.from(atob(file.data), char => char.charCodeAt(0)) }]));
+const sample = kind => ({ name, kind, bytes: mediaBytes[kind].bytes.length,
+  previewId: kind === "video" ? videoId : imageId, previewMimeType: mediaBytes[kind].mimeType });
+let state = { version, platform: "macos", active: { ...sample("image"), applied: true },
   selection: { ...sample("image"), id: fixtureId }, maskOpacity: .62, autostart: false,
   autostartLoaded: false, pendingRecovery: false, language: "en", needsSetup: false };
 let failNext = false;
+const composerHeight = 148;
 const calls = [];
+const mediaCalls = [];
 const reply = () => ({ content: [], _meta: { "com.xskin/studio": structuredClone(state) } });
 const bridge = new AppBridge(null, { name: "Xskin fixture host", version: "1" }, { serverTools: {}, logging: {} },
-  { hostContext: { theme: "dark", containerDimensions: { width: 600, maxHeight: 1600 } } });
+  { hostContext: { theme: "dark", containerDimensions: { width: 600, height: 680 },
+    safeAreaInsets: { top: 12, right: 8, bottom: composerHeight, left: 6 } } });
 bridge.oncalltool = async ({ name: tool, arguments: args }) => {
+  if (tool === "xskin_read_media") {
+    mediaCalls.push(structuredClone(args));
+    const file = args.mediaId === imageId ? mediaBytes.image : args.mediaId === videoId ? mediaBytes.video : null;
+    if (!file || !Number.isInteger(args.offset) || args.offset < 0 || args.offset >= file.bytes.length) throw new Error("Invalid fixture media request");
+    const chunk = file.bytes.subarray(args.offset, args.offset + 512 * 1024);
+    let binary = "";
+    for (const byte of chunk) binary += String.fromCharCode(byte);
+    return { content: [], _meta: { "com.xskin/media": { offset: args.offset, total: file.bytes.length,
+      mimeType: file.mimeType, data: btoa(binary) } } };
+  }
   calls.push({ name: tool, arguments: structuredClone(args) });
   if (failNext) { failNext = false; return { isError: true, _meta: { "com.xskin/error": "operation_failed" } }; }
   state.cancelled = false;
@@ -37,12 +56,29 @@ bridge.oncalltool = async ({ name: tool, arguments: args }) => {
 };
 bridge.addEventListener("initialized", async () => { await bridge.sendToolResult(reply()); report.textContent = "Fixture ready. No real tools or settings are used."; });
 const ready = bridge.connect(new PostMessageTransport(frame.contentWindow, frame.contentWindow));
-frame.src = "/app.html";
+const appOrigin = frame.dataset.origin;
+frame.src = `${appOrigin}/app.html?host=${encodeURIComponent(location.origin)}`;
+let sequence = 0;
+const pending = new Map();
+window.addEventListener("message", event => {
+  if (event.source !== frame.contentWindow || event.origin !== appOrigin || event.data?.fixture !== "xskin-qa") return;
+  const request = pending.get(event.data.id);
+  if (!request) return;
+  pending.delete(event.data.id);
+  clearTimeout(request.timer);
+  if (event.data.error) request.reject(new Error(event.data.error));
+  else request.resolve(event.data.result);
+});
+const qa = (command = "inspect", args = {}) => new Promise((resolve, reject) => {
+  const id = ++sequence;
+  const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Fixture command timed out: ${command}`)); }, 5000);
+  pending.set(id, { resolve, reject, timer });
+  frame.contentWindow.postMessage({ fixture: "xskin-qa", id, command, args }, appOrigin);
+});
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const element = id => frame.contentDocument.getElementById(id);
 const check = (ok, description) => { if (!ok) throw new Error(description); };
 const wait = async (predicate, description) => {
-  for (let i = 0; i < 150; i++) { if (predicate()) return; await sleep(20); }
+  for (let i = 0; i < 150; i++) { const view = await qa(); if (predicate(view)) return view; await sleep(20); }
   throw new Error(`Timed out: ${description}`);
 };
 const update = async () => { await bridge.sendToolResult(reply()); await sleep(40); };
@@ -50,123 +86,108 @@ const changeHost = async () => {
   const width = Number(document.getElementById("width").value);
   const theme = document.getElementById("theme").value;
   const dark = theme === "dark";
-  frame.style.width = `${width}px`;
-  bridge.setHostContext({ theme, containerDimensions: { width, maxHeight: 1600 }, styles: { variables: {
-    "--font-sans": "system-ui, sans-serif",
-    "--color-background-primary": dark ? "#181818" : "#ffffff",
-    "--color-background-secondary": dark ? "#232323" : "#f7f7f7",
-    "--color-background-inverse": dark ? "#ffffff" : "#171717",
-    "--color-text-primary": dark ? "#f3f3f3" : "#171717",
-    "--color-text-secondary": dark ? "#aaaaaa" : "#666666",
-    "--color-text-inverse": dark ? "#171717" : "#ffffff",
-    "--color-border-primary": dark ? "#383838" : "#dddddd",
-    "--color-ring-info": dark ? "#3b82f6" : "#2563eb",
-  } } });
+  frame.parentElement.style.width = `${width}px`;
+  frame.style.colorScheme = document.getElementById("canvas").value;
+  bridge.setHostContext({ theme, containerDimensions: { width, height: 680 },
+    safeAreaInsets: { top: 12, right: 8, bottom: composerHeight, left: 6 }, styles: { variables: {
+      "--font-sans": "system-ui, sans-serif", "--color-background-primary": dark ? "#181818" : "#ffffff",
+      "--color-background-secondary": dark ? "#232323" : "#f7f7f7", "--color-background-inverse": dark ? "#ffffff" : "#171717",
+      "--color-text-primary": dark ? "#f3f3f3" : "#171717", "--color-text-secondary": dark ? "#aaaaaa" : "#666666",
+      "--color-text-inverse": dark ? "#171717" : "#ffffff", "--color-border-primary": dark ? "#383838" : "#dddddd",
+      "--color-ring-info": dark ? "#3b82f6" : "#2563eb",
+    } } });
   state.language = document.getElementById("language").value;
   await update();
 };
-for (const id of ["width", "theme", "language"]) document.getElementById(id).addEventListener("change", changeHost);
-document.getElementById("video").onclick = async () => {
-  state.selection = { ...sample("video"), id: fixtureId };
-  await update();
-  report.textContent = "Video sample loaded. It must remain paused until Play is selected.";
-};
-document.getElementById("empty").onclick = async () => {
-  state.active = state.selection = null;
-  state.needsSetup = true;
-  await update();
-  report.textContent = "Empty setup fixture; choosing media is simulated and never opens a real picker.";
-};
-document.getElementById("teardown").onclick = async () => {
-  await bridge.teardownResource({});
-  report.textContent = "Teardown completed using the real SDK.";
-};
+for (const id of ["width", "theme", "language", "canvas"]) document.getElementById(id).addEventListener("change", changeHost);
+document.getElementById("video").onclick = async () => { state.selection = { ...sample("video"), id: fixtureId }; await update(); };
+document.getElementById("empty").onclick = async () => { state.active = state.selection = null; state.needsSetup = true; await update(); };
+document.getElementById("teardown").onclick = async () => { await bridge.teardownResource({}); report.textContent = "Own fixture teardown completed."; };
 document.getElementById("run").onclick = async () => {
   const lines = [];
-  const runButton = document.getElementById("run");
-  runButton.disabled = true;
+  const receipt = { fixture: "Cross-origin MCP App, sample media only", officialAppTested: false, cases: [] };
+  document.getElementById("run").disabled = true;
   try {
     await ready;
-    await wait(() => element("choose") && !element("choose").disabled, "initial SDK handshake");
+    await wait(view => !view.controls.choose.disabled, "SDK handshake");
     const initialCalls = calls.length;
-    for (const width of [320, 600, 1280]) {
-      for (const theme of ["dark", "light"]) {
-        for (const language of ["en", "zh-Hant", "zh-Hans", "ja"]) {
-          document.getElementById("width").value = String(width);
-          document.getElementById("theme").value = theme;
-          document.getElementById("language").value = language;
-          await changeHost();
-          await wait(() => element("image").complete && element("image").naturalWidth > 0 && !element("apply").disabled, "image preview");
-          const doc = frame.contentDocument;
-          check(doc.documentElement.lang === language, "language must match saved state");
-          check(doc.documentElement.dataset.theme === theme, "host theme must apply");
-          check(frame.contentWindow.getComputedStyle(doc.body).backgroundColor === (theme === "dark" ? "rgb(24, 24, 24)" : "rgb(255, 255, 255)"), "host surface token must apply");
-          check(frame.contentWindow.getComputedStyle(element("apply")).backgroundColor === (theme === "dark" ? "rgb(255, 255, 255)" : "rgb(23, 23, 23)"), "host inverse button token must apply");
-          check(doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1, `horizontal overflow ${width}/${theme}/${language}`);
-          check(doc.querySelectorAll("img").length === 1, "preview must not turn names into HTML");
-          for (const id of ["choose", "apply", "language", "refresh", "mask", "autostart", "pause"]) {
-            const control = element(id);
-            control.focus();
-            check(doc.activeElement === control, `focus ${id}`);
-          }
-          state.active.applied = false;
-          await bridge.sendToolResult({ ...reply(), isError: true, _meta: { ...reply()._meta, "com.xskin/error": "apply_failed_restored" } });
-          await wait(() => !element("connection-hint").hidden && !element("error-box").hidden, "connection guidance");
-          check(doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1, `error overflow ${width}/${theme}/${language}`);
-          check(element("error").textContent.length > 40, "actionable localized error must be visible");
-          state.active.applied = true;
-          element("refresh").click();
-          await wait(() => element("error-box").hidden && !element("pause").disabled, "refresh after guidance");
-          lines.push(`PASS ${width}px ${theme} ${language}: layout, preview, focus, connection guidance`);
-        }
+    for (const width of [320, 600, 1280]) for (const canvas of ["light", "dark"]) for (const theme of ["dark", "light"]) for (const language of ["en", "zh-Hant", "zh-Hans", "ja"]) {
+      for (const [id, value] of Object.entries({ width, canvas, theme, language })) document.getElementById(id).value = String(value);
+      await changeHost();
+      let view = await wait(view => view.lang === language && view.theme === theme && view.image.loaded, "image, language and theme");
+      check(view.origin !== location.origin, "app iframe must use a separate origin");
+      check(view.image.src.startsWith("blob:"), "media must load from SDK chunks and a Blob, never HTTP");
+      check(view.bodyBackground === "rgba(0, 0, 0, 0)" && view.rootBackground === "rgba(0, 0, 0, 0)", "app document must be transparent");
+      check(view.canvasSchemes === "light dark", "canvas must follow the embedder instead of forcing the UI theme");
+      check(view.settingsBackground.includes("0.72"), "settings must retain a translucent host surface");
+      check(view.primaryBackground === (theme === "dark" ? "rgb(255, 255, 255)" : "rgb(23, 23, 23)"), "host primary button token");
+      check(view.overflow <= 1, `horizontal overflow ${width}/${theme}/${language}`);
+      check(view.checkedLanguage === language, "language radio must match saved preference");
+      for (const id of ["choose", "apply", `language-${language}`, "refresh", "mask", "autostart", "pause"]) {
+        view = await qa("focus", { id });
+        check(view.controls[id].focused, `keyboard focus ${id}`);
       }
+      view = await qa("scroll", { id: "pause" });
+      check(view.controls.pause.box.bottom <= view.height - composerHeight, "last setting must scroll above host composer");
+      check(view.controls.pause.hit, "last setting must be clickable");
+      state.active.applied = false;
+      await bridge.sendToolResult({ ...reply(), isError: true, _meta: { ...reply()._meta, "com.xskin/error": "apply_failed_restored" } });
+      view = await wait(view => view.connectionHint && view.errorVisible, "localized connection guidance");
+      check(view.overflow <= 1 && view.error.length > 40, "localized recovery must fit");
+      state.active.applied = true;
+      await qa("click", { id: "refresh" });
+      await wait(view => !view.errorVisible && !view.controls.pause.disabled, "refresh");
+      receipt.cases.push({ width, canvas, theme, language, safeAreaBottom: composerHeight, pauseBottom: view.controls.pause.box.bottom, viewportHeight: view.height, overflow: view.overflow });
+      lines.push(`PASS ${width}px canvas=${canvas} UI=${theme} ${language}: Blob preview, transparency, focus, safe area, recovery`);
     }
+    bridge.setHostContext({ theme: "light" });
+    let view = await qa();
+    check(parseFloat(view.insetBottom) === composerHeight, "partial context must preserve insets");
+    bridge.setHostContext({ safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 } });
+    view = await wait(view => parseFloat(view.insetBottom) === 0, "zero inset reset");
+    check(view.paddingBottom >= 96, "zero inset must keep footer scroll room");
+    await changeHost();
     const maskCalls = calls.length;
-    element("mask").focus();
-    element("mask").value = "85";
-    element("mask").dispatchEvent(new Event("input", { bubbles: true }));
-    check(calls.length === maskCalls, "mask drag must not write");
-    element("mask").dispatchEvent(new Event("change", { bubbles: true }));
-    await wait(() => state.maskOpacity === .85 && !element("settings").disabled, "mask commit");
-    check(frame.contentDocument.activeElement === element("mask"), "mask must keep keyboard focus after commit");
-    lines.push("PASS mask preview, commit and keyboard focus recovery");
-    element("apply").click();
-    await wait(() => state.selection === null && !element("pause").disabled, "apply");
-    element("pause").click();
-    await wait(() => !state.active.applied && !element("resume").disabled, "pause");
-    element("resume").click();
-    await wait(() => state.active.applied && !element("pause").disabled, "resume");
-    lines.push("PASS apply, pause and resume");
+    await qa("focus", { id: "mask" });
+    await qa("input", { id: "mask", value: "85" });
+    check(calls.length === maskCalls, "slider drag must not write");
+    await qa("change", { id: "mask", value: "85" });
+    view = await wait(view => state.maskOpacity === .85 && !view.controls.mask.disabled, "mask commit");
+    check(view.controls.mask.focused, "slider must recover keyboard focus");
+    await qa("click", { id: "apply" });
+    await wait(view => state.selection === null && !view.controls.pause.disabled, "apply");
+    await qa("click", { id: "pause" });
+    await wait(view => !state.active.applied && !view.controls.resume.disabled, "pause");
+    await qa("click", { id: "resume" });
+    await wait(view => state.active.applied && !view.controls.pause.disabled, "resume");
     failNext = true;
-    element("autostart").click();
-    await wait(() => !element("settings").disabled && !element("error-box").hidden, "failed setting");
-    check(element("autostart").checked === state.autostart, "failed checkbox must restore saved value");
-    element("retry").click();
-    await wait(() => state.autostart && !element("settings").disabled, "retry");
-    lines.push("PASS failed setting rollback and retry");
+    await qa("click", { id: "autostart" });
+    view = await wait(view => !view.controls.autostart.disabled && view.errorVisible, "failed switch");
+    check(view.controls.autostart.checked === state.autostart, "failed switch must restore saved value");
+    await qa("click", { id: "retry" });
+    await wait(view => state.autostart && !view.controls.autostart.disabled, "retry");
     state.selection = { ...sample("video"), id: fixtureId };
     await update();
-    await wait(() => element("video").readyState >= 1 && !element("apply").disabled, "MP4 metadata");
-    check(element("video").paused && !element("video").autoplay, "video must not autoplay");
-    check(element("video").videoWidth > 0, "real MP4 must decode metadata");
-    lines.push("PASS real MP4 metadata, controls, paused preview");
+    view = await wait(view => view.video.ready >= 1 && view.video.width > 0, "real MP4 Blob metadata");
+    check(view.video.src.startsWith("blob:") && view.video.paused && !view.video.autoplay, "video must decode a paused Blob preview");
     state.active = state.selection = null;
     state.needsSetup = true;
     await update();
-    check(!element("choose").disabled && element("apply").disabled && element("settings").disabled, "empty setup controls");
-    element("choose").click();
-    await wait(() => state.selection && !element("apply").disabled && !element("settings").disabled, "first setup media");
-    check(!element("connection-hint").hidden, "first setup must explain connection requirements");
-    lines.push("PASS empty setup, first media selection, connection requirements");
-    state.selection = { ...sample("image"), id: fixtureId };
-    state.language = "zh-Hant";
-    document.getElementById("width").value = "320";
+    view = await qa();
+    check(!view.controls.choose.disabled && view.controls.apply.disabled && view.controls.mask.disabled, "empty setup controls");
+    await qa("click", { id: "choose" });
+    await wait(view => state.selection && !view.controls.apply.disabled && !view.controls.mask.disabled && view.connectionHint, "first setup selection");
+    Object.assign(receipt, { passed: true, initialExtraStatusCalls: initialCalls, mediaReadCalls: mediaCalls.length,
+      checks: ["partial/zero safe area", "mask commit/focus", "apply/pause/resume", "error rollback/retry", "MP4 Blob metadata/paused", "first setup"], calls });
+    lines.push("PASS dynamic/zero safe areas, mask, apply/pause/resume, rollback/retry, MP4, empty setup");
+    lines.push("ALL OWN-BROWSER FIXTURE CHECKS PASSED. Official app Apply remains untested.");
+    document.getElementById("width").value = "600";
     document.getElementById("theme").value = "dark";
     document.getElementById("language").value = "zh-Hant";
     await changeHost();
-    lines.push(`Initial extra status calls: ${initialCalls}`);
-    lines.push("ALL OWN-BROWSER FIXTURE CHECKS PASSED. Official More placement is not tested.");
-  } catch (error) { lines.push(`FAIL ${error.message}`); }
+    await qa("top");
+  } catch (error) { receipt.passed = false; receipt.error = error.message; lines.push(`FAIL ${error.message}`); }
+  document.getElementById("receipt").textContent = JSON.stringify(receipt, null, 2);
   report.textContent = lines.join("\n");
-  runButton.disabled = false;
+  document.getElementById("run").disabled = false;
 };

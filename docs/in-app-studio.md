@@ -1,8 +1,10 @@
-# Xskin inside Codex (macOS 1.9.0 candidate)
+# Xskin inside Codex (macOS 1.9.1 candidate)
 
 The updated local plugin adds an official MCP App global entrypoint named **Xskin**. Open it from the left navigation (including **More** when the host places it there), choose an image or MP4, inspect the preview, then select **Apply background**. A separate Xskin window is unnecessary. Native navigation placement is controlled by Codex; this plugin does not alter its menus.
 
-The panel includes four languages, mask depth, automatic startup, Pause and Resume saved background. It shares the native app's existing media, pending import, mask, language and pause state. Video starts paused and releases its preview on hide/close. Mask dragging changes the preview; release or a keyboard change commits it once. Resume restores the saved background while keeping a different pending import.
+The panel includes four languages, mask depth, automatic startup, Pause and Resume saved background. It shares the native app's existing media, pending import, mask, language and pause state. Video starts paused and releases its preview on hide/close. Mask dragging changes the preview; release or a keyboard change commits it once. Resume restores the saved background while keeping a different pending import. Transparent canvas and translucent panels follow the embedder's light/dark colors and safe margins. Four-language radio controls remain visible without a platform dropdown.
+
+Use **Refresh** to reload current settings. If an interrupted change needs recovery, use the explicit **Recover interrupted change** action before editing further; read-only Refresh does not change saved settings. Cancelling the native chooser retains the saved background and previous pending import. A missing preview does not discard a completed import or block Apply. Original filenames remain visible instead of internal import UUIDs. If a tool connection times out or is lost, the panel refreshes once and offers a status retry rather than automatically repeating a change whose result is uncertain.
 
 ## Install or update locally
 
@@ -15,7 +17,7 @@ codex plugin add codex-background-studio@codex-background-studio-local
 
 The existing CLI supports these commands (`codex-cli 0.163.0-alpha.11.1` was checked locally). Reload/restart the desktop app if its plugin tools or global navigation have not refreshed. In the Plugins directory, verify that the local Xskin plugin is enabled. Asking to “Open Xskin” invokes the same MCP App. Installing the plugin and opening its panel do not apply settings.
 
-The companion Windows 1.8.5 candidate joins the usage strip to the composer’s upper corners; its startup remains shortcut-only and it has no in-app studio.
+The companion Windows 1.8.5 candidate joins the usage strip to the composer’s upper corners and includes it inside the composer layout; its startup remains shortcut-only and it has no in-app studio.
 
 This MCP server requires macOS and local execution. Windows keeps its separate 1.8.4 package and shortcut-only startup. Do not install this macOS launcher as a Windows MCP server.
 
@@ -23,7 +25,7 @@ This MCP server requires macOS and local execution. Windows keeps its separate 1
 
 The first 1.9.0 candidate could appear in Plugins with its skill while its MCP server was skipped: its portable `command` used the absolute `/bin/bash` path. Agent Plugins 1.0.0 requires a bare executable or a contained `./` command, and a packaged executable must use the latter. The corrected declaration launches `./plugin/launch-macos.sh` directly, using its existing shebang and executable permission. No extra `apps` mapping or native-menu changes are needed.
 
-The regression now executes the actual `mcp.json` declaration in a Unicode/emoji/spaces package path, rather than bypassing it with a separately constructed shell command. The local Codex 0.163.0-alpha.11.1 `plugin/read` diagnostic recognizes `mcpServers: ["xskin"]` after the correction. Reinstall the updated local candidate and reload the plugin host before checking the actual More entry again. The actual CLI `mcpServerStatus/list` discovery also connected the server and returned nine tools, one UI resource and the global entrypoint metadata. A recognized server still does not prove the visual entry or complete in-app interaction.
+The regression executes the actual `mcp.json` declaration in a Unicode/emoji/spaces package path, rather than bypassing it with a separately constructed shell command. Earlier 1.9.0 CLI diagnostics with Codex 0.163.0-alpha.11.1 recognized `mcpServers: ["xskin"]`, connected its server and discovered its tools, UI resource and global entrypoint metadata. The 1.9.1 candidate declares eleven tools, including app-only media reading and explicit recovery. The user has since confirmed that More → Xskin opens; CLI discovery alone did not establish that result or complete background-changing acceptance. Reinstall the complete updated candidate and reload the plugin host to load its changed server and versioned UI resource.
 
 Sources: [Agent Plugins 1.0.0 command rules](https://github.com/agentplugins/agent-plugins-spec/blob/ff8ab5e392cc87bd88d87c060815a87490e51003/spec/1.0.0.md#721-discovery-and-configuration), [Codex 0.163.0 parser](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/codex-mcp/src/agent_plugin_config.rs#L165-L175).
 
@@ -36,10 +38,10 @@ On first import the embedded panel prepares the managed engine without enabling 
 ## Boundaries and privacy
 
 - The launcher reuses Codex's verified signed bundled Node. No official app files or signatures are modified; the plugin cache is managed by the official plugin installer.
-- The global tool accepts only `{}`. Setting tools accept strict bounded values or a pending-import UUID, never shell commands or arbitrary paths. Only the native chooser selects a local source file.
-- State and preview URLs are returned in private tool `_meta`, not model-visible text. Errors expose a fixed safe code rather than paths or logs.
-- A random-port HTTP preview server binds only `127.0.0.1`. It serves only approved current/pending media through random capability URLs; no directory access, uploads, mutations or external origins. MP4 uses bounded byte ranges and retains the original bytes. Host CSP permits only that exact preview origin.
-- Closing the connection releases preview streams and cancels its own open file picker. A confirmed apply is allowed to finish its existing atomic transaction; closing the panel is not an apply cancellation.
+- The global tool accepts only `{}`. Setting tools accept strict bounded values or a pending-import UUID, never shell commands or arbitrary paths. Only the native chooser selects a local source file. The app-only recovery tool also accepts only `{}` and reuses the existing recovery transaction.
+- State, preview capabilities and media chunks are returned in private tool `_meta`, not model-visible text. Errors expose a fixed safe code rather than paths or logs.
+- Preview transfer uses the app-only `xskin_read_media` tool: a private session capability identifies approved current/pending media, and each read returns at most **512 KiB**. The panel assembles a local **Blob** without opening an HTTP preview port. Each chunk rechecks file identity; replacement, expired capabilities and cross-session access fail. CSP allows Blob media and no external media/connect origin. Original MP4 bytes are retained; the 256 MiB video limit is unchanged.
+- Hiding the panel cancels unfinished preview reads and releases its video preview. Reselection and close release the previous Blob URL. Closing the connection revokes its capabilities and cancels its own open file picker. A confirmed apply is allowed to finish its existing atomic transaction; closing the panel is not an apply cancellation. Only confirmed Apply/mask calls omit the adapter's shorter outer process timeout, preserving the backend's separately bounded forward and rollback deadlines; other command limits remain in place.
 - The official extension documents support the panel entrypoint, **not** the existing CDP/CSS background mechanism. Authorization for that mechanism remains unconfirmed. Local desktop plugin development also does not imply acceptance into OpenAI's public plugin directory; local MCP submission requires partner approval.
 
 ## Development and evidence
@@ -57,7 +59,9 @@ Dependency versions: MCP server/client **2.3.1**, MCP Apps **2.0.3**, Zod **4.6.
 
 Official references: [sidebar apps](https://developers.openai.com/plugins/build/extensions#sidebar-apps), [pinned global-entrypoint specification](https://github.com/openai/mcp-extensions/blob/36f8b38df179144b44d157133bbc5f7c6e353ace/docs/spec.md#global-entrypoint), [MCP App UI](https://developers.openai.com/plugins/build/chatgpt-ui), [plugin packaging](https://developers.openai.com/plugins/build/plugins), [desktop-only submission](https://developers.openai.com/plugins/deploy/desktop-only), [SDK 2.3.1](https://github.com/modelcontextprotocol/typescript-sdk/tree/v2.3.1).
 
-Protocol, backend, preview and UI tests are isolated from customer data. A read-only bundled-server check on this Mac connected and returned existing settings without opening native Xskin. The user confirmed on 2026-10-23 that **More → Xskin** is visible and opens the in-app panel. The complete choose → preview → Apply → updated background interaction still requires desktop acceptance; an isolated browser or protocol test does not establish that result. Official native computer-use access was rejected, so no alternate capture/navigation bypass is used.
+Protocol, backend, preview and UI tests are isolated from customer data. Targeted backend regressions cover original Chinese/emoji filenames, a 96 MiB sparse MP4 import, retained pending selections, invalid old selection IDs and rollback; the sparse fixture proves bounded import/state handling, not video decoding. A proportionally shortened transaction regression reproduces the old adapter timeout interrupting rollback and checks that the new adapter waits for restoration.
+
+A read-only bundled-server check on this Mac connected and returned existing settings without opening native Xskin. The user confirmed on 2026-10-23 that **More → Xskin** is visible and opens the in-app panel. The 1.9.1 preview transport and complete choose → preview → Apply → updated background interaction still require actual host acceptance; an isolated browser or protocol test does not establish that result. New candidate CI results are not yet recorded here. Windows physical cold starts, login/Store updates and route visuals remain pending. Official native computer-use access was rejected, so no alternate capture/navigation bypass is used.
 
 ## Roll back
 
@@ -67,4 +71,6 @@ If an engine upgrade fails and restores a version older than 1.9.0, its launcher
 
 ## Composer spacing follow-up
 
-The macOS 1.9.0 / Windows 1.8.5 candidates remove the usage strip’s bottom gap and extend its lower edge around the input’s upper corners. A single decorative pseudo-element paints only the two corner cutouts; its center stays transparent and it ignores pointer events. The existing 22px composer radius is shared by a CSS token, without new DOM wrappers, layout reads, observers or timers. Native input geometry, controls, normal flow, Home hiding and narrow wrapping remain intact.
+The macOS 1.9.1 / Windows 1.8.5 candidates remove the usage strip’s bottom gap and extend its lower edge around the input’s upper corners. A single decorative pseudo-element paints only the two corner cutouts; its center stays transparent and it ignores pointer events. The existing 22px composer radius is shared by a CSS token. The existing row now sits immediately before the composer body with the same parent, inside the enclosing composer layout, including nested wrappers. Toolbar order, normal flow, stable subscriptions, Home hiding and disposal are retained. This adds no runtime observer, polling, forced scroll or extra wrapper.
+
+The [self-owned browser fixture](../macos/tests/fixtures/composer-reservation.html) models a host reserving footer height from a real ResizeObserver on that enclosing layout. **16 Chrome cases passed** across 320/900px widths, nested/flat wrappers, toolbar above/below, and old/new placement. Old placement omitted approximately 73px/31px of added height; new placement included it. Skin removal restored the original reserve, and applying/removing the skin retained the position of a reader away from the bottom. This proves the fixture's measurement contract, not the official app's internal measurement or actual task-page acceptance.

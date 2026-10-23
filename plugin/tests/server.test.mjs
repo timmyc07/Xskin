@@ -10,21 +10,21 @@ const html = "<!doctype html><title>Xskin fixture</title>";
 const state = {
   version: manifest.version, platform: "macos", language: "zh-Hant",
   active: { name: "背景 中文 🌙.png", kind: "image", applied: true,
-    previewUrl: "http://127.0.0.1:23456/media/private-preview-token" },
+    previewId: "a".repeat(64), previewMimeType: "image/png" },
   selection: null, maskOpacity: 0.62, autostart: false, needsSetup: false,
 };
 const argumentsByTool = {
   xskin_open: {}, xskin_status: {}, xskin_choose_media: {},
   xskin_apply: { selectionId }, xskin_mask: { opacity: 0.07 },
   xskin_autostart: { enabled: false }, xskin_pause: {}, xskin_resume: {},
-  xskin_set_language: { language: "ja" },
+  xskin_set_language: { language: "ja" }, xskin_recover: {},
 };
 
 async function fixture(t, overrides = {}) {
   const calls = [];
   let closed = 0;
-  const studio = { previewOrigin: "http://127.0.0.1:23456", close: async () => { closed += 1; } };
-  for (const method of ["status", "choose", "apply", "mask", "autostart", "pause", "resume", "setLanguage"]) {
+  const studio = { close: async () => { closed += 1; } };
+  for (const method of ["status", "choose", "apply", "mask", "autostart", "pause", "resume", "setLanguage", "recover"]) {
     studio[method] = async (...args) => { calls.push([method, ...args]); return state; };
   }
   Object.assign(studio, overrides);
@@ -44,7 +44,7 @@ test("the official global entrypoint opens only the Xskin app resource", async t
   assert.equal(implementation.title, "Xskin");
   assert.equal(implementation.version, manifest.version);
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map(tool => tool.name).sort(), Object.keys(argumentsByTool).sort());
+  assert.deepEqual(tools.map(tool => tool.name).sort(), [...Object.keys(argumentsByTool), "xskin_read_media"].sort());
   const open = tools.find(tool => tool.name === "xskin_open");
   assert.equal(open.title, "Xskin");
   assert.equal(open._meta.ui.resourceUri, RESOURCE);
@@ -54,6 +54,9 @@ test("the official global entrypoint opens only the Xskin app resource", async t
   assert.equal(open.annotations.openWorldHint, false);
   assert.equal(open.icons[0].mimeType, "image/svg+xml");
   assert.match(open.icons[0].src, /^data:image\/svg\+xml;base64,/);
+  assert.equal(tools.find(tool => tool.name === "xskin_recover").annotations.readOnlyHint, false,
+    "Recovery is an explicit app-only mutation; ordinary status remains read-only");
+  assert.equal(tools.find(tool => tool.name === "xskin_status").annotations.readOnlyHint, true);
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false, `${tool.name} rejects extra inputs`);
     if (tool !== open) {
@@ -79,7 +82,7 @@ test("tool calls return state privately and pass only validated setting values",
   assert.ok(calls[2][1] instanceof AbortSignal);
   assert.deepEqual(calls.slice(3), [
     ["apply", selectionId], ["mask", 0.07], ["autostart", false],
-    ["pause"], ["resume"], ["setLanguage", "ja"],
+    ["pause"], ["resume"], ["setLanguage", "ja"], ["recover"],
   ]);
   for (const opacity of [0, 1, 0.29]) {
     assert.equal((await client.callTool({ name: "xskin_mask", arguments: { opacity } })).isError, undefined);
@@ -130,7 +133,7 @@ test("backend errors expose only a safe code, never private paths or logs", asyn
   }
 });
 
-test("the HTML resource permits only its exact local preview origin", async t => {
+test("the HTML resource permits only Blob previews without network access", async t => {
   const { client } = await fixture(t);
   const { resources } = await client.listResources();
   assert.deepEqual(resources.map(resource => resource.uri), [RESOURCE]);
@@ -141,7 +144,7 @@ test("the HTML resource permits only its exact local preview origin", async t =>
   assert.equal(contents[0].text, html);
   assert.deepEqual(contents[0]._meta.ui, {
     prefersBorder: false,
-    csp: { connectDomains: [], resourceDomains: ["http://127.0.0.1:23456"], frameDomains: [] },
+    csp: { connectDomains: [], resourceDomains: ["blob:"], frameDomains: [] },
   });
   for (const uri of ["file:///private/fixture", "ui://xskin/../private", `${RESOURCE}?path=fixture`]) {
     await assert.rejects(client.readResource({ uri }));

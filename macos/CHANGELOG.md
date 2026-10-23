@@ -1,6 +1,16 @@
 # Changelog
 
-## 1.9.0 — candidate, desktop acceptance pending
+## 1.9.1 — candidate, desktop acceptance pending
+
+- Replace HTTP preview serving with the app-only media tool, private per-session capabilities and bounded 512 KiB chunks assembled into local Blob previews. Recheck file identity per read, revoke stale capabilities and release previews on hide/close; no local HTTP preview port is opened.
+- Keep completed imports and Apply results when optional preview creation fails. Preserve original Chinese/emoji filenames instead of internal UUIDs, chooser cancellation and pending imports. A 96 MiB sparse MP4 fixture covers import/state handling, not codec playback.
+- Add Refresh and explicit interrupted-change recovery. Read-only status does not mutate settings. After a transport timeout/loss, refresh once and retry status rather than silently resending an uncertain change; expired selection IDs require choosing again. Keep editing disabled while recovery is pending.
+- Let confirmed Apply/mask transactions finish the backend's bounded forward/rollback phases instead of terminating them at the adapter's shorter outer limit. Retain other command deadlines. A scaled regression reproduces the old interrupted rollback and verifies restoration.
+- Use a transparent embedded canvas, host-aware light/dark colors and safe margins. Replace the language dropdown with four-language radio controls and preserve keyboard access on narrow layouts.
+- Move the usage row inside the enclosing composer layout, immediately before the body, preserving nested wrappers, toolbar order and subscription identity. Add no runtime observers or forced scrolling. A 16-case self-owned ResizeObserver browser model covers height reservation, removal and reader position; it does not establish the official app's internal cause.
+- The user has confirmed More → Xskin opens. The new preview and full Apply workflow remain pending in the actual host; new candidate CI results are not yet recorded. Windows remains a separate 1.8.5 candidate with physical cold-start/route acceptance pending. Published download links remain macOS 1.8.5 / Windows 1.8.4. See [scope and recovery](../docs/in-app-studio.md).
+
+## 1.9.0 — earlier unpublished candidate
 
 - Join the usage strip to the input with no bottom gap and lower corner cutouts that follow the input’s upper curves. Keep the center transparent, decorative paint non-interactive, and native geometry, Home hiding and narrow wrapping intact.
 
@@ -8,7 +18,7 @@
 
 - Add an official MCP App global Xskin entrypoint and a four-language in-app background panel. Reuse native imports, previews, pending selection, atomic apply, mask, startup preferences and saved background Pause/Resume.
 - Keep embedded Apply/mask/rollback/Resume on an existing verified connection. Never launch or quit Codex from these operations; prepare first imports without silently enabling automatic startup or rewriting official appearance preferences.
-- Keep private state outside model-visible content. Serve approved media only through random loopback preview URLs with bounded MP4 ranges and exact-origin CSP; release previews and cancel owned file pickers on connection close.
+- Kept private state outside model-visible content. This earlier candidate used loopback HTTP media previews; 1.9.1 supersedes that transport with app-only chunks and Blob previews.
 - Bundle locked SDKs and their licenses in self-contained release files. Native Xskin remains an explicit fallback; Windows stable downloads stay on 1.8.4, with a separate 1.8.5 overlay-shape candidate. See [evidence and host acceptance limits](../docs/in-app-studio.md).
 
 ## 1.8.5 — 2026-10-23

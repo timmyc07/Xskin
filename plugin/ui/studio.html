@@ -11,12 +11,15 @@
     <header class="toolbar">
       <div class="brand"><h1>Xskin</h1><span id="version"></span></div>
       <div class="toolbar-actions">
-        <label class="language-label"><span data-text="language">Language</span>
-          <select id="language" disabled>
-            <option value="en">English</option><option value="zh-Hant">繁體中文</option>
-            <option value="zh-Hans">简体中文</option><option value="ja">日本語</option>
-          </select>
-        </label>
+        <fieldset id="language" class="language-group" disabled>
+          <legend data-text="language">Language</legend>
+          <div class="language-options">
+            <label><input id="language-en" type="radio" name="language" value="en"><span lang="en">English</span></label>
+            <label><input id="language-zh-Hant" type="radio" name="language" value="zh-Hant"><span lang="zh-Hant">繁體中文</span></label>
+            <label><input id="language-zh-Hans" type="radio" name="language" value="zh-Hans"><span lang="zh-Hans">简体中文</span></label>
+            <label><input id="language-ja" type="radio" name="language" value="ja"><span lang="ja">日本語</span></label>
+          </div>
+        </fieldset>
         <button type="button" id="refresh" data-text="refresh" disabled>Refresh</button>
       </div>
     </header>
@@ -28,6 +31,7 @@
         <div id="preview-mask" aria-hidden="true" hidden></div>
         <p id="empty" data-text="noMedia">Choose an image or MP4 to preview your background.</p>
       </div>
+      <p id="preview-status" class="hint" role="status" aria-live="polite" hidden></p>
       <p id="preview-error" class="hint" role="status" hidden></p>
       <p id="video-hint" class="hint" data-text="videoHint" hidden>Video starts paused. Use the player controls to preview it.</p>
       <div class="media-info"><strong id="media-name"></strong><span id="badge" class="badge" hidden></span></div>
@@ -38,7 +42,8 @@
       </div>
     </section>
     <p id="setup" class="hint" data-text="setup" hidden>Choose a file to prepare Xskin. Your existing media and preferences are kept.</p>
-    <p id="recovery" class="hint" data-text="recovery" hidden>An interrupted change needs recovery. Refresh before making another change.</p>
+    <p id="recovery" class="hint" data-text="recovery" hidden>A previous change was interrupted. Recover it before making another change. Pending media will not be applied.</p>
+    <button type="button" id="recover" data-text="recover" aria-describedby="recovery" hidden disabled>Recover interrupted change</button>
     <fieldset id="settings" disabled>
       <legend data-text="settings">Background settings</legend>
       <div class="setting-row">

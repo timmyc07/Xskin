@@ -133,10 +133,10 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
     state, document, motion, data, selected, parent, anchor, toolbar, composer, timers, listeners, motionListeners,
     install, advance,
     get overlay() { return state.usageOverlay; },
-    get row() { return anchor.previousElementSibling; },
-    get text() { return anchor.previousElementSibling?.children[1].textContent; },
-    get cacheBar() { return anchor.previousElementSibling?.children[2].children[0]; },
-    get cacheText() { return anchor.previousElementSibling?.children[2].children[1].textContent; },
+    get row() { return composer.previousElementSibling; },
+    get text() { return composer.previousElementSibling?.children[1].textContent; },
+    get cacheBar() { return composer.previousElementSibling?.children[2].children[0]; },
+    get cacheText() { return composer.previousElementSibling?.children[2].children[1].textContent; },
     sample(overrides = {}) {
       return { threadId: THREAD, totalTokens: 1000, inputTokens: 800, cachedInputTokens: 600, outputTokens: 200,
         contextRemainingPercent: 75.4, primary: { remainingPercent: 86.2, windowMinutes: 300 },
@@ -146,8 +146,8 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
 }
 
 const f = fixture();
-assert.equal(f.row.parentElement, f.anchor.parentElement, "The overlay precedes the composer in normal flow, away from its footer");
-assert.equal(f.row.nextElementSibling, f.anchor);
+assert.equal(f.row.parentElement, f.anchor, "The measured native composer layout contains the usage strip");
+assert.equal(f.row.nextElementSibling, f.composer, "The strip immediately precedes the actual input in normal flow");
 assert.equal(f.anchor.nextElementSibling, f.toolbar, "The native footer remains immediately after the input");
 assert.equal(f.overlay.request().threadId, THREAD, "Memory-router task identity comes from the exact local selection");
 assert.equal(f.text, "等待本機用量記錄");
@@ -266,7 +266,8 @@ assert.equal(f.overlay.request().installation, remounted, "The remounted identit
 const old = f.overlay;
 f.install();
 assert.notEqual(f.overlay.request().installation, installation, "Reinstallation changes the primitive identity");
-assert.equal(f.parent.children.length, 3, "Reinstallation keeps one strip and the native footer");
+assert.equal(f.parent.children.length, 2, "Reinstallation keeps the strip inside the measured layout, alongside the untouched native footer");
+assert.equal(f.anchor.children.length, 2, "Reinstallation leaves only one strip before the native input");
 assert.equal(f.anchor.nextElementSibling, f.toolbar);
 assert.equal(f.listeners.size, 1);
 assert.equal(f.motionListeners.size, 1);
@@ -277,6 +278,30 @@ assert.equal(f.row, null);
 assert.equal(f.timers.size, 0);
 assert.equal(f.listeners.size, 0);
 assert.equal(f.motionListeners.size, 0);
+
+const nested = fixture();
+const wrapper = nested.document.createElement("div");
+nested.anchor.append(wrapper);
+wrapper.append(nested.composer);
+const beforeMove = nested.overlay.request().installation;
+assert.equal(nested.row.parentElement, wrapper, "Nested inputs keep the strip within their measured layout ancestor");
+assert.equal(nested.row.nextElementSibling, nested.composer);
+assert.deepEqual(nested.anchor.children, [wrapper], "Moving inside a nested input leaves no extra footer sibling");
+nested.parent.append(nested.anchor);
+nested.overlay.request();
+assert.deepEqual(nested.parent.children, [nested.toolbar, nested.anchor], "A toolbar above the input keeps its native order");
+const replacement = nested.document.createElement("div");
+nested.anchor.append(replacement);
+replacement.append(nested.composer);
+assert.equal(nested.overlay.request().installation, beforeMove, "Reparenting the same input does not rebuild the usage subscription");
+assert.equal(nested.row.parentElement, replacement);
+assert.equal(wrapper.children.length, 0, "The old wrapper retains no detached strip");
+nested.data.home = true;
+nested.overlay.request();
+assert.equal(nested.row, null, "Home still removes a strip mounted within a nested composer layout");
+nested.overlay.dispose();
+assert.doesNotMatch(source, /ResizeObserver|MutationObserver|scrollTo|scrollIntoView|setInterval/,
+  "Reservation belongs to the native layout; the overlay adds no scroll commands or measurement observers");
 
 const english = fixture({ lang: "en" });
 assert.equal(english.text, "Waiting for local usage records");

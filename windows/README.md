@@ -1,6 +1,6 @@
 # Xskin for Windows 1.8.4
 
-**1.8.5 candidate (not yet published)** joins the overlay to the input’s upper corners without a gap, preserving the native input and controls. Stable downloads below remain 1.8.4; startup remains shortcut-only with no automatic reopen.
+**1.8.5 候選版（尚未發布）** 保留 overlay 與輸入框上方圓角的接合，並將用量列移入 composer layout，讓父層量測能包含新增高度。自有瀏覽器的 16 種高度保留模型已覆蓋此契約，不能代替 Windows 實機頁面或冷啟動驗收。下列穩定版下載仍為 1.8.4；啟動維持受管捷徑，不自動關閉或重開 Codex。[測試範圍](../docs/in-app-studio.md#composer-spacing-follow-up)。
 
 1.8.4 保留同一對話紀錄最後合法回報的方案，並明示它不是即時帳戶狀態。快取寫入來源為 0 時顯示「未確認」，提示保留來源值與預設值限制；缺少欄位不補 0。[欄位語義、來源及驗證](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md)。Windows 實機驗收仍待完成。
 

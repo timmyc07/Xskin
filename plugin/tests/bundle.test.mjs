@@ -3,7 +3,6 @@ import test, { after } from "node:test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import http from "node:http";
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
 import { createInterface } from "node:readline";
@@ -37,8 +36,8 @@ test("a freshly compiled bundle runs independently of its source and node_module
   const probe = `
     import assert from 'node:assert/strict';
     const { createMcpServer, RESOURCE } = await import('./server.mjs');
-    assert.equal(RESOURCE, 'ui://xskin/studio.html');
-    const server = createMcpServer({ previewOrigin: 'http://127.0.0.1:12345', close: async () => {} }, '<p>fixture</p>');
+    assert.equal(RESOURCE, 'ui://xskin/studio-${manifest.version}.html');
+    const server = createMcpServer({ close: async () => {} }, '<p>fixture</p>');
     assert.equal(typeof server.connect, 'function');
     await server.close();
     console.log('SELF_CONTAINED');
@@ -95,16 +94,7 @@ test("the portable manifest launches its contained executable and preserves Unic
   assert.equal(await fs.readFile(eventsFile, "utf8"), "discover\nruntime\n");
 });
 
-const httpStatus = url => new Promise((resolve, reject) => {
-  const request = http.get(url, { agent: false }, response => {
-    response.resume();
-    response.once("end", () => resolve(response.statusCode));
-  });
-  request.setTimeout(1000, () => request.destroy(new Error("Fixture request timed out")));
-  request.once("error", reject);
-});
-
-test("stdin EOF closes the compiled server and its private preview listener", {
+test("stdin EOF closes the compiled server without a preview listener", {
   skip: process.platform !== "darwin", timeout: 15000,
 }, async t => {
   const home = path.join(temporary, "隔離 home 中文 🌙");
@@ -136,13 +126,10 @@ test("stdin EOF closes the compiled server and its private preview listener", {
   });
   assert.equal(initialized.serverInfo.name, "xskin");
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
-  const resource = await request(2, "resources/read", { uri: "ui://xskin/studio.html" });
-  const [origin] = resource.contents[0]._meta.ui.csp.resourceDomains;
-  assert.match(origin, /^http:\/\/127\.0\.0\.1:\d+$/);
-  assert.equal(await httpStatus(`${origin}/unapproved`), 404, "The child really owns a live preview listener");
+  const resource = await request(2, "resources/read", { uri: `ui://xskin/studio-${manifest.version}.html` });
+  assert.deepEqual(resource.contents[0]._meta.ui.csp, { connectDomains: [], resourceDomains: ["blob:"], frameDomains: [] });
   child.stdin.end();
   assert.deepEqual(await closed, [0, null], "EOF must finish naturally, without a signal or a forced exit");
-  await assert.rejects(httpStatus(`${origin}/unapproved`), { code: "ECONNREFUSED" });
   assert.equal(stderr, "");
   assert.deepEqual(await fs.readdir(home), [], "The protocol fixture never creates settings or account files");
 });

@@ -8,7 +8,7 @@ import * as z from "zod/v4";
 import manifest from "./package.json" with { type: "json" };
 import { createStudio } from "./studio.mjs";
 
-export const RESOURCE = "ui://xskin/studio.html";
+export const RESOURCE = `ui://xskin/studio-${manifest.version}.html`;
 const icon = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="7" fill="#d94255"/><path d="m7 7 10 10M17 7 7 17" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>').toString("base64")}`;
 const icons = [{ src: icon, mimeType: "image/svg+xml", sizes: ["any"] }];
 const empty = z.strictObject({});
@@ -42,6 +42,8 @@ export function createMcpServer(studio, html) {
     }, execute(operation));
   };
   tool("xskin_status", "Refresh the local background studio.", empty, true, () => studio.status());
+  tool("xskin_recover", "Recover an interrupted background change while preserving saved media and pause settings.",
+    empty, false, () => studio.recover());
   tool("xskin_choose_media", "Let the user choose an image or MP4 in the native file picker; prepare a preview only.",
     empty, false, (_args, context) => studio.choose(context.mcpReq.signal), false);
   tool("xskin_apply", "Apply the pending background selected in Xskin.",
@@ -56,9 +58,23 @@ export function createMcpServer(studio, html) {
   tool("xskin_set_language", "Change Xskin's saved display language.",
     z.strictObject({ language: z.enum(["en", "zh-Hant", "zh-Hans", "ja"]) }), false, ({ language }) => studio.setLanguage(language));
 
+  server.registerTool("xskin_read_media", {
+    description: "Read one bounded chunk of approved preview media.",
+    inputSchema: z.strictObject({ mediaId: z.string().regex(/^[a-f0-9]{64}$/), offset: z.number().int().min(0).max(256 * 1024 * 1024) }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { ui: { visibility: ["app"] } },
+  }, async ({ mediaId, offset }, context) => {
+    try {
+      return { content: [{ type: "text", text: "Xskin preview data is ready." }],
+        _meta: { "com.xskin/media": await studio.readMedia(mediaId, offset, context.mcpReq.signal) } };
+    } catch {
+      return { isError: true, content: [{ type: "text", text: "Xskin preview data is unavailable." }] };
+    }
+  });
+
   registerAppResource(server, "Xskin background studio", RESOURCE, {}, async () => ({
     contents: [{ uri: RESOURCE, mimeType: RESOURCE_MIME_TYPE, text: html,
-      _meta: { ui: { prefersBorder: false, csp: { connectDomains: [], resourceDomains: [studio.previewOrigin], frameDomains: [] } } } }],
+      _meta: { ui: { prefersBorder: false, csp: { connectDomains: [], resourceDomains: ["blob:"], frameDomains: [] } } } }],
   }));
   server.server.onclose = () => { studio.close().catch(() => {}); };
   return server;

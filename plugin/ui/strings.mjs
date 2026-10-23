@@ -4,6 +4,7 @@ export const translations = {
   preview: ["Preview", "預覽", "预览", "プレビュー"],
   noMedia: ["Choose an image or MP4 to preview your background.", "選擇圖片或 MP4，預覽你的背景。", "选择图片或 MP4，预览你的背景。", "画像または MP4 を選んで背景を確認してください。"],
   previewAlt: ["Selected background preview", "已選背景預覽", "已选背景预览", "選択した背景のプレビュー"],
+  loadingPreview: ["Loading preview", "正在載入預覽", "正在加载预览", "プレビューを読み込み中"],
   previewError: ["Preview is unavailable. Refresh or choose the file again.", "無法載入預覽，請重新整理或重新選擇檔案。", "无法加载预览，请刷新或重新选择文件。", "プレビューを読み込めません。更新するか、ファイルを選び直してください。"],
   videoHint: ["Video starts paused. Use the player controls to preview it.", "影片預設暫停，使用播放控制項預覽。", "视频默认暂停，使用播放控件预览。", "動画は停止状態で開きます。再生ボタンで確認できます。"],
   choose: ["Choose image or video", "選擇圖片或影片", "选择图片或视频", "画像・動画を選択"],
@@ -30,6 +31,7 @@ export const translations = {
   resumed: ["Saved background resumed.", "已恢復儲存的背景。", "已恢复保存的背景。", "保存した背景を再開しました。"],
   cancelled: ["File selection cancelled. Your background is unchanged.", "已取消選擇檔案，背景保持不變。", "已取消选择文件，背景保持不变。", "ファイル選択をキャンセルしました。背景は変更されていません。"],
   failed: ["The operation did not finish. Pending media is kept. Retry or refresh to check the current state.", "操作未完成，待套用素材已保留。請重試或重新整理查看狀態。", "操作未完成，待应用素材已保留。请重试或刷新查看状态。", "操作を完了できませんでした。未適用の素材は保持しています。再試行または更新で状態を確認してください。"],
+  unconfirmed: ["The result is not confirmed. Status was checked without sending the change again. Refresh to check progress before making another change.", "尚未確認操作結果，已查詢狀態，沒有重送變更。請重新整理確認進度，再進行其他變更。", "尚未确认操作结果，已查询状态，没有重新发送更改。请刷新确认进度，再进行其他更改。", "操作結果を確認できません。変更を再送せずに状態を確認しました。更新して進捗を確認してから変更してください。"],
   unsupported: ["This Xskin panel currently requires a local chat on macOS.", "此 Xskin 面板目前需要在 macOS 的本機對話中使用。", "此 Xskin 面板目前需要在 macOS 的本地对话中使用。", "この Xskin 画面は現在 macOS のローカルチャットで利用できます。"],
   setupError: ["Xskin's local setup could not be validated. Refresh to check its state before applying.", "無法驗證 Xskin 本機安裝，請先重新整理確認狀態，再套用。", "无法验证 Xskin 本地安装，请先刷新确认状态，再应用。", "Xskin のローカル設定を確認できません。更新して状態を確認してください。"],
   responseError: ["Xskin returned incomplete data. Refresh before making another change.", "Xskin 回傳的資料不完整，請重新整理後再變更。", "Xskin 返回的数据不完整，请刷新后再更改。", "Xskin の応答が不完全です。更新してから変更してください。"],
@@ -41,7 +43,9 @@ export const translations = {
   connectionFailed: ["The Xskin panel could not connect. Reopen or reload this panel to retry.", "Xskin 面板無法連接，請重新開啟或重新載入此面板。", "Xskin 面板无法连接，请重新打开或重新加载此面板。", "Xskin に接続できません。この画面を開き直すか再読み込みしてください。"],
   retry: ["Retry", "重試", "重试", "再試行"],
   setup: ["Choose a file to prepare Xskin. Your existing media and preferences are kept.", "選擇檔案即可準備 Xskin，既有素材與偏好設定會保留。", "选择文件即可准备 Xskin，现有素材与偏好设置会保留。", "ファイルを選択して Xskin を準備します。既存の素材と設定は保持されます。"],
-  recovery: ["An interrupted change needs recovery. Refresh before making another change.", "先前變更曾中斷，請先重新整理以復原，再進行變更。", "先前更改曾中断，请先刷新恢复，再进行更改。", "中断した変更の復元が必要です。更新してから変更してください。"],
+  recovery: ["A previous change was interrupted. Recover it before making another change. Pending media will not be applied.", "先前變更曾中斷，請先復原，再進行其他變更。復原不會套用待選素材。", "先前更改曾中断，请先恢复，再进行其他更改。恢复不会应用待选素材。", "前の変更が中断されました。復元してから変更してください。未適用の素材は適用されません。"],
+  recover: ["Recover interrupted change", "復原中斷的變更", "恢复中断的更改", "中断した変更を復元"],
+  recovered: ["Interrupted change recovered. Check the current settings before applying.", "已復原中斷的變更，請確認目前設定後再套用。", "已恢复中断的更改，请确认当前设置后再应用。", "中断した変更を復元しました。現在の設定を確認してから適用してください。"],
 };
 export function translate(key, language = "en") {
   const index = Math.max(0, ["en", "zh-Hant", "zh-Hans", "ja"].indexOf(language));

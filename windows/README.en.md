@@ -1,6 +1,6 @@
 # Xskin for Windows 1.8.4
 
-**1.8.5 candidate (not yet published)** joins the overlay to the input’s upper corners without a gap, preserving the native input and controls. Stable downloads below remain 1.8.4; startup remains shortcut-only with no automatic reopen.
+**1.8.5 candidate (not yet published)** retains the joined overlay corners and moves the usage strip inside composer layout, allowing a parent measurement to include its height. A 16-case self-owned browser model covers that reservation contract; Windows physical route and cold-start acceptance remain pending. Stable downloads below remain 1.8.4; startup remains shortcut-only with no automatic close/reopen. See [test scope](../docs/in-app-studio.md#composer-spacing-follow-up).
 
 1.8.4 retains the latest valid plan reported in the same conversation and identifies it as history, not live account status. Zero cache writes are “unconfirmed” with a source-value tooltip; missing fields never become zero. [Field meanings, sources and validation](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md). Windows physical acceptance remains pending.
 

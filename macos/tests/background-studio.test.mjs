@@ -106,7 +106,7 @@ esac
   await fs.writeFile(configPath, JSON.stringify(initial));
   await assert.rejects(loadTheme(theme, "../escape.json"), /Theme config must be a filename/u);
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.9.0");
+  assert.equal(initialStatus.version, "1.9.1");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);
@@ -164,6 +164,12 @@ esac
   execFileSync("/usr/bin/sips", ["-z", "2", "4097", source, "--out", largeImage], { stdio: "ignore" });
   const large = await success("import", largeImage);
   assert.equal(readImageMetadata(await fs.readFile(large.selection.path), ".jpg").width, 4096, "Large images are capped at 4096 pixels");
+  const namedSource = path.join(temporary, `${"長".repeat(30)} ${"n".repeat(70)} 🌙.png`);
+  await fs.copyFile(source, namedSource);
+  const named = await success("import", namedSource);
+  assert.equal(named.selection.name, path.basename(namedSource));
+  assert.equal((await readJson(path.join(path.dirname(named.selection.path), "theme.json"))).name, path.basename(namedSource),
+    "Stored display names retain the complete original basename, independently of generated media filenames");
   const imported = await success("import", source);
   assert.equal(imported.selection.kind, "image");
   assert.equal(imported.selection.name, path.basename(source));
@@ -173,11 +179,16 @@ esac
   assert.deepEqual(await readJson(configPath), initial, "Import must never apply a background");
   await assert.rejects(fs.access(path.join(home, "start-calls")), { code: "ENOENT" });
   assert.deepEqual((await success("status")).selection, imported.selection, "Pending imports survive a completely new CLI process");
+  await rejects(["apply", named.selection.id], "select_media");
+  assert.deepEqual((await success("status")).selection, imported.selection, "A replaced import from an older session cannot apply or remove the newer pending media");
+  await rejects(["import", invalid], "invalid_image");
+  assert.deepEqual((await success("status")).selection, imported.selection, "A failed replacement import keeps the existing pending media available for retry");
   assert.deepEqual(await stages(), [`import-${imported.selection.id}`]);
   await rejects(["apply", "wrong-id"], "select_media");
   const imageApplied = await success("apply", imported.selection.id);
   assert.equal(imageApplied.selection, null);
   assert.equal(imageApplied.active.kind, "image");
+  assert.equal(imageApplied.active.name, path.basename(source), "Applying preserves the original file label and extension rather than a generated UUID");
   assert.deepEqual(await fs.readFile(imageApplied.active.path), preview);
   assert.equal((await readJson(configPath)).layout, "wallpaper");
   assert.deepEqual(await stages(), []);
@@ -192,6 +203,17 @@ esac
 
   // This fixture proves byte preservation; a live test must prove 4K decoding.
   const mp4 = Buffer.from("000000186674797069736f6d0000020069736f6d6d703431", "hex");
+  const largeVideoSource = path.join(temporary, "96 MiB 原始影片 🌙.mp4");
+  const largeVideoFile = await fs.open(largeVideoSource, "wx");
+  await largeVideoFile.write(mp4);
+  await largeVideoFile.truncate(96 * 1024 * 1024);
+  await largeVideoFile.close();
+  const largeVideo = await success("import", largeVideoSource);
+  assert.equal(largeVideo.selection.bytes, 96 * 1024 * 1024, "A 96 MiB original MP4 is accepted without a smaller preview-size limit");
+  assert.equal((await fs.stat(largeVideo.selection.path)).size, 96 * 1024 * 1024);
+  assert.equal(largeVideo.selection.name, path.basename(largeVideoSource));
+  assert.deepEqual((await success("status")).selection, largeVideo.selection, "Large pending video survives a new backend process");
+  assert.equal((await readJson(configPath)).video, undefined, "A large video import remains pending without changing the current image");
   const videoSource = path.join(temporary, "4K 原始影片.mp4");
   await fs.writeFile(videoSource, mp4);
   const video = await success("import", videoSource);
@@ -208,6 +230,7 @@ esac
   assert.equal((await readJson(stagedConfigPath)).maskOpacity, 0.43, "A mask change does not rewrite pending media settings");
   const videoApplied = await success("apply", video.selection.id);
   assert.equal(videoApplied.active.kind, "video");
+  assert.equal(videoApplied.active.name, path.basename(videoSource));
   assert.equal(videoApplied.maskOpacity, 0.27, "Applying old pending media keeps the current active mask");
   assert.deepEqual(await fs.readFile(videoApplied.active.path), mp4);
   const previous = await readJson(configPath);

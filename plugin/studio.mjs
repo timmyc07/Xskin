@@ -51,16 +51,27 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
     if (!raw || typeof raw !== "object" || !/^\d+\.\d+\.\d+$/.test(raw.version) ||
       !Number.isFinite(raw.maskOpacity) || raw.maskOpacity < 0 || raw.maskOpacity > 1 ||
       typeof raw.autostart !== "boolean" || typeof raw.autostartLoaded !== "boolean") throw failure("invalid_response");
-    const urls = await preview.update(raw);
     const media = (value, slot) => {
       if (value == null) return null;
       if (typeof value.name !== "string" || value.name.length > 240 || /[\p{Cc}\u2028\u2029]/u.test(value.name) ||
         !["image", "video"].includes(value.kind) || !Number.isSafeInteger(value.bytes) || value.bytes < 1 ||
         (slot === "selection" && !uuid.test(value.id ?? ""))) throw failure("invalid_response");
       return { ...(slot === "selection" ? { id: value.id } : { applied: value.applied === true }),
-        name: value.name, kind: value.kind, bytes: value.bytes, previewUrl: urls[slot] };
+        name: value.name, kind: value.kind, bytes: value.bytes };
     };
-    return { version: raw.version, platform: "macos", active: media(raw.active, "active"), selection: media(raw.selection, "selection"),
+    const active = media(raw.active, "active");
+    const selection = media(raw.selection, "selection");
+    let previews = {};
+    try { previews = await preview.update(raw); }
+    catch (error) { if (error?.errorCode !== "invalid_media") throw error; }
+    for (const [slot, value] of [["active", active], ["selection", selection]]) {
+      if (!value) continue;
+      const reference = previews[slot];
+      value.previewId = reference?.id ?? null;
+      value.previewMimeType = reference?.mimeType ?? null;
+      value.previewError = !reference;
+    }
+    return { version: raw.version, platform: "macos", active, selection,
       maskOpacity: raw.maskOpacity, autostart: raw.autostart, autostartLoaded: raw.autostartLoaded,
       pendingRecovery: raw.pendingRecovery === true, language: await language(), needsSetup: false };
   };
@@ -89,11 +100,19 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
     try { return await operation(); }
     finally { busy = false; }
   };
-  const dispatch = async (name, value) => parse(await command("/bin/bash", [wrapper, "--embedded", name, ...(value === undefined ? [] : [value])]));
+  // Confirmed transactions keep the backend's bounded apply and rollback deadlines.
+  const dispatch = async (name, value) => parse(await command("/bin/bash", [wrapper, "--embedded", name, ...(value === undefined ? [] : [value])],
+    { timeout: name === "apply" || name === "mask" ? 0 : options.timeout }));
 
   return {
-    previewOrigin: preview.origin,
+    readMedia: (id, offset, signal) => preview.read(id, offset, signal),
     status,
+    // The existing wrapper's status command recovers under the native operation lock.
+    recover: () => mutate(async () => {
+      const recovered = await dispatch("status");
+      if (recovered.pendingRecovery) throw failure("operation_busy");
+      return recovered;
+    }),
     choose: signal => mutate(async () => {
       if (signal?.aborted) throw failure("cancelled");
       const controller = new AbortController();
