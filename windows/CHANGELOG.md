@@ -2,6 +2,8 @@
 
 ## 1.9.4 — 2026-10-23
 
+- Fix the embedded Choose image or video button appearing unresponsive when its native Windows dialog opens behind Codex. Give the picker a temporary transparent topmost owner, dispose both windows after selection/cancellation, and test real hidden-process selection with Unicode image/video paths.
+- Restore the token overlay in Windows Codex's Slate sidebar. Identify the unique visible composer through its committed renderer owner and exact local host/conversation pair, without requiring sidebar rows. Ignore hidden composer portals and reject remote, unknown, ambiguous or stale identities.
 - Port the completed macOS 1.9.4 embedded MCP App to Windows using the same UI, bounded host viewport, four languages, mask, original-media preview and Apply promotion. Add the contained Windows launcher/manifest and native cancellable file chooser; keep paths, media and errors in private metadata.
 - Share active/pending media and preferences with Flutter. Add stable localized errors, a read-only setup/status path, existing-connection-only embedded Apply/mask/Resume, and explicit journal recovery after interrupted background or mask changes.
 - Restore opt-in official-app automatic backgrounds through the per-user login monitor. Verify fresh package/PID/start/session identity, skip existing/debug/paused sessions, request graceful quit only and prevent duplicate handoffs. Keep the optional direct shortcut and preserve settings/media during upgrades and rollback.

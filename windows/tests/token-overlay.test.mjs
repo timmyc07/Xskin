@@ -51,6 +51,7 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
       return siblings[siblings.indexOf(this) + 1] ?? null;
     }
     get isConnected() { return Boolean(this.parentElement); }
+    checkVisibility() { return this.visible !== false; }
     setAttribute(name, value) { this.attributes.set(name, value); }
     getAttribute(name) { return this.attributes.get(name) ?? null; }
     removeAttribute(name) { this.attributes.delete(name); }
@@ -72,31 +73,42 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   inactiveComposer.closest = selector => selector.includes("active-page") ? {} : null;
   composer.checkVisibility = () => data.composerVisible;
   composer.closest = selector => selector === "[data-composer-layout]" ? anchor : null;
-  const selected = new Element();
-  selected.setAttribute("data-app-action-sidebar-thread-id", `local:${THREAD}`);
-  selected.setAttribute("data-app-action-sidebar-thread-host-id", "local");
-  selected.setAttribute("data-app-action-sidebar-thread-kind", "local");
   const conversation = new Element();
-  const data = { composerVisible: true, home: false, selected: [selected], conversationId: null };
+  const data = { composerVisible: true, home: false, activePage: true,
+    composers: [inactiveComposer, composer], markers: [conversation] };
+  const setIdentity = (id = THREAD, hostId = "local", depth = 19, ownerId = id) => {
+    conversation.setAttribute("data-above-composer-conversation-id", id);
+    const root = { tag: 3, stateNode: {}, return: null };
+    root.stateNode.current = root;
+    const owner = { memoizedProps: { conversationId: ownerId, hostId }, return: root };
+    let fiber = owner;
+    for (let index = 0; index < depth; index++) fiber = { memoizedProps: null, return: fiber };
+    conversation.__reactFiber$fixture = fiber;
+    return { owner, fiber, root };
+  };
+  setIdentity();
+  const page = {
+    querySelector(selector) {
+      if (selector === "[data-above-composer-conversation-id]") return data.markers[0] ?? null;
+      return data.home ? {} : null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "[data-composer-body]") return data.composers;
+      assert.equal(selector, "[data-above-composer-conversation-id]");
+      return data.markers;
+    },
+  };
   const document = {
     hidden: false,
     documentElement: { lang },
     createElement: () => new Element(),
     querySelector(selector) {
       assert.equal(selector, '[data-app-shell-active-page="true"]');
-      return { querySelector: selector => {
-        if (selector === "[data-above-composer-conversation-id]") {
-          if (!data.conversationId) return null;
-          conversation.setAttribute("data-above-composer-conversation-id", data.conversationId);
-          return conversation;
-        }
-        return data.home ? {} : null;
-      } };
+      return data.activePage ? page : null;
     },
     querySelectorAll(selector) {
-      if (selector === "[data-composer-body]") return [inactiveComposer, composer];
-      assert.equal(selector, '[data-app-action-sidebar-thread-selected="true"][aria-current="page"]');
-      return data.selected;
+      assert.equal(selector, "[data-composer-body]", "Identity resolution never depends on sidebar rows");
+      return data.composers;
     },
     addEventListener(name, callback) { listeners.set(name, callback); },
     removeEventListener(name, callback) { if (listeners.get(name) === callback) listeners.delete(name); },
@@ -130,8 +142,8 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   };
   install();
   return {
-    state, document, motion, data, selected, parent, anchor, toolbar, composer, timers, listeners, motionListeners,
-    install, advance,
+    state, document, motion, data, parent, anchor, toolbar, composer, conversation, timers, listeners, motionListeners,
+    install, advance, setIdentity,
     get overlay() { return state.usageOverlay; },
     get row() { return composer.previousElementSibling; },
     get text() { return composer.previousElementSibling?.children[1].textContent; },
@@ -149,7 +161,7 @@ const f = fixture();
 assert.equal(f.row.parentElement, f.anchor, "The measured native composer layout contains the usage strip");
 assert.equal(f.row.nextElementSibling, f.composer, "The strip immediately precedes the actual input in normal flow");
 assert.equal(f.anchor.nextElementSibling, f.toolbar, "The native footer remains immediately after the input");
-assert.equal(f.overlay.request().threadId, THREAD, "Memory-router task identity comes from the exact local selection");
+assert.equal(f.overlay.request().threadId, THREAD, "A local composer mounts usage without any sidebar row");
 assert.equal(f.text, "等待本機用量記錄");
 assert.equal(f.row.dataset.usageState, "waiting");
 assert.equal(f.cacheBar.parentElement.style.getPropertyValue("display"), "none", "No empty cache meter is shown before usage exists");
@@ -198,7 +210,7 @@ assert.equal(f.overlay.status().availability, "reconnecting");
 assert.equal(f.timers.size, 0);
 
 f.overlay.update(f.sample());
-f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${OTHER}`);
+f.setIdentity(OTHER);
 assert.equal(f.overlay.request().threadId, OTHER);
 assert.equal(f.text, "等待本機用量記錄", "Switching task clears old counts and shows one waiting label");
 assert.equal(f.overlay.update(f.sample()), false, "An in-flight response for the old task is rejected");
@@ -211,7 +223,7 @@ assert.equal(f.overlay.update(f.sample({ threadId: OTHER, sampledAt: 1 })), fals
 assert.equal(f.overlay.update(f.sample({ threadId: OTHER, sampledAt: Date.now() + 100000 })), false);
 
 f.data.home = true;
-assert.equal(f.overlay.request().threadId, null, "Home ignores a retained selected sidebar row");
+assert.equal(f.overlay.request().threadId, null, "Home ignores retained composer identity metadata");
 assert.equal(f.row, null, "Home has no empty usage strip covering its utility toolbar");
 assert.equal(f.timers.size, 0);
 assert.equal(f.overlay.update(f.sample({ threadId: null, totalTokens: null, inputTokens: null,
@@ -222,34 +234,98 @@ f.overlay.request();
 assert.equal(f.overlay.update(f.sample({ threadId: OTHER, planType: '<img src="private">' })), true);
 assert.match(f.text, /方案 <img src="private">/, "Plan text is displayed literally, never interpreted as HTML");
 assert.equal(f.row.children.length, 3);
-f.data.home = false;
-f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "remote");
+f.setIdentity(OTHER, "remote");
 assert.equal(f.overlay.request().threadId, null, "A remote UUID must never read coincident local usage");
 assert.equal(f.row, null, "A thread that cannot be identified locally has no empty metrics row");
-f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "local");
-f.data.selected = [f.selected, f.selected];
-assert.equal(f.overlay.request().threadId, null, "Ambiguous selections never guess the conversation");
-f.data.selected = [f.selected];
-f.selected.setAttribute("data-app-action-sidebar-thread-id", "local:../../auth.json");
-assert.equal(f.overlay.request().threadId, null);
+for (const hostId of [undefined, null, "", "unknown", "LOCAL", 1]) {
+  const { owner } = f.setIdentity();
+  owner.memoizedProps.hostId = hostId;
+  assert.equal(f.overlay.request().threadId, null, "An unknown or malformed host cannot expose local usage");
+}
+f.setIdentity(THREAD.toUpperCase(), "local", 19, THREAD.toUpperCase());
+assert.equal(f.overlay.request().threadId, THREAD, "Validated UUIDs are normalized independently of the sidebar");
+f.setIdentity(THREAD, "local", 19, OTHER);
+assert.equal(f.overlay.request().threadId, null, "A transitioning owner must match the active composer UUID");
+for (const id of ["../../auth.json", `local:${THREAD}`, "", "not-a-uuid"]) {
+  f.setIdentity(id);
+  assert.equal(f.overlay.request().threadId, null, "Malformed composer identifiers never request a local file");
+}
+f.setIdentity();
 
-f.data.conversationId = THREAD.toUpperCase();
-f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:client-new-thread:${OTHER}`);
-assert.equal(f.overlay.request().threadId, THREAD, "The active composer resolves a newly created task's real UUID");
-f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${OTHER}`);
-assert.equal(f.overlay.request().threadId, null, "A transitioning composer never reports a different selected task's usage");
-f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${THREAD}`);
-assert.equal(f.overlay.request().threadId, THREAD);
-f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "remote");
-assert.equal(f.overlay.request().threadId, null, "An active composer UUID never overrides a remote thread host");
-f.selected.setAttribute("data-app-action-sidebar-thread-host-id", "local");
-f.selected.setAttribute("data-app-action-sidebar-thread-id", "local:../../auth.json");
-assert.equal(f.overlay.request().threadId, null);
-f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:client-new-thread:${OTHER}`);
-f.data.conversationId = "../../auth.json";
-assert.equal(f.overlay.request().threadId, null);
-f.data.conversationId = null;
-f.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${THREAD}`);
+const identity = fixture();
+const hiddenMarker = identity.document.createElement("div");
+hiddenMarker.visible = false;
+hiddenMarker.setAttribute("data-above-composer-conversation-id", THREAD);
+identity.data.markers = [hiddenMarker, identity.conversation];
+assert.equal(identity.overlay.request().threadId, THREAD, "A hidden duplicate portal does not obscure the visible conversation identity");
+hiddenMarker.setAttribute("data-above-composer-conversation-id", OTHER);
+assert.equal(identity.overlay.request().threadId, THREAD, "An inactive portal for another conversation cannot override visible metadata");
+hiddenMarker.visible = true;
+assert.equal(identity.overlay.request().threadId, null, "Two visible conversation portals are ambiguous even with different UUIDs");
+identity.data.markers = [identity.conversation, identity.conversation];
+assert.equal(identity.overlay.request().threadId, null, "Duplicate composer metadata is ambiguous even when UUIDs match");
+identity.data.markers = [];
+assert.equal(identity.overlay.request().threadId, null, "Missing composer metadata cannot use a remembered thread");
+identity.data.markers = [identity.conversation];
+identity.data.composers = [identity.composer, identity.composer];
+assert.equal(identity.overlay.request().threadId, null, "More than one visible composer never guesses which usage to show");
+identity.data.composers = [identity.composer];
+identity.data.activePage = false;
+assert.equal(identity.overlay.request().threadId, null, "Missing active pages cannot borrow retained identity metadata");
+identity.data.activePage = true;
+identity.setIdentity(THREAD, "local", 49);
+assert.equal(identity.overlay.request().threadId, THREAD, "The last permitted owner depth remains usable");
+identity.setIdentity(THREAD, "local", 50);
+assert.equal(identity.overlay.request().threadId, null, "The owner walk is bounded to fifty nodes");
+const cyclic = identity.setIdentity();
+cyclic.fiber.return = cyclic.fiber;
+assert.equal(identity.overlay.request().threadId, null, "Cyclic owner chains terminate without revealing stale local metrics");
+const missingRoot = identity.setIdentity();
+missingRoot.owner.return = null;
+assert.equal(identity.overlay.request().threadId, null, "Unmounted owner branches lack an authoritative current root");
+const unknownRoot = identity.setIdentity();
+unknownRoot.root.stateNode.current = {};
+assert.equal(identity.overlay.request().threadId, null, "An unknown current branch cannot establish a local host");
+const rootBoundary = identity.setIdentity();
+for (let depth = 20; depth < 511; depth++) {
+  rootBoundary.owner.return = { memoizedProps: null, return: rootBoundary.owner.return };
+}
+assert.equal(identity.overlay.request().threadId, THREAD, "A deeply nested mounted composer is supported within the root bound");
+rootBoundary.owner.return = { memoizedProps: null, return: rootBoundary.owner.return };
+assert.equal(identity.overlay.request().threadId, null, "The committed-root walk stops beyond its 512-node limit");
+const unpaired = identity.setIdentity();
+unpaired.owner.memoizedProps = { hostId: "local" };
+unpaired.owner.return = { memoizedProps: { conversationId: THREAD }, return: unpaired.root };
+assert.equal(identity.overlay.request().threadId, null, "Host and UUID must come from the same owner props");
+const nearestRemote = identity.setIdentity(THREAD, "remote");
+nearestRemote.owner.return = { memoizedProps: { conversationId: THREAD, hostId: "local" }, return: nearestRemote.root };
+assert.equal(identity.overlay.request().threadId, null, "A nearer remote owner cannot be overridden by a local ancestor");
+identity.setIdentity();
+delete identity.conversation.__reactFiber$fixture;
+identity.conversation.__unknownFiber = { memoizedProps: { conversationId: THREAD, hostId: "local" } };
+assert.equal(identity.overlay.request().threadId, null, "Unsupported renderer metadata fails closed");
+identity.overlay.dispose();
+
+const alternate = fixture();
+alternate.overlay.update(alternate.sample());
+const oldBranch = alternate.setIdentity();
+const remoteBranch = alternate.setIdentity(THREAD, "remote");
+oldBranch.root.stateNode = remoteBranch.root.stateNode;
+oldBranch.fiber.alternate = remoteBranch.fiber;
+remoteBranch.fiber.alternate = oldBranch.fiber;
+alternate.conversation.__reactFiber$fixture = oldBranch.fiber;
+assert.equal(alternate.overlay.request().threadId, null, "A stale local Fiber cannot override the current remote alternate");
+assert.equal(alternate.row, null);
+const localBranch = alternate.setIdentity(OTHER);
+oldBranch.root.stateNode = localBranch.root.stateNode;
+oldBranch.fiber.alternate = localBranch.fiber;
+localBranch.fiber.alternate = oldBranch.fiber;
+alternate.conversation.__reactFiber$fixture = oldBranch.fiber;
+assert.equal(alternate.overlay.request().threadId, OTHER, "A route change follows the committed alternate's identity");
+assert.equal(alternate.text, "等待本機用量記錄");
+assert.equal(alternate.overlay.update(alternate.sample()), false, "The previous route's asynchronous reply stays rejected after alternate resolution");
+assert.equal(alternate.overlay.update(alternate.sample({ threadId: OTHER })), true);
+alternate.overlay.dispose();
 
 const installation = JSON.parse(JSON.stringify(f.overlay.request())).installation;
 assert.equal(typeof installation, "string");

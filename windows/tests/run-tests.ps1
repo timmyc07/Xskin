@@ -949,6 +949,7 @@ try {
   & (Join-Path $PSScriptRoot 'automatic-setup.test.ps1')
   & (Join-Path $PSScriptRoot 'package-docs.test.ps1')
   & (Join-Path $PSScriptRoot 'quiet-launcher.test.ps1')
+  & (Join-Path $PSScriptRoot 'choose-media.test.ps1')
   & (Join-Path $PSScriptRoot 'graceful-quit.test.ps1')
   & (Join-Path $PSScriptRoot 'injector-process.test.ps1')
   Write-Host 'PASS: config transactions, restore scoping, state safety, argument quoting, loopback CDP and video.'

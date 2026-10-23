@@ -6,8 +6,6 @@
   const ID = "codex-dream-skin-usage";
   let installation = window.crypto.randomUUID();
   const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-  const threadPattern = new RegExp(`^local:(${UUID})$`, "i");
-  const draftPattern = new RegExp(`^local:client-new-thread:${UUID}$`, "i");
   const conversationPattern = new RegExp(`^${UUID}$`, "i");
   const chinese = /^zh\b/i.test(document.documentElement.lang);
   const labels = chinese
@@ -120,28 +118,48 @@
     if (row.dataset.stale !== String(!snapshot)) row.dataset.stale = String(!snapshot);
     paintMotion();
   };
+  const fiberRoot = fiber => {
+    for (let depth = 0; fiber && depth < 512; depth++, fiber = fiber.return) {
+      if (!fiber.return) return fiber.tag === 3 ? fiber : null;
+    }
+    return null;
+  };
+  const conversationHost = (node, id) => {
+    // shortcut: host identity uses renderer metadata; recheck after Codex changes its composer owner props.
+    const key = Object.keys(node).find(name => name.startsWith("__reactFiber$"));
+    let fiber = node[key];
+    const root = fiberRoot(fiber);
+    const current = root?.stateNode?.current;
+    if (!current) return null;
+    if (root !== current) fiber = fiber?.alternate;
+    if (fiberRoot(fiber) !== current) return null;
+    for (let depth = 0; fiber && depth < 50; depth++, fiber = fiber.return) {
+      const props = fiber.memoizedProps;
+      if (typeof props?.conversationId === "string" && props.conversationId.toLowerCase() === id &&
+        typeof props.hostId === "string") return props.hostId;
+    }
+    return null;
+  };
   const request = () => {
     if (disposed) return { threadId: null, visible: false };
     let changed = false;
     const page = document.querySelector('[data-app-shell-active-page="true"]');
     const home = page?.querySelector('[data-testid="home-icon"], [data-feature="game-source"], [class~="group/home-suggestions"]');
-    const selected = document.querySelectorAll('[data-app-action-sidebar-thread-selected="true"][aria-current="page"]');
-    const local = selected.length === 1 && selected[0].getAttribute("data-app-action-sidebar-thread-host-id") === "local" &&
-      selected[0].getAttribute("data-app-action-sidebar-thread-kind") === "local";
-    const selectedId = local ? selected[0].getAttribute("data-app-action-sidebar-thread-id") : null;
-    const selectedThread = selectedId?.match(threadPattern)?.[1]?.toLowerCase() ?? null;
-    const conversationId = page?.querySelector("[data-above-composer-conversation-id]")?.getAttribute("data-above-composer-conversation-id");
+    const identities = [...(page?.querySelectorAll("[data-above-composer-conversation-id]") ?? [])].filter(node =>
+      node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
+    const identity = identities.length === 1 ? identities[0] : null;
+    const conversationId = identity?.getAttribute("data-above-composer-conversation-id");
     const conversationThread = conversationPattern.test(conversationId ?? "") ? conversationId.toLowerCase() : null;
-    const current = !home && local && (selectedThread || draftPattern.test(selectedId ?? "")) &&
-      (!selectedThread || !conversationThread || selectedThread === conversationThread)
-      ? conversationThread ?? selectedThread : null;
+    const composers = [...document.querySelectorAll("[data-composer-body]")].filter(node =>
+      !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
+    const composer = composers.length === 1 ? composers[0] : null;
+    const current = !home && composer && conversationThread && conversationHost(identity, conversationThread) === "local"
+      ? conversationThread : null;
     if (current !== threadId) {
       threadId = current;
       clearData();
       changed = true;
     }
-    const composer = [...document.querySelectorAll("[data-composer-body]")].find(node =>
-      !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
     // Keep the added height within the composer's layout container.
     const anchor = composer;
     if (!anchor || !threadId) {
