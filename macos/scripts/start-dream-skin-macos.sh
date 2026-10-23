@@ -16,6 +16,7 @@ PORT=9341
 PORT_EXPLICIT="false"
 FOREGROUND_INJECTOR="false"
 DIRECT_LAUNCH="false"
+EXISTING_ONLY="false"
 STARTUP_PID=""
 STARTUP_STARTED_AT=""
 AUTOMATIC_HANDOFF="false"
@@ -30,6 +31,7 @@ while [ "$#" -gt 0 ]; do
     --port) PORT="${2:-}"; PORT_EXPLICIT="true"; shift 2 ;;
     --foreground-injector) FOREGROUND_INJECTOR="true"; shift ;;
     --direct-launch) DIRECT_LAUNCH="true"; shift ;;
+    --existing-only) EXISTING_ONLY="true"; shift ;;
     --restart-new-launch) STARTUP_PID="${2:-}"; STARTUP_STARTED_AT="${3:-}"; AUTOMATIC_HANDOFF="true"; DIRECT_LAUNCH="true"; shift 3 ;;
     *) fail "Unknown start argument: $1" ;;
   esac
@@ -54,6 +56,9 @@ fi
 
 DEBUG_READY="false"
 if verified_cdp_endpoint "$PORT"; then DEBUG_READY="true"; fi
+if [ "$EXISTING_ONLY" = "true" ] && [ "$DEBUG_READY" != "true" ]; then
+  fail "No existing verified Codex connection is available. Codex was left unopened and unchanged."
+fi
 
 if [ "$AUTOMATIC_HANDOFF" = true ]; then
   . "$SCRIPT_DIR/autostart-dream-skin-macos.sh"

@@ -26,7 +26,7 @@ if [ -f "$STANDALONE_README" ]; then
   temporary="${STANDALONE_README}.standalone"
   /usr/bin/sed \
     -e 's#\.\./docs/#docs/#g' \
-    -e 's#\.\./windows/#https://github.com/Fei-Away/Codex-Dream-Skin/tree/main/windows/#g' \
+    -e 's#\.\./windows/#https://github.com/timmyc07/Xskin/tree/main/windows/#g' \
     "$STANDALONE_README" > "$temporary"
   /bin/mv "$temporary" "$STANDALONE_README"
 fi
@@ -45,7 +45,7 @@ fi
   > "$CLIENT_ROOT/安装 Codex 主题编辑器.command"
 
 /usr/bin/printf '%s\n' \
-  'Codex 主题编辑器 1.8.5' \
+  'Codex 主题编辑器 1.9.4' \
   '' \
   '推荐方式：把这个完整 ZIP、你喜欢的图片和“给 Codex 的部署提示词.md”一起发给自己的 Codex。' \
   '' \

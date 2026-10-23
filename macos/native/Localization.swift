@@ -26,6 +26,7 @@ enum XskinText: String, CaseIterable {
   case statusPrefix, statusReady, statusApplied, statusChoose, operationLoading, operationImporting, operationApplying, operationAutostart, operationMask, applyBusy, applyButton, applySuccess, applyImport
   case launchFailed, resourcesUnavailable, responseInvalid, maskResponseInvalid, localFileRequired, dropOneFile, dropUnreadable, fileUnreadable, imageDecode, videoUnplayable, videoNoFrames, videoDecode, mediaUnsupported
   case imported, applied, maskUpdated = "mask_updated", autostartEnabled = "autostart_enabled", autostartDisabled = "autostart_disabled"
+  case fileAccessDenied = "file_access_denied"
   case invalidMedia = "invalid_media", invalidSelection = "invalid_selection", missingSelection = "missing_selection", invalidBackground = "invalid_background", invalidStudio = "invalid_studio", invalidLock = "invalid_lock", operationBusy = "operation_busy", invalidLocalFile = "invalid_local_file", videoSizeLimit = "video_size_limit", imageSizeLimit = "image_size_limit", sourceChanged = "source_changed", unsupportedFormat = "unsupported_format", invalidVideo = "invalid_video", invalidImage = "invalid_image", imageDimensions = "image_dimensions", imageConversion = "image_conversion", selectMedia = "select_media", applyFailedRestored = "apply_failed_restored", applyFailedUnrestored = "apply_failed_unrestored", maskFailedRestored = "mask_failed_restored", maskFailedUnrestored = "mask_failed_unrestored", invalidCommand = "invalid_command", invalidAutostart = "invalid_autostart", invalidMask = "invalid_mask", invalidWorker = "invalid_worker", operationFailed = "operation_failed"
 }
 
@@ -115,6 +116,7 @@ enum XskinLocalization {
     .invalidLock: ["The operation lock is invalid. Reopen Xskin.", "背景操作鎖定檔無效，請重新開啟 Xskin。", "背景操作锁定文件无效，请重新打开 Xskin。", "操作ロックが無効です。Xskin を開き直してください。"],
     .operationBusy: ["A background operation is running. Wait for it to finish.", "正在處理背景，請等待目前操作完成。", "正在处理背景，请等待当前操作完成。", "背景の処理中です。現在の操作が完了するまでお待ちください。"],
     .invalidLocalFile: ["Choose a valid local file. Symbolic links are not supported.", "請選擇有效的本機檔案；不支援符號連結。", "请选择有效的本地文件；不支持符号链接。", "有効なローカルファイルを選択してください。シンボリックリンクには対応していません。"],
+    .fileAccessDenied: ["The file or Xskin data folder cannot be accessed. Check permissions and that the file is fully downloaded, then try again.", "無法存取檔案或 Xskin 資料夾。請確認存取權限且檔案已完整下載，再重試。", "无法访问文件或 Xskin 文件夹。请确认访问权限且文件已完整下载，再重试。", "ファイルまたは Xskin のフォルダにアクセスできません。アクセス権とダウンロードの完了を確認し、再試行してください。"],
     .videoSizeLimit: ["Choose a regular MP4 file no larger than 256 MiB.", "MP4 必須是一般檔案且不得超過 256 MiB。", "MP4 必须是普通文件且不得超过 256 MiB。", "256 MiB 以下の通常の MP4 ファイルを選択してください。"],
     .imageSizeLimit: ["Choose a regular image file no larger than 50 MiB.", "圖片必須是一般檔案且不得超過 50 MiB。", "图片必须是普通文件且不得超过 50 MiB。", "50 MiB 以下の通常の画像ファイルを選択してください。"],
     .sourceChanged: ["The file changed during import. Select it again.", "檔案在匯入期間變更，請重新選擇。", "文件在导入期间发生变化，请重新选择。", "読み込み中にファイルが変更されました。再度選択してください。"],

@@ -7,11 +7,14 @@ PORT=9341
 CREATE_LAUNCHERS="true"
 LAUNCH_AFTER_INSTALL="true"
 IN_PLACE="false"
+AUTOSTART_ON_FIRST_INSTALL="true"
+PREPARE_ONLY="false"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --port) PORT="${2:-}"; shift 2 ;;
     --no-launchers) CREATE_LAUNCHERS="false"; shift ;;
     --no-launch) LAUNCH_AFTER_INSTALL="false"; shift ;;
+    --prepare-only) PREPARE_ONLY="true"; AUTOSTART_ON_FIRST_INSTALL="false"; CREATE_LAUNCHERS="false"; LAUNCH_AFTER_INSTALL="false"; shift ;;
     --in-place) IN_PLACE="true"; shift ;;
     *) fail "Unknown installer argument: $1" ;;
   esac
@@ -67,9 +70,10 @@ deploy_project() {
   if [ -e "$INSTALL_ROOT" ]; then /bin/mv "$INSTALL_ROOT" "$previous"; fi
   local install_args=(--in-place --port "$PORT" --no-launch)
   [ "$CREATE_LAUNCHERS" = "true" ] || install_args+=(--no-launchers)
+  [ "$PREPARE_ONLY" != "true" ] || install_args+=(--prepare-only)
   if /bin/mv "$temporary" "$INSTALL_ROOT" &&
     "$INSTALL_ROOT/scripts/install-dream-skin-macos.sh" "${install_args[@]}" &&
-    { [ "$resume_watcher" != "true" ] || "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$resume_port"; }; then
+    { [ "$resume_watcher" != "true" ] || "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$resume_port" --existing-only; }; then
     /bin/rm -rf "$previous"
   else
     if [ -f "$STATE_PATH" ]; then
@@ -84,7 +88,10 @@ deploy_project() {
     /bin/rm -rf "$INSTALL_ROOT"
     [ -e "$previous" ] && /bin/mv "$previous" "$INSTALL_ROOT"
     [ "$startup_enabled" != "true" ] || "$INSTALL_ROOT/scripts/autostart-dream-skin-macos.sh" enable
-    [ "$resume_watcher" != "true" ] || "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$resume_port"
+    # Older runtimes reject this flag; preserve the restored files rather than risk reopening Codex.
+    if [ "$resume_watcher" = "true" ] && ! "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh" --port "$resume_port" --existing-only; then
+      fail "The previous runtime was restored, but its background connection could not resume safely. Use explicit Apply to reconnect; saved media and settings were preserved."
+    fi
     fail "Could not install the project at $INSTALL_ROOT"
   fi
   if [ "$LAUNCH_AFTER_INSTALL" = "true" ] && [ "$resume_watcher" != "true" ] && ! codex_is_running; then
@@ -108,7 +115,9 @@ if [ ! -f "$THEME_DIR/theme.json" ]; then
 fi
 [ -f "$CONFIG_PATH" ] || fail "Codex config not found: $CONFIG_PATH. Launch Codex once, close it, and rerun the installer."
 "$NODE" "$INJECTOR" --check-payload --theme-dir "$THEME_DIR" >/dev/null
-"$NODE" "$SCRIPT_DIR/theme-config.mjs" install "$CONFIG_PATH" "$THEME_BACKUP_PATH"
+if [ "$PREPARE_ONLY" != "true" ]; then
+  "$NODE" "$SCRIPT_DIR/theme-config.mjs" install "$CONFIG_PATH" "$THEME_BACKUP_PATH"
+fi
 
 shell_quote() {
   LC_ALL=C printf '%q' "$1"
@@ -142,7 +151,9 @@ if [ "$CREATE_LAUNCHERS" = "true" ]; then
 fi
 
 # Preserve disabled preferences; enabled 1.8.0 shortcuts migrate to native-app monitoring.
-if [ -f "$AUTOSTART_AGENT_PATH" ] || [ -f "$STATE_ROOT/shortcut-enabled" ] || [ ! -f "$STATE_ROOT/shortcut-setup-complete" ]; then
+if [ -f "$AUTOSTART_AGENT_PATH" ] || [ -f "$STATE_ROOT/shortcut-enabled" ] || {
+  [ "$AUTOSTART_ON_FIRST_INSTALL" = "true" ] && [ ! -f "$STATE_ROOT/shortcut-setup-complete" ];
+}; then
   "$SCRIPT_DIR/autostart-dream-skin-macos.sh" enable
 else
   "$SCRIPT_DIR/setup-direct-launch.sh" --install

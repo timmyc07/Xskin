@@ -26,7 +26,7 @@ rewrite_standalone_links() {
   local temporary="${file}.standalone"
   /usr/bin/sed \
     -e 's#\.\./docs/#docs/#g' \
-    -e 's#\.\./windows/#https://github.com/Fei-Away/Codex-Dream-Skin/tree/main/windows/#g' \
+    -e 's#\.\./windows/#https://github.com/timmyc07/Xskin/tree/main/windows/#g' \
     "$file" > "$temporary"
   /bin/mv "$temporary" "$file"
 }

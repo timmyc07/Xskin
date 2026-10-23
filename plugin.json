@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-background-studio",
-  "version": "1.8.5",
-  "description": "Xskin: native image and original 4K MP4 backgrounds for Codex.",
+  "version": "1.9.4",
+  "description": "Xskin: an in-app background studio for images and original 4K MP4 on macOS.",
   "author": {
     "name": "Xskin contributors"
   },
@@ -21,8 +21,8 @@
       "onboardingSkill": "./skills/background-studio/SKILL.md",
       "interface": {
         "displayName": "Xskin",
-        "shortDescription": "Native background studio for images and original 4K video",
-        "longDescription": "Import, preview, and apply local images and original MP4 video backgrounds to Codex. Adjust one overlay across the whole window, choose from four languages, and apply backgrounds when the official Codex app opens.",
+        "shortDescription": "Change your background inside Codex on macOS",
+        "longDescription": "Open Xskin from the global sidebar to choose, preview, and apply local images or original MP4 video without opening a separate settings window. Adjust mask depth, pause or resume the saved background, and keep your existing four-language preferences. Requires macOS and local execution.",
         "developerName": "Xskin contributors",
         "category": "Productivity",
         "capabilities": [

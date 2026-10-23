@@ -1,10 +1,12 @@
-# Xskin for Windows 1.8.4
+# Xskin for Windows 1.8.5
+
+**1.8.5** retains the joined overlay corners and composer-layout fix. Startup remains shortcut-only without automatic close/reopen. The Windows runner/Flutter/package CI passed at functional source `bdd6751`; physical three-start, login/Store and route checks remain pending. macOS user confirmation does not replace Windows validation. See [validation scope](../docs/in-app-studio.md#composer-spacing-follow-up).
 
 1.8.4 retains the latest valid plan reported in the same conversation and identifies it as history, not live account status. Zero cache writes are “unconfirmed” with a source-value tooltip; missing fields never become zero. [Field meanings, sources and validation](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md). Windows physical acceptance remains pending.
 
 **1.8.2** recovers long-history usage, adds waiting/reconnecting status and native translucent materials. Final review removes duplicate tail reads and waits for the matching CSS during updates. [Review and validation limits](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/release-1.8.3-review.md). Official-page visuals and physical cold starts remain unverified.
 
-[Download Windows 1.8.4](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.4/Xskin-1.8.4-windows-x64.zip) · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4) · [繁體中文](README.md)
+[Download Windows 1.8.5](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.5/Xskin-1.8.5-windows-x64.zip) · [Release notes and SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5) · [繁體中文](README.md)
 
 Extract the entire package and run `Install Xskin.exe`, or open `xskin.exe` for first-use setup. Installation and upgrades preserve an open Codex, bundled Node, media, language, opacity and pause settings. No separate Node/Flutter installation is required for packaged users.
 
@@ -16,6 +18,6 @@ Upgrade migrates only verified legacy monitors/tasks, keeps the actual Unicode/c
 
 The four-language panel retains local preview, pending imports, saved themes and independent opacity. Usage appears in a translucent strip above the task input, wraps on narrow windows and stays hidden on Home. Composer/toolbar materials reveal the image/video while keeping native footer controls clear. The overlay retains exact-conversation usage, draft-to-final IDs, lifecycle-driven fan animation, incremental long-log reads and new-file tracking.
 
-For 1.8.3, Windows runner, Flutter analysis, all six tests and packaging passed CI. Current 1.8.4 results are recorded in [usage-field validation](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md). Three physical cold starts, login, Store updates and Home/task visual checks remain pending. Extract upgrades into a new folder and keep the old package. To roll back, disable shortcut backgrounds, close Xskin and reinstall from the saved package while retaining the data directory.
+At functional source `bdd6751`, [CI](https://github.com/timmyc07/Xskin/actions/runs/39955991318) and [Windows Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39955991299) passed, including Windows runners, Flutter analysis/tests and packaging. Publish only after final-commit checks pass; their results are recorded in the pull request and release notes. Three physical cold starts, login, Store updates and Home/task visual checks remain pending. Mac user confirmation does not validate Windows. Extract upgrades into a new folder and keep the old package. To roll back, disable shortcut backgrounds, close Xskin and reinstall the retained package without deleting saved data.
 
 **CDP/CSS injection authorization remains unconfirmed.** Loopback and unchanged official files do not establish official permission. See [evidence, validation and recovery](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/direct-launch-shortcut.md), the [Chinese guide](README.md), and [runtime notes](references/runtime-notes.md). Publishing a release does not establish authorization or compliance.

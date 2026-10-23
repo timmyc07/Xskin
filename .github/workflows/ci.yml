@@ -32,6 +32,14 @@ jobs:
             find macos -type f \( -name '*.sh' -o -name '*.command' \) \
               ! -path '*/release/*' -print
           )
+          bash -n plugin/launch-macos.sh
+
+      - name: Build and test embedded studio
+        run: |
+          npm ci --prefix plugin --ignore-scripts --no-audit --no-fund
+          npm run build --prefix plugin
+          git diff --exit-code -- plugin/dist
+          npm test --prefix plugin
 
       - name: Check Node.js syntax
         shell: bash
@@ -95,6 +103,7 @@ jobs:
           test -n "$expected"
           test "$common" = "$expected"
           test "$macos_injector" = "$expected"
+          node -e 'const fs = require("node:fs"); for (const file of ["plugin.json", "plugin/package.json", "macos/package.json"]) { if (JSON.parse(fs.readFileSync(file)).version !== process.argv[1]) process.exit(1); }' "$expected"
           windows_expected="$(tr -d '\r\n' < windows/VERSION)"
           test "$windows_injector" = "$windows_expected"
 

@@ -66,12 +66,30 @@ $state = @{name=$request.name; imagePath=$RequestPath; videoPath=$null; bytes=10
       final watcherFile = File(path.join(scripts.path, 'watcher-pid.txt'));
       if (await watcherFile.exists()) {
         final watcherPid = int.parse(await watcherFile.readAsString());
-        await Process.run('powershell.exe', [
+        final cleanup = await Process.run('powershell.exe', [
           '-NoProfile',
           '-Command',
-          '\$p = Get-CimInstance Win32_Process -Filter "ProcessId = $watcherPid"; '
-              'if (\$p.CommandLine -like "*XskinBridgeWatcher*") { Stop-Process -Id $watcherPid -Force }',
+          '\$watcherId = $watcherPid;\n'
+              r'''$ErrorActionPreference = 'Stop'
+$owned = Get-Process -Id $watcherId -ErrorAction SilentlyContinue
+if ($null -ne $owned) {
+  try {
+    $null = $owned.Handle
+    $identity = Get-CimInstance Win32_Process -Filter "ProcessId = $watcherId"
+    if ($identity.CommandLine -notlike '*XskinBridgeWatcher*') {
+      throw 'Refusing to stop an unrelated fixture process.'
+    }
+    Stop-Process -InputObject $owned -Force
+    if (-not $owned.WaitForExit(10000)) {
+      throw 'The fixture watcher did not exit before cleanup.'
+    }
+  } finally {
+    $owned.Dispose()
+  }
+}
+''',
         ]);
+        expect(cleanup.exitCode, 0, reason: cleanup.stderr.toString());
       }
       await fixture.delete(recursive: true);
     }

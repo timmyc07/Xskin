@@ -142,7 +142,8 @@
     }
     const composer = [...document.querySelectorAll("[data-composer-body]")].find(node =>
       !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
-    const anchor = composer?.closest("[data-composer-layout]") ?? composer;
+    // Keep the added height within the composer's layout container.
+    const anchor = composer;
     if (!anchor || !threadId) {
       row?.remove();
       row = text = cacheBar = cacheFill = cacheText = null;

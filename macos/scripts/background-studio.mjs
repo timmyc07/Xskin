@@ -26,6 +26,8 @@ const messages = Object.freeze({
   mask_updated: "Full-window mask applied. Playback and layout checks passed.",
   autostart_enabled: "Official Codex launches apply the saved background with one graceful reopen.",
   autostart_disabled: "Automatic backgrounds are off. The current background is unchanged.",
+  paused: "Background paused. Codex was left running and saved settings were preserved.",
+  resumed: "Saved background resumed. Codex was left running and automatic startup preferences were preserved.",
 });
 const errors = Object.freeze({
   invalid_media: "The background file is invalid. Import it again.",
@@ -36,6 +38,7 @@ const errors = Object.freeze({
   invalid_lock: "The studio lock file is invalid.",
   operation_busy: "A background operation is in progress. Wait for it to finish.",
   invalid_local_file: "Select a valid local file. Symbolic links are not supported.",
+  file_access_denied: "Xskin cannot access the selected file or its local import folder. Check file permissions and choose again.",
   video_size_limit: "MP4 must be a regular file no larger than 256 MiB.",
   image_size_limit: "Images must be regular files no larger than 50 MiB.",
   source_changed: "The file changed during import. Select it again.",
@@ -49,7 +52,8 @@ const errors = Object.freeze({
   apply_failed_unrestored: "The background was not applied, and previous settings could not be restored. Reopen Xskin to check its status.",
   mask_failed_restored: "The mask was not applied. Previous background settings were restored. Try again.",
   mask_failed_unrestored: "The mask was not applied, and previous settings could not be restored. Reopen Xskin to check its status.",
-  invalid_command: "Use status, import, apply, autostart, mask, or recover.",
+  resume_unavailable: "The saved background could not resume on an existing verified Codex connection. Codex was not opened or restarted.",
+  invalid_command: "Use status, import, apply, autostart, mask, pause, resume, or recover.",
   invalid_autostart: "The automatic apply setting is invalid.",
   invalid_mask: "Mask depth must be between 0 and 1, with at most two decimal places.",
   invalid_worker: "Internal background operations must be started by Xskin.",
@@ -59,6 +63,7 @@ const validId = (id) => typeof id === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){
 const validName = (name) => typeof name === "string" && name.length > 0 && name.length <= 240 && path.basename(name) === name && !/[\\\p{Cc}\u2028\u2029]/u.test(name);
 const readJson = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
 const fail = (errorCode) => Object.assign(new Error(errors[errorCode]), { errorCode });
+const importFailure = (error, fallback) => fail(["EACCES", "EPERM"].includes(error?.code) ? "file_access_denied" : fallback);
 
 async function atomicJson(file, value) {
   const temporary = `${file}.${randomUUID()}.tmp`;
@@ -140,7 +145,7 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.8.5",
+    version: "1.9.4",
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,
@@ -173,7 +178,7 @@ async function withLock(args) {
 async function readSource(file) {
   let handle;
   try { handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
-  catch { throw fail("invalid_local_file"); }
+  catch (error) { throw importFailure(error, "invalid_local_file"); }
   try {
     const before = await handle.stat();
     if (!before.isFile() || before.size < 1 || before.size > 50 * 1024 * 1024) throw fail("image_size_limit");
@@ -198,7 +203,7 @@ async function importMedia(file) {
   if (!video && !imageExtensions.has(extension)) throw fail("unsupported_format");
   if (video) {
     let stat;
-    try { stat = await fs.lstat(file); } catch { throw fail("invalid_local_file"); }
+    try { stat = await fs.lstat(file); } catch (error) { throw importFailure(error, "invalid_local_file"); }
     if (stat.isSymbolicLink()) throw fail("invalid_local_file");
     if (!stat.isFile() || stat.size < 1 || stat.size > MAX_VIDEO_BYTES) throw fail("video_size_limit");
   }
@@ -209,13 +214,13 @@ async function importMedia(file) {
   try {
     const uploaded = path.join(directory, `source${extension}`);
     if (video) {
-      try { await copyVideo(file, uploaded); } catch { throw fail("invalid_video"); }
+      try { await copyVideo(file, uploaded); } catch (error) { throw importFailure(error, "invalid_video"); }
     } else {
       await fs.writeFile(uploaded, bytes, { flag: "wx", mode: 0o600 });
     }
     const { raw, extension: posterExtension, imagePath } = await loadTheme(themeRoot);
     const imageName = `background-studio-${id}${video ? posterExtension : ".jpg"}`;
-    const config = { ...raw, id: `custom-studio-${id}`, name: Array.from(name.slice(0, -extension.length)).slice(0, 80).join(""), image: imageName, appearance: "dark", layout: "wallpaper", art: { safeArea: "none", taskMode: "ambient", focusX: 0.5, focusY: 0.5 } };
+    const config = { ...raw, id: `custom-studio-${id}`, name, image: imageName, appearance: "dark", layout: "wallpaper", art: { safeArea: "none", taskMode: "ambient", focusX: 0.5, focusY: 0.5 } };
     if (video) {
       config.video = `background-studio-${id}.mp4`;
       await fs.rename(uploaded, path.join(directory, config.video));
@@ -229,7 +234,9 @@ async function importMedia(file) {
       const height = Number(/pixelHeight:\s*(\d+)/.exec(stdout)?.[1]);
       if (!width || !height) throw fail("invalid_image");
       if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height > MAX_IMAGE_PIXELS) throw fail("image_dimensions");
-      await run("/usr/bin/sips", ["-s", "format", "jpeg", "-s", "formatOptions", "90", "-Z", String(Math.min(4096, Math.max(width, height))), uploaded, "--out", path.join(directory, imageName)], { timeout: 60000 });
+      try {
+        await run("/usr/bin/sips", ["-s", "format", "jpeg", "-s", "formatOptions", "90", "-Z", String(Math.min(4096, Math.max(width, height))), uploaded, "--out", path.join(directory, imageName)], { timeout: 60000 });
+      } catch { throw fail("image_conversion"); }
       const image = await fs.readFile(path.join(directory, imageName));
       if (!readImageMetadata(image, ".jpg") || image.length > 16 * 1024 * 1024) throw fail("image_conversion");
       await fs.unlink(uploaded);
@@ -246,7 +253,8 @@ async function importMedia(file) {
   }
 }
 
-async function applySelection(id) {
+async function applySelection(id, existingOnly = false) {
+  const startArgs = existingOnly ? ["--existing-only"] : [];
   const selected = await selectedMedia();
   if (!selected || id !== selected.public.id) throw fail("select_media");
   await loadTheme(selected.directory);
@@ -267,7 +275,7 @@ async function applySelection(id) {
     }
     await atomicJson(configPath, { ...selected.config, maskOpacity: previous.maskOpacity ?? DEFAULT_MASK_OPACITY });
     published = true;
-    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 });
+    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh"), ...startArgs], { timeout: 180000, maxBuffer: 1024 * 1024 });
     await fs.unlink(transactionPath);
     journaled = false;
   } catch {
@@ -276,7 +284,7 @@ async function applySelection(id) {
       try {
         await atomicJson(configPath, previous);
         restored = true;
-        await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 }).catch(() => {});
+        await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh"), ...startArgs], { timeout: 180000, maxBuffer: 1024 * 1024 }).catch(() => {});
       } catch {}
     }
     if (restored) {
@@ -295,7 +303,8 @@ async function applySelection(id) {
   return "applied";
 }
 
-async function applyMask(maskOpacity) {
+async function applyMask(maskOpacity, existingOnly = false) {
+  const startArgs = existingOnly ? ["--existing-only"] : [];
   const previous = (await loadTheme(themeRoot)).raw;
   const configPath = path.join(themeRoot, "theme.json");
   let published = false;
@@ -305,7 +314,7 @@ async function applyMask(maskOpacity) {
     journaled = true;
     await atomicJson(configPath, { ...previous, maskOpacity });
     published = true;
-    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 });
+    await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh"), ...startArgs], { timeout: 180000, maxBuffer: 1024 * 1024 });
     await fs.unlink(transactionPath);
     journaled = false;
   } catch {
@@ -314,7 +323,7 @@ async function applyMask(maskOpacity) {
       try {
         await atomicJson(configPath, previous);
         restored = true;
-        await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 }).catch(() => {});
+        await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh"), ...startArgs], { timeout: 180000, maxBuffer: 1024 * 1024 }).catch(() => {});
       } catch {}
     }
     if (restored && journaled) await fs.unlink(transactionPath).catch(() => {});
@@ -327,8 +336,10 @@ try {
   const args = process.argv.slice(2);
   const worker = args[0] === "--locked-worker";
   if (worker) args.shift();
+  const embedded = args[0] === "--embedded";
+  if (embedded) args.shift();
   const [command, value, ...extra] = args;
-  if (extra.length || !["status", "import", "apply", "autostart", "mask", "recover"].includes(command) || (["status", "recover"].includes(command) && value !== undefined)) throw fail("invalid_command");
+  if (extra.length || !["status", "import", "apply", "autostart", "mask", "pause", "resume", "recover"].includes(command) || (["status", "pause", "resume", "recover"].includes(command) && value !== undefined)) throw fail("invalid_command");
   if ((command === "import" && (!value || !path.isAbsolute(value))) || (command === "apply" && !validId(value))) throw fail(command === "import" ? "invalid_local_file" : "select_media");
   if (command === "autostart" && !["true", "false"].includes(value)) throw fail("invalid_autostart");
   if (command === "mask" && !/^(?:0(?:\.\d{1,2})?|1(?:\.0{1,2})?)$/.test(value ?? "")) throw fail("invalid_mask");
@@ -337,7 +348,7 @@ try {
     if (command === "status" || !stdout.trim().startsWith(`/usr/bin/lockf -ks -t 0 ${lockPath} ${process.execPath} ${script} --locked-worker `)) throw fail("invalid_worker");
   }
   if (command === "status") console.log(JSON.stringify(await status()));
-  else if (!worker) console.log(JSON.stringify(await withLock(args)));
+  else if (!worker) console.log(JSON.stringify(await withLock(embedded ? ["--embedded", ...args] : args)));
   else {
     const recovered = await recoverTransaction();
     if (command === "recover") {
@@ -346,8 +357,18 @@ try {
     }
     let messageCode;
     if (command === "import") messageCode = await importMedia(value);
-    else if (command === "apply") messageCode = await applySelection(value);
-    else if (command === "mask") messageCode = await applyMask(Number(value));
+    else if (command === "apply") messageCode = await applySelection(value, embedded);
+    else if (command === "mask") messageCode = await applyMask(Number(value), embedded);
+    else if (command === "pause") {
+      await run("/bin/bash", [path.join(scripts, "pause-dream-skin-macos.sh")], { timeout: 90000, maxBuffer: 1024 * 1024 });
+      messageCode = "paused";
+    }
+    else if (command === "resume") {
+      try {
+        await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh"), "--existing-only"], { timeout: 180000, maxBuffer: 1024 * 1024 });
+      } catch { throw fail("resume_unavailable"); }
+      messageCode = "resumed";
+    }
     else {
       await run("/bin/bash", [path.join(scripts, "autostart-dream-skin-macos.sh"), value === "true" ? "enable" : "disable"], { timeout: 30000 });
       messageCode = value === "true" ? "autostart_enabled" : "autostart_disabled";
@@ -355,7 +376,8 @@ try {
     console.log(JSON.stringify({ ...await status(), message: messages[messageCode], messageCode }));
   }
 } catch (error) {
-  const errorCode = Object.hasOwn(errors, error.errorCode) ? error.errorCode : "operation_failed";
+  const errorCode = Object.hasOwn(errors, error.errorCode) ? error.errorCode
+    : ["EACCES", "EPERM"].includes(error.code) ? "file_access_denied" : "operation_failed";
   console.log(JSON.stringify({ error: errors[errorCode], errorCode }));
   process.exitCode = process.argv[2] === "recover" && errorCode === "operation_busy" ? 75 : 1;
 }

@@ -1,5 +1,7 @@
 # 平台对照
 
+macOS/plugin **1.9.4** retains completed original-media previews through Apply, caps scrolling by host height/maxHeight and uses a thin transparent scrollbar with compact in-stage errors. Following the earlier 1.9.3 failures, the user confirmed the same video’s post-Apply preview, background and bottom controls work in actual-host 1.9.4. All 67 plugin tests, the full macOS runner, 204 isolated layouts / 720 scroll positions and functional-source CI passed. This does not establish cold starts, exhaustive routes or sustained FPS. Windows **1.8.5** is a separate shortcut-only package with no automatic reopen or in-app panel; its physical cold-start/login/Store/route checks remain pending. See [implementation, evidence and limits](in-app-studio.md).
+
 ## 运行模型（两边相同）
 
 ```text

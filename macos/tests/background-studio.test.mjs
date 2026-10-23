@@ -40,7 +40,7 @@ async function call(...args) {
 async function success(...args) {
   const result = await call(...args);
   assert.equal(result.code, 0, JSON.stringify(result.value));
-  const messageCode = { import: "imported", apply: "applied", mask: "mask_updated", autostart: args[1] === "true" ? "autostart_enabled" : "autostart_disabled" }[args[0]];
+  const messageCode = { import: "imported", apply: "applied", mask: "mask_updated", pause: "paused", resume: "resumed", autostart: args[1] === "true" ? "autostart_enabled" : "autostart_disabled" }[args[0]];
   if (messageCode) {
     assert.equal(result.value.messageCode, messageCode);
     assert.match(result.value.message, /^[\x20-\x7e]+$/u, "Successful operations have English default messages");
@@ -62,6 +62,7 @@ try {
   await fs.cp(path.join(root, "scripts"), path.join(engine, "scripts"), { recursive: true });
   // Replace every runtime mutation before starting the native CLI.
   await fs.writeFile(path.join(engine, "scripts/status-dream-skin-macos.sh"), '#!/bin/bash\nprintf \'{"session":"active"}\\n\'\n');
+  await fs.writeFile(path.join(engine, "scripts/pause-dream-skin-macos.sh"), '#!/bin/bash\nprintf "pause\\n" >> "$HOME/pause-calls"\n');
   await fs.writeFile(path.join(engine, "scripts/start-dream-skin-macos.sh"), `#!/bin/bash
 set -eu
 printf '%s\\n' "$*" >> "$HOME/start-calls"
@@ -105,7 +106,7 @@ esac
   await fs.writeFile(configPath, JSON.stringify(initial));
   await assert.rejects(loadTheme(theme, "../escape.json"), /Theme config must be a filename/u);
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.8.5");
+  assert.equal(initialStatus.version, "1.9.4");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);
@@ -121,6 +122,12 @@ esac
   await rejects(["autostart", "yes"], "invalid_autostart");
   await rejects(["status", "extra"], "invalid_command");
   await rejects(["recover", "extra"], "invalid_command");
+  await rejects(["pause", "extra"], "invalid_command");
+  await rejects(["resume", "extra"], "invalid_command");
+  assert.equal((await success("pause")).active.path, initialStatus.active.path);
+  assert.equal(await fs.readFile(path.join(home, "pause-calls"), "utf8"), "pause\n");
+  assert.deepEqual(await readJson(configPath), initial, "Pausing never rewrites the saved theme or starts Codex");
+  await assert.rejects(fs.access(path.join(home, "start-calls")), { code: "ENOENT" });
   assert.equal((await success("recover")).recovered, false);
   await rejects(["--locked-worker", "autostart", "true"], "invalid_worker");
   for (const value of [undefined, "", "-0.1", "1.01", "0.001", "NaN", "Infinity", "-Infinity", "1e-2", "0x1", " 0.5", ".5"]) {
@@ -157,6 +164,12 @@ esac
   execFileSync("/usr/bin/sips", ["-z", "2", "4097", source, "--out", largeImage], { stdio: "ignore" });
   const large = await success("import", largeImage);
   assert.equal(readImageMetadata(await fs.readFile(large.selection.path), ".jpg").width, 4096, "Large images are capped at 4096 pixels");
+  const namedSource = path.join(temporary, `${"長".repeat(30)} ${"n".repeat(70)} 🌙.png`);
+  await fs.copyFile(source, namedSource);
+  const named = await success("import", namedSource);
+  assert.equal(named.selection.name, path.basename(namedSource));
+  assert.equal((await readJson(path.join(path.dirname(named.selection.path), "theme.json"))).name, path.basename(namedSource),
+    "Stored display names retain the complete original basename, independently of generated media filenames");
   const imported = await success("import", source);
   assert.equal(imported.selection.kind, "image");
   assert.equal(imported.selection.name, path.basename(source));
@@ -166,11 +179,16 @@ esac
   assert.deepEqual(await readJson(configPath), initial, "Import must never apply a background");
   await assert.rejects(fs.access(path.join(home, "start-calls")), { code: "ENOENT" });
   assert.deepEqual((await success("status")).selection, imported.selection, "Pending imports survive a completely new CLI process");
+  await rejects(["apply", named.selection.id], "select_media");
+  assert.deepEqual((await success("status")).selection, imported.selection, "A replaced import from an older session cannot apply or remove the newer pending media");
+  await rejects(["import", invalid], "invalid_image");
+  assert.deepEqual((await success("status")).selection, imported.selection, "A failed replacement import keeps the existing pending media available for retry");
   assert.deepEqual(await stages(), [`import-${imported.selection.id}`]);
   await rejects(["apply", "wrong-id"], "select_media");
   const imageApplied = await success("apply", imported.selection.id);
   assert.equal(imageApplied.selection, null);
   assert.equal(imageApplied.active.kind, "image");
+  assert.equal(imageApplied.active.name, path.basename(source), "Applying preserves the original file label and extension rather than a generated UUID");
   assert.deepEqual(await fs.readFile(imageApplied.active.path), preview);
   assert.equal((await readJson(configPath)).layout, "wallpaper");
   assert.deepEqual(await stages(), []);
@@ -185,6 +203,17 @@ esac
 
   // This fixture proves byte preservation; a live test must prove 4K decoding.
   const mp4 = Buffer.from("000000186674797069736f6d0000020069736f6d6d703431", "hex");
+  const largeVideoSource = path.join(temporary, "96 MiB 原始影片 🌙.mp4");
+  const largeVideoFile = await fs.open(largeVideoSource, "wx");
+  await largeVideoFile.write(mp4);
+  await largeVideoFile.truncate(96 * 1024 * 1024);
+  await largeVideoFile.close();
+  const largeVideo = await success("import", largeVideoSource);
+  assert.equal(largeVideo.selection.bytes, 96 * 1024 * 1024, "A 96 MiB original MP4 is accepted without a smaller preview-size limit");
+  assert.equal((await fs.stat(largeVideo.selection.path)).size, 96 * 1024 * 1024);
+  assert.equal(largeVideo.selection.name, path.basename(largeVideoSource));
+  assert.deepEqual((await success("status")).selection, largeVideo.selection, "Large pending video survives a new backend process");
+  assert.equal((await readJson(configPath)).video, undefined, "A large video import remains pending without changing the current image");
   const videoSource = path.join(temporary, "4K 原始影片.mp4");
   await fs.writeFile(videoSource, mp4);
   const video = await success("import", videoSource);
@@ -201,12 +230,27 @@ esac
   assert.equal((await readJson(stagedConfigPath)).maskOpacity, 0.43, "A mask change does not rewrite pending media settings");
   const videoApplied = await success("apply", video.selection.id);
   assert.equal(videoApplied.active.kind, "video");
+  assert.equal(videoApplied.active.name, path.basename(videoSource));
   assert.equal(videoApplied.maskOpacity, 0.27, "Applying old pending media keeps the current active mask");
   assert.deepEqual(await fs.readFile(videoApplied.active.path), mp4);
   const previous = await readJson(configPath);
   assert.deepEqual(await fs.readFile(path.join(theme, previous.image)), preview, "The existing image remains the video fallback poster");
 
   const pending = await success("import", source);
+  const beforeResumeConfig = await fs.readFile(configPath);
+  for (const enabled of [false, true]) {
+    await success("autostart", String(enabled));
+    const resumed = await success("resume");
+    assert.deepEqual(resumed.selection, pending.selection, "Resume never applies or drops a pending import");
+    assert.equal(resumed.autostart, enabled, "Resume preserves either automatic-start preference");
+    assert.equal(resumed.active.path, videoApplied.active.path);
+    assert.deepEqual(await fs.readFile(configPath), beforeResumeConfig, "Resume reuses the exact saved theme");
+  }
+  assert.match(await fs.readFile(path.join(home, "start-calls"), "utf8"), /--existing-only\n--existing-only\n$/u);
+  await fs.writeFile(path.join(home, "fail-next-apply"), "");
+  await rejects(["resume"], "resume_unavailable");
+  assert.deepEqual(await fs.readFile(configPath), beforeResumeConfig);
+  assert.deepEqual((await success("status")).selection, pending.selection);
   await fs.writeFile(path.join(home, "fail-next-apply"), "");
   await rejects(["mask", "0.11"], "mask_failed_restored");
   assert.deepEqual(await readJson(configPath), previous, "A failed mask Verify restores the exact previous theme");
@@ -243,6 +287,8 @@ esac
   await rejects(["apply", replacement.selection.id], "operation_busy");
   await rejects(["autostart", "true"], "operation_busy");
   await rejects(["mask", "0.5"], "operation_busy");
+  await rejects(["pause"], "operation_busy");
+  await rejects(["resume"], "operation_busy");
   const currentConfig = await fs.readFile(configPath);
   assert.equal((await call("recover")).code, 75, "Recovery never rolls back another live operation holding the lock");
   assert.equal((await success("status")).selection.id, replacement.selection.id, "Status remains readable while another process owns the mutation lock");
@@ -329,6 +375,25 @@ esac
   await rejects(["status"], "invalid_selection");
   const repaired = await success("import", source);
   assert.equal(repaired.selection.kind, "image", "A fresh import repairs corrupt pending selection metadata");
+  await fs.writeFile(path.join(home, "start-calls"), "");
+  const embeddedMask = await call("--embedded", "mask", "0.17");
+  assert.equal(embeddedMask.code, 0);
+  assert.equal(embeddedMask.value.maskOpacity, 0.17);
+  assert.deepEqual(embeddedMask.value.selection, repaired.selection);
+  const beforeEmbeddedFailure = await fs.readFile(configPath);
+  await fs.writeFile(path.join(home, "fail-next-apply"), "");
+  await rejects(["--embedded", "mask", "0.21"], "mask_failed_restored");
+  assert.deepEqual(await fs.readFile(configPath), beforeEmbeddedFailure);
+  await fs.writeFile(path.join(home, "fail-next-apply"), "");
+  await rejects(["--embedded", "apply", repaired.selection.id], "apply_failed_restored");
+  assert.deepEqual(await fs.readFile(configPath), beforeEmbeddedFailure);
+  assert.deepEqual((await success("status")).selection, repaired.selection);
+  const embeddedApplied = await call("--embedded", "apply", repaired.selection.id);
+  assert.equal(embeddedApplied.code, 0);
+  assert.equal(embeddedApplied.value.selection, null);
+  assert.equal(embeddedApplied.value.autostart, false, "Embedded apply never enables automatic startup");
+  assert.deepEqual((await fs.readFile(path.join(home, "start-calls"), "utf8")).trim().split("\n"),
+    Array(6).fill("--existing-only"), "Embedded apply, mask and both rollback paths may only attach to an existing Codex connection");
   console.log("PASS: isolated native import, local preview paths, explicit apply, original MP4 bytes, mask validation/persistence/rollback, pending persistence, killed apply/mask recovery, foreign-journal protection, lock exclusion, autostart status, and structured English localization codes without child output leaks.");
 } finally {
   if (blocked && blocked.exitCode === null) {

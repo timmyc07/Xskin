@@ -14,3 +14,4 @@ macos/native/*.app/
 .env.*
 build/
 macos/bin/
+plugin/node_modules/

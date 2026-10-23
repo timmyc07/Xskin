@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.9.4 — 2026-10-23
+
+- Fix completed-preview loss after Apply changes media capabilities. Promote only the exact confirmed selection and validated original; share that Blob between preview/background without rereading it through the expired pending capability. Revalidate backend media revision and retain bounded reads, isolation and recovery.
+- Honor host fixed height/maxHeight when its iframe is taller than the visible host area. Preserve partial context, clear explicit unbounded/invalid caps, retain the 96px fallback, and place a thin transparent scrollbar at the viewport edge without shrinking the normal 16:9 preview.
+- Put unavailable-preview feedback inside the existing stage at its message height. Hide failed players and their paused-playback hint; preserve Refresh, Apply state and original media quality.
+- Correct packaged Windows-guide links to this repository in all three macOS package builders.
+- All 67 plugin tests, the full macOS runner, Doctor and passive live Verify pass. The local update preserves media/settings, language and the official process. The own-browser fixture passes 204 layouts / 720 scroll positions, including oversized iframe, zero/absent/reported safe areas, fixed/max host bounds, four languages, large text and failed previews. Image/MP4 Apply reuse their Blob with zero additional reads; the separate 77.6 MiB synthetic regression reads 156 chunks once.
+- Earlier 1.9.3 import/preview confirmation was followed by post-Apply failures. The user has now confirmed the same video’s post-Apply preview, background and bottom controls work in actual-host 1.9.4. Functional source `bdd6751` passed [CI](https://github.com/timmyc07/Xskin/actions/runs/39955991318) and [Windows Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39955991299). Final documentation-head checks remain separate. Physical cold starts, full route visuals, sustained playback and CDP/CSS authorization remain unconfirmed; Windows 1.8.5 stays shortcut-only.
+
+## 1.9.3 — earlier unpublished candidate
+
+- Expand Preview to the section's full width at 16:9 while retaining the complete original image/video without lowering resolution or re-encoding. Place the settings heading above its card rather than across its border.
+- Match the compact native language selector to host colors and spacing, retain native keyboard/popup behavior and wrap long settings labels and filenames inside their containers.
+- Move progress and errors immediately after preview actions. Translate supported import failures, including source/data-folder access and image conversion, rather than hiding the error below settings. Cancelled picker completions cannot start an import; the displayed version identifies the panel bundle. The user confirmed that the previously failing approximately 80 MB MP4 now shows its filename and preview in local 1.9.3. The previous failure's exact cause was not established.
+- All 53 plugin tests and the full macOS runner pass. The own-browser fixture passes 48 cases / 240 scroll positions plus eight narrow 200%-text cases with a 240-character filename; inner widths, text bounds, preview geometry, settings heading and adjacent chooser error are checked.
+- The user confirmed 1.9.2 background/controls and the actual-file import/preview in local 1.9.3. All 53 plugin tests and the full macOS runner pass. At `ff85d35`, [CI](https://github.com/timmyc07/Xskin/actions/runs/39948391600) passed static/plugin, PowerShell 5.1/7 and macOS backend checks; [Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39948391587) and final documentation-head checks are pending here. Three physical cold starts, complete Home/task visuals and sustained playback remain pending; this is not a new Apply confirmation for that MP4. Windows 1.8.5 remains shortcut-only.
+
+## 1.9.2 — earlier unpublished candidate
+
+- Confine the entire panel scrollport above the host composer at every scroll position, reserving the reported bottom safe area or a 96px fallback. Keep the official input present and unchanged.
+- Render the applied original background inside Xskin's own iframe, including over an opaque host canvas. Keep pending imports isolated to Preview; matching active/preview media share a Blob, with at most two media Blobs. Stop decorative video while hidden, paused or under Reduce Motion.
+- Replace header-wide language radios with a compact native select in a separate settings row. Retain four languages, keyboard access, first-setup availability, explicit recovery and cancellation.
+- Preserve original media without transcoding, including the checked 4K60 file. Add own-video frame/drop diagnostics using the existing Verify interval. A 5.48-second local sample measured approximately 59.1 presented FPS with zero additional dropped frames at 3840×2160; sustained playback remains unverified.
+- The user confirmed 1.9.1 video preview/Apply and later 1.9.2 background/controls. At `2952710`, 51 plugin tests, the full macOS runner, 48 opaque-canvas Chrome cases / 240 scroll positions and both [CI](https://github.com/timmyc07/Xskin/actions/runs/39942511976) and [Windows Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39942512050) passed. Physical cold starts, complete Home/task visuals and sustained playback remain pending. Stable downloads remain macOS 1.8.5 / Windows 1.8.4.
+
+## 1.9.1 — candidate, desktop acceptance pending
+
+- Replace HTTP preview serving with the app-only media tool, private per-session capabilities and bounded 512 KiB chunks assembled into local Blob previews. Recheck file identity per read, revoke stale capabilities and release previews on hide/close; no local HTTP preview port is opened.
+- Keep completed imports and Apply results when optional preview creation fails. Preserve original Chinese/emoji filenames instead of internal UUIDs, chooser cancellation and pending imports. A 96 MiB sparse MP4 fixture covers import/state handling, not codec playback.
+- Add Refresh and explicit interrupted-change recovery. Read-only status does not mutate settings. After a transport timeout/loss, refresh once and retry status rather than silently resending an uncertain change; expired selection IDs require choosing again. Keep editing disabled while recovery is pending.
+- Let confirmed Apply/mask transactions finish the backend's bounded forward/rollback phases instead of terminating them at the adapter's shorter outer limit. Retain other command deadlines. A scaled regression reproduces the old interrupted rollback and verifies restoration.
+- Use a transparent embedded canvas, host-aware light/dark colors and safe margins. Replace the language dropdown with four-language radio controls and preserve keyboard access on narrow layouts.
+- Move the usage row inside the enclosing composer layout, immediately before the body, preserving nested wrappers, toolbar order and subscription identity. Add no runtime observers or forced scrolling. A 16-case self-owned ResizeObserver browser model covers height reservation, removal and reader position; it does not establish the official app's internal cause.
+- The user has confirmed More → Xskin opens. The new preview and full Apply workflow remain pending in the actual host; new candidate CI results are not yet recorded. Windows remains a separate 1.8.5 candidate with physical cold-start/route acceptance pending. Published download links remain macOS 1.8.5 / Windows 1.8.4. See [scope and recovery](../docs/in-app-studio.md).
+
+## 1.9.0 — earlier unpublished candidate
+
+- Join the usage strip to the input with no bottom gap and lower corner cutouts that follow the input’s upper curves. Keep the center transparent, decorative paint non-interactive, and native geometry, Home hiding and narrow wrapping intact.
+
+- Fix the missing MCP/sidebar entry in the first candidate: launch the packaged executable with the required contained `./` command. Test the actual portable manifest's execution, permissions and Unicode paths; plugin installation alone is not proof that its MCP server loaded.
+
+- Add an official MCP App global Xskin entrypoint and a four-language in-app background panel. Reuse native imports, previews, pending selection, atomic apply, mask, startup preferences and saved background Pause/Resume.
+- Keep embedded Apply/mask/rollback/Resume on an existing verified connection. Never launch or quit Codex from these operations; prepare first imports without silently enabling automatic startup or rewriting official appearance preferences.
+- Kept private state outside model-visible content. This earlier candidate used loopback HTTP media previews; 1.9.1 supersedes that transport with app-only chunks and Blob previews.
+- Bundle locked SDKs and their licenses in self-contained release files. Native Xskin remains an explicit fallback; Windows stable downloads stay on 1.8.4, with a separate 1.8.5 overlay-shape candidate. See [evidence and host acceptance limits](../docs/in-app-studio.md).
+
 ## 1.8.5 — 2026-10-23
 
 - Retain the latest valid plan reported in the same session when later usage events omit it or provide `null`. Identify it as conversation history, not live account status; show “not provided” when the session never supplied a plan.

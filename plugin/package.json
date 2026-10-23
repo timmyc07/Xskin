@@ -1,0 +1,18 @@
+{
+  "name": "xskin-in-app-studio",
+  "version": "1.9.4",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.10" },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/ext-apps": "2.0.3",
+    "@modelcontextprotocol/server": "2.3.1",
+    "esbuild": "0.28.2",
+    "zod": "4.6.7"
+  }
+}

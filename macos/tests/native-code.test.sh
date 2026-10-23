@@ -110,6 +110,21 @@ done
 rm -f "$TEMPORARY/scripts/events" "$TEMPORARY/scripts/state/shortcut-enabled"
 if bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --restart-new-launch 321 FixtureStart >/dev/null 2>&1; then exit 1; fi
 [ ! -e "$TEMPORARY/scripts/events" ]
+# Resuming saved media never opens or reopens the official application.
+for state in closed ordinary connected; do
+  rm -f "$TEMPORARY/scripts/events" "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/no-cdp"
+  printf '{"session":"paused","port":19341}' > "$TEMPORARY/scripts/state/state.json"
+  [ "$state" = closed ] || touch "$TEMPORARY/scripts/running"
+  [ "$state" != ordinary ] || touch "$TEMPORARY/scripts/no-cdp"
+  if [ "$state" = connected ]; then
+    bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --existing-only
+    [ "$(cat "$TEMPORARY/scripts/events")" = $'stop-injector\ninject' ]
+  else
+    if bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --existing-only >/dev/null 2>&1; then exit 1; fi
+    [ ! -e "$TEMPORARY/scripts/events" ]
+  fi
+done
+touch "$TEMPORARY/scripts/no-cdp"
 cp "$ROOT/scripts/pause-dream-skin-macos.sh" "$TEMPORARY/scripts/"
 touch "$TEMPORARY/scripts/state/shortcut-enabled"
 printf '{"otherSetting":"保留 🌙"}' > "$TEMPORARY/scripts/state/state.json"
