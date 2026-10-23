@@ -66,13 +66,14 @@ function readEvent(line, record, now) {
     record.limitsRead = true;
     record.primary = limitWindow(limits.primary);
     record.secondary = limitWindow(limits.secondary);
-    record.planType = typeof limits.plan_type === "string" && /^[a-z][a-z0-9_-]{0,39}$/i.test(limits.plan_type)
-      ? limits.plan_type : null;
+    if (typeof limits.plan_type === "string" && /^[a-z][a-z0-9_-]{0,39}$/i.test(limits.plan_type)) {
+      record.planType = limits.plan_type;
+    }
   }
 }
 
 async function readEarlierState(handle, end, minimum, completeFirstLine, record, now) {
-  const complete = () => record.usage && Number.isFinite(record.activityAt) && record.limitsRead;
+  const complete = () => record.usage && Number.isFinite(record.activityAt) && record.limitsRead && record.planType;
   if (complete()) return;
   let pending = Buffer.alloc(0);
   let discard = true;
@@ -92,9 +93,9 @@ async function readEarlierState(handle, end, minimum, completeFirstLine, record,
     if (!record.limitsRead && earlier.limitsRead) {
       record.primary = earlier.primary;
       record.secondary = earlier.secondary;
-      record.planType = earlier.planType;
       record.limitsRead = true;
     }
+    if (!record.planType && earlier.planType) record.planType = earlier.planType;
     return complete();
   };
   while (end > minimum) {
@@ -309,8 +310,8 @@ export class TokenUsageReader {
           if (updates.limitsRead) {
             record.primary = updates.primary;
             record.secondary = updates.secondary;
-            record.planType = updates.planType;
           }
+          if (updates.planType) record.planType = updates.planType;
         }
       }
       record.mtimeMs = stat.mtimeMs;

@@ -117,7 +117,7 @@ try {
   assert.equal(validated.contextRemainingPercent, 0);
   assert.equal(validated.cachedInputTokens, 0);
   assert.equal(validated.primary, null);
-  assert.equal(validated.planType, null);
+  assert.equal(validated.planType, "prolite", "An invalid plan value does not erase the last valid plan in this session");
   assert.equal(Object.hasOwn(validated, "payload"), false);
   await fs.appendFile(filename, `${usage(1200, { info: {
     total_token_usage: { total_tokens: 1200, input_tokens: 1000, cached_input_tokens: 800, cache_write_input_tokens: 100, output_tokens: 200 },
@@ -129,6 +129,39 @@ try {
   assert.equal(writes.lastInputTokens, 200);
   assert.equal(writes.lastCachedInputTokens, 120);
   assert.equal(writes.lastCacheWriteInputTokens, 60);
+  for (const [value, expected] of [[undefined, null], [null, null], [0, 0], [100, 100], [1001, null]]) {
+    await fs.appendFile(filename, `${usage(1200, { info: {
+      total_token_usage: { total_tokens: 1200, input_tokens: 1000, cached_input_tokens: 800,
+        cache_write_input_tokens: value, output_tokens: 200 },
+      last_token_usage: { total_tokens: 250, input_tokens: 1000, cached_input_tokens: 800, cache_write_input_tokens: value },
+      model_context_window: 1000,
+    } })}\n`);
+    const writeSample = await reader.read(threadId);
+    assert.equal(writeSample.cacheWriteInputTokens, expected, "Cache writes preserve a reported zero and never infer missing or invalid counts");
+    assert.equal(writeSample.lastCacheWriteInputTokens, expected);
+  }
+
+  const planId = "11111111-1111-4111-8111-111111111111";
+  const planFile = path.join(directory, `rollout-plan-${planId}.jsonl`);
+  await fs.writeFile(planFile, `${usage(1200, { rate_limits: { plan_type: "plus", primary: null, secondary: null } })}\n`);
+  assert.equal((await reader.read(planId)).planType, "plus");
+  for (const plan of [undefined, null, "<script>", "", 42]) {
+    await fs.appendFile(planFile, `${usage(1200, { rate_limits: { plan_type: plan, primary: null, secondary: null } })}\n`);
+    const retained = await reader.read(planId);
+    assert.equal(retained.planType, "plus", "Missing, null and invalid plan fields do not erase this session's known plan");
+    assert.equal(retained.primary, null, "Retaining a plan does not restore older quota windows");
+    assert.equal(retained.secondary, null);
+  }
+  await fs.appendFile(planFile, `${usage(1200, { rate_limits: { plan_type: "business", primary: null, secondary: null } })}\n`);
+  assert.equal((await reader.read(planId)).planType, "business", "A newer valid plan replaces the previously known plan");
+  const unknownPlanId = "11111111-1111-4111-8111-222222222222";
+  const unknownPlanFile = path.join(directory, `rollout-plan-${unknownPlanId}.jsonl`);
+  const noPlanUsage = `${usage(1200, { rate_limits: { primary: null, secondary: null } })}\n`;
+  await fs.writeFile(unknownPlanFile, noPlanUsage);
+  assert.equal((await reader.read(unknownPlanId)).planType, null, "A session without a reported plan never borrows another session's plan");
+  await fs.rename(planFile, `${planFile}.old`);
+  await fs.writeFile(planFile, noPlanUsage);
+  assert.equal((await reader.read(planId)).planType, null, "Replacing a session file discards its old plan along with its other state");
   now += 10 * 86400000;
   const expired = await reader.read(threadId);
   assert.equal(expired.primary, null, "Unchanged files must not keep quota percentages after their reset.");
@@ -221,6 +254,36 @@ try {
     return handle;
   };
   try {
+    const planTail = total => `${lifecycle("task_started")}\n${usage(total, { rate_limits: {
+      plan_type: null, primary: null, secondary: null,
+    } })}\n`;
+    await fs.writeFile(historyFile, `${usage(3000, { rate_limits: { plan_type: "plus" } })}\n${usage(3025, {
+      rate_limits: { plan_type: "pro", primary: { used_percent: 50, window_minutes: 300, resets_at: 1795000000 } },
+    })}\n${toolOutput}${planTail(3050)}`);
+    const planHistoryReader = new TokenUsageReader({ codexHome: root, now: () => now });
+    const initialPlanHistory = await planHistoryReader.read(historyId);
+    assert.equal(initialPlanHistory.totalTokens, 3050);
+    assert.equal(initialPlanHistory.planType, "pro", "An initial long-file read finds the newest valid plan before a newer quota-only event");
+    assert.equal(initialPlanHistory.primary, null, "Recovering an older plan must not restore an explicitly cleared quota");
+    assert.equal(initialPlanHistory.secondary, null);
+    const afterPlanRecovery = readBytes;
+    assert.deepEqual(await planHistoryReader.read(historyId), initialPlanHistory);
+    assert.equal(readBytes, afterPlanRecovery, "Recovered plans do not trigger a history rescan on unchanged heartbeats");
+    await fs.appendFile(historyFile, `${usage(3075, { rate_limits: { plan_type: "business" } })}\n${toolOutput}${planTail(3100)}`);
+    const changedPlanHistory = await planHistoryReader.read(historyId);
+    assert.equal(changedPlanHistory.planType, "business", "A large append recovers a newer valid plan even when this session already had a plan");
+    assert.equal(changedPlanHistory.totalTokens, 3100);
+    assert.equal(changedPlanHistory.primary, null);
+    await fs.appendFile(historyFile, `${toolOutput}${planTail(3125)}`);
+    assert.equal((await planHistoryReader.read(historyId)).planType, "business", "A large append without a plan preserves the session's last valid plan");
+    await fs.writeFile(historyFile, `${toolOutput}${planTail(3150)}`);
+    const unknownPlanHistoryReader = new TokenUsageReader({ codexHome: root, now: () => now });
+    const unknownPlanHistory = await unknownPlanHistoryReader.read(historyId);
+    assert.equal(unknownPlanHistory.planType, null, "Long sessions with no valid plan stay unknown");
+    const afterUnknownPlan = readBytes;
+    assert.deepEqual(await unknownPlanHistoryReader.read(historyId), unknownPlanHistory);
+    assert.equal(readBytes, afterUnknownPlan, "A missing historical plan does not cause repeated full-file reads");
+
     await fs.writeFile(historyFile, `${usage(3050)}\n${toolOutput}${lifecycle("task_started")}\n`);
     const reopeningReader = new TokenUsageReader({ codexHome: root, now: () => now });
     const beforeUsageTail = await reopeningReader.read(historyId);

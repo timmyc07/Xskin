@@ -60,7 +60,7 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 
 Windows 优先读取当前输入框的正式 conversation ID，支持侧栏仍保留 `client-new-thread` 临时 ID 的新对话；正式侧栏 ID 与输入框 ID 不一致时先清空数据，避免切换途中显示其他对话的用量。每次 overlay 安装使用可序列化且稳定的标识，保留当前会话的文件订阅。
 
-缓存命中条使用最近一次模型调用的 `cached_input_tokens / input_tokens`，不是累计缓存比例；缓存写入量仅在官方记录提供该字段时显示。10 月 21 日 [prompt caching 公告](https://x.com/thsottiaux/status/2112712984644784534) 中的「永久缓存」无法从用量记录还原成内容清单，因此 overlay 不推算缓存库存或失效时间。
+缓存命中条使用最近一次模型调用的 `cached_input_tokens / input_tokens`，不是累计缓存比例；缓存写入量是来源回报的 Token 数，不是文件或磁盘写入。来源为 0 时显示「未确认」，提示保留来源值并说明上游可能默认填 0；缺少字段不会补成 0，也不以输入减缓存量推算写入。方案保留同一会话记录最后合法回报，并提示它不是即时账户状态；从未提供时显示「未提供」。[字段语义、官方来源及验证](usage-fields.md)。10 月 21 日 [prompt caching 公告](https://x.com/thsottiaux/status/2112712984644784534) 中的「永久缓存」无法从用量记录还原成内容清单，因此 overlay 不推算缓存库存或失效时间。
 
 数据源通过 `fs.watch` 将通知筛选到当前对话的确切记录文件，以 20ms 合并连续写入通知；250ms 检查当前路由与可见性，5 秒元数据心跳处理漏失通知、文件替换及额度失效。读取按顺序进行，相同结果去重，仅增量读取有上限的文件尾部，不以毫秒频率重复扫描整个会话目录。显示延迟仍取决于官方何时写入用量事件，不生成虚构的实时消耗。
 
@@ -152,3 +152,7 @@ A separate explicit full Restore may close/reopen Codex after confirmation. Acco
 ## macOS 1.8.4 / Windows 1.8.3 reliability
 
 Usage connections recover from clock changes and repeated renderer failures without restarting Codex. macOS also fixes direct-entry state/identity recovery, same-version engine synchronization, interrupted settings transactions and literal/owned launcher paths. [Scenario matrix, actual results and remaining limits](macos-reliability.md). The official macOS entry still uses one authorized graceful reopen; no supported persistent image/overlay launch hook was established. Windows remains shortcut-only with no automatic reopen.
+
+## macOS 1.8.5 / Windows 1.8.4 usage fields
+
+Retain the latest valid plan from the selected session without presenting it as live account information. Show an unprovided plan explicitly, and distinguish positive cache-write token counts from a zero whose upstream availability cannot be established. Missing write fields stay unavailable. This changes neither authentication nor startup behavior. [Source evidence, validation, upgrade and rollback](usage-fields.md).

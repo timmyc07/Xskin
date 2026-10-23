@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.5 — 2026-10-23
+
+- Retain the latest valid plan reported in the same session when later usage events omit it or provide `null`. Identify it as conversation history, not live account status; show “not provided” when the session never supplied a plan.
+- Label cache-write tokens explicitly. A source-reported zero is “unconfirmed” because the upstream protocol can default an unavailable value to zero; the tooltip retains that source value and explanation. Missing fields are never filled with zero, and positive values remain source-reported counts.
+- Targeted parser and overlay regression tests passed. Full-suite, package and CI results will be recorded in [usage-field validation](../docs/usage-fields.md); physical platform acceptance and CDP/CSS authorization remain unconfirmed.
+
 ## 1.8.4 — 2026-10-23
 
 - Recover stalled usage connections by reconnecting only Xskin's socket after repeated renderer failures. Use monotonic heartbeat timing and retain safe timestamp bounds across clock corrections and sleep; retry undelivered unchanged snapshots and queued reads after transient errors.

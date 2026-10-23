@@ -12,10 +12,12 @@
   const chinese = /^zh\b/i.test(document.documentElement.lang);
   const labels = chinese
     ? { total: "Token", cache: "快取", context: "上下文剩餘", quota: "額度剩餘", plan: "方案", input: "輸入", output: "輸出", stale: "資料暫不可用", cacheNote: "快取包含在輸入內", minute: "分", hour: "時", day: "天",
-      hit: "最近快取", hitDescription: "最近一次輸入的快取命中率", write: "寫入", totalWrite: "累計寫入", sampled: "Token 事件更新", retention: "服務端快取保存量與保留期限未提供",
+      hit: "最近快取", hitDescription: "最近一次輸入的快取命中率", write: "快取寫入", totalWrite: "累計快取寫入", sampled: "Token 事件更新", retention: "服務端快取保存量與保留期限未提供",
+      notProvided: "未提供", unconfirmed: "未確認", planNote: "方案採用此對話最近一次回報，可能不是即時帳戶狀態", writeNote: "快取寫入是來源回報的 token 數，並非檔案或磁碟寫入量", zeroWrite: "來源值為 0；該欄位可能使用來源預設值，實際快取寫入量未確認",
       waiting: "等待本機用量記錄", running: "任務執行中", disconnected: "用量連線暫時中斷，正在重新連接" }
     : { total: "Tokens", cache: "Cached", context: "Context left", quota: "Quota left", plan: "Plan", input: "Input", output: "Output", stale: "Usage unavailable", cacheNote: "Cached tokens are included in input", minute: "m", hour: "h", day: "d",
-      hit: "Recent cache", hitDescription: "Latest input cache hit rate", write: "Written", totalWrite: "Total written", sampled: "Token event updated", retention: "Server cache inventory and retention are not provided",
+      hit: "Recent cache", hitDescription: "Latest input cache hit rate", write: "Cache written", totalWrite: "Total cache written", sampled: "Token event updated", retention: "Server cache inventory and retention are not provided",
+      notProvided: "not provided", unconfirmed: "unconfirmed", planNote: "Plan is the latest report in this conversation, not necessarily the current account state", writeNote: "Cache writes are source-reported token counts, not file or disk writes", zeroWrite: "Source value is 0; that field may use a source default, so its actual cache writes are unconfirmed",
       waiting: "Waiting for local usage records", running: "Task running", disconnected: "Usage connection interrupted; reconnecting" };
   const numbers = new Intl.NumberFormat(chinese ? "zh-TW" : "en", { maximumFractionDigits: 0 });
   const compactNumbers = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
@@ -80,7 +82,7 @@
       `${windowLabel(snapshot?.primary)} ${percent(snapshot?.primary?.remainingPercent)}`,
     ];
     if (snapshot?.secondary) parts.push(`${windowLabel(snapshot.secondary)} ${percent(snapshot.secondary.remainingPercent)}`);
-    parts.push(`${labels.plan} ${typeof snapshot?.planType === "string" && snapshot.planType ? snapshot.planType : "—"}`);
+    parts.push(`${labels.plan} ${typeof snapshot?.planType === "string" && snapshot.planType ? snapshot.planType : labels.notProvided}`);
     const value = available ? parts.join(" · ") : disconnected ? labels.disconnected
       : `${snapshot?.running ? `${labels.running} · ` : ""}${labels.waiting}`;
     if (text.textContent !== value) text.textContent = value;
@@ -88,7 +90,7 @@
     const title = (available
       ? `${labels.total} ${count(snapshot.totalTokens)} · ${labels.input} ${count(snapshot.inputTokens)} · ${labels.output} ${count(snapshot.outputTokens)} · ${labels.cache} ${count(snapshot.cachedInputTokens)} · ${labels.cacheNote}\n${labels.sampled} ${date(sampledAt)}`
       : value
-    ) + `\n${labels.retention}`;
+    ) + `\n${labels.planNote}\n${labels.retention}`;
     if (row.title !== title) row.title = title;
     const input = snapshot?.lastInputTokens;
     const cached = snapshot?.lastCachedInputTokens;
@@ -106,11 +108,12 @@
     if (cacheFill.style.getPropertyValue("transform") !== scale) cacheFill.style.setProperty("transform", scale);
     const write = snapshot?.lastCacheWriteInputTokens;
     const totalWrite = snapshot?.cacheWriteInputTokens;
-    const writeLabel = Number.isFinite(write) && write >= 0 ? `${labels.write} ${compact(write)}`
-      : Number.isFinite(totalWrite) && totalWrite >= 0 ? `${labels.totalWrite} ${compact(totalWrite)}` : "";
+    const writeLabel = Number.isFinite(write) && write > 0 ? `${labels.write} ${compact(write)}`
+      : Number.isFinite(totalWrite) && totalWrite > 0 ? `${labels.totalWrite} ${compact(totalWrite)}`
+      : write === 0 || totalWrite === 0 ? `${labels.write} ${labels.unconfirmed}` : "";
     const cacheValue = `${labels.hit} ${percent(hit)}${writeLabel ? ` · ${writeLabel}` : ""}`;
     if (cacheText.textContent !== cacheValue) cacheText.textContent = cacheValue;
-    const cacheTitle = `${labels.hitDescription} · ${labels.input} ${count(input)} · ${labels.cache} ${count(cached)}\n${labels.write} ${count(write)} · ${labels.totalWrite} ${count(totalWrite)}\n${labels.sampled} ${date(sampledAt)}\n${labels.retention}`;
+    const cacheTitle = `${labels.hitDescription} · ${labels.input} ${count(input)} · ${labels.cache} ${count(cached)}\n${labels.write} ${count(write)} · ${labels.totalWrite} ${count(totalWrite)}\n${labels.writeNote}${write === 0 || totalWrite === 0 ? `\n${labels.zeroWrite}` : ""}\n${labels.sampled} ${date(sampledAt)}\n${labels.retention}`;
     if (cacheBar.parentElement.title !== cacheTitle) cacheBar.parentElement.title = cacheTitle;
     cacheBar.parentElement.style.setProperty("display", available ? "" : "none");
     row.dataset.usageState = available ? "ready" : disconnected ? "reconnecting" : "waiting";

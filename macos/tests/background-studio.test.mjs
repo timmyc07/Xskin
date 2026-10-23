@@ -105,7 +105,7 @@ esac
   await fs.writeFile(configPath, JSON.stringify(initial));
   await assert.rejects(loadTheme(theme, "../escape.json"), /Theme config must be a filename/u);
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.8.4");
+  assert.equal(initialStatus.version, "1.8.5");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);

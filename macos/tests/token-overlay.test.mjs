@@ -335,7 +335,7 @@ assert.match(cache.cacheText, /最近快取 —/);
 assert.equal(cache.cacheBar.getAttribute("role"), "progressbar");
 assert.equal(cache.cacheBar.getAttribute("aria-valuenow"), null, "Unknown cache hit is an indeterminate progressbar");
 assert.equal(cache.cacheBar.dataset.available, "false");
-cache.overlay.update(cache.sample({ totalTokens: 1234567, lastInputTokens: 1000, lastCachedInputTokens: 250,
+cache.overlay.update(cache.sample({ totalTokens: 1234567, lastInputTokens: 2000, lastCachedInputTokens: 500,
   cacheWriteInputTokens: 12345, lastCacheWriteInputTokens: 1234 }));
 assert.match(cache.text, /Token 1\.2M/);
 assert.match(cache.row.title, /Token 1,234,567.*快取 600/);
@@ -345,13 +345,13 @@ assert.equal(cache.cacheBar.getAttribute("aria-valuenow"), "25", "Cache hit uses
 assert.equal(cache.cacheBar.getAttribute("aria-valuemin"), "0");
 assert.equal(cache.cacheBar.getAttribute("aria-valuemax"), "100");
 assert.equal(cache.cacheBar.children[0].style.getPropertyValue("transform"), "scaleX(0.25)");
-assert.match(cache.cacheText, /最近快取 25% · 寫入 1,234/);
-assert.match(cache.cacheBar.parentElement.title, /輸入 1,000.*快取 250/);
-assert.match(cache.cacheBar.parentElement.title, /寫入 1,234.*累計寫入 12,345/);
+assert.match(cache.cacheText, /最近快取 25% · 快取寫入 1,234/);
+assert.match(cache.cacheBar.parentElement.title, /輸入 2,000.*快取 500/);
+assert.match(cache.cacheBar.parentElement.title, /快取寫入 1,234.*累計快取寫入 12,345/);
 cache.advance(1);
 cache.overlay.update(cache.sample({ lastInputTokens: 100, lastCachedInputTokens: 0, cacheWriteInputTokens: 50 }));
 assert.equal(cache.cacheBar.getAttribute("aria-valuenow"), "0", "A real zero cache hit remains known");
-assert.match(cache.cacheText, /最近快取 0% · 累計寫入 50/);
+assert.match(cache.cacheText, /最近快取 0% · 累計快取寫入 50/);
 cache.advance(1);
 cache.overlay.update(cache.sample({ lastInputTokens: 0, lastCachedInputTokens: 0 }));
 assert.equal(cache.cacheBar.getAttribute("aria-valuenow"), null, "A zero-input request does not invent a hit percentage");
@@ -364,6 +364,28 @@ assert.equal(cache.cacheBar.getAttribute("aria-valuenow"), null);
 assert.equal(cache.row.children.length, 3, "Memory is removed so the requested usage metrics have more space");
 assert.equal(cache.overlay.updateMemory, undefined);
 cache.overlay.dispose();
+for (const lang of ["zh-TW", "en"]) {
+  const reported = fixture({ lang });
+  reported.overlay.update(reported.sample({ planType: null, lastInputTokens: 1000, lastCachedInputTokens: 999,
+    cacheWriteInputTokens: 0, lastCacheWriteInputTokens: 0 }));
+  assert.match(reported.text, lang === "zh-TW" ? /方案 未提供/ : /Plan not provided/);
+  assert.match(reported.row.title, lang === "zh-TW" ? /此對話最近一次回報/ : /latest report in this conversation/);
+  assert.match(reported.cacheText, lang === "zh-TW" ? /最近快取 99.9% · 快取寫入 未確認/ : /Recent cache 99.9% · Cache written unconfirmed/);
+  assert.match(reported.cacheBar.parentElement.title, lang === "zh-TW" ? /來源值為 0.*來源預設值/ : /Source value is 0.*source default/);
+  assert.match(reported.cacheBar.parentElement.title, lang === "zh-TW" ? /並非檔案或磁碟寫入量/ : /not file or disk writes/);
+  reported.advance(1);
+  reported.overlay.update(reported.sample({ planType: "pro", lastCacheWriteInputTokens: 30, cacheWriteInputTokens: 300 }));
+  assert.match(reported.text, lang === "zh-TW" ? /方案 pro/ : /Plan pro/);
+  assert.match(reported.cacheText, lang === "zh-TW" ? /快取寫入 30/ : /Cache written 30/);
+  assert.doesNotMatch(reported.cacheBar.parentElement.title, /來源值為 0|Source value is 0/);
+  reported.advance(1);
+  reported.overlay.update(reported.sample({ cacheWriteInputTokens: 0, lastCacheWriteInputTokens: 0 }));
+  assert.doesNotMatch(reported.cacheText, /30/, "A zero report must never retain a previous positive write count");
+  reported.advance(1);
+  reported.overlay.update(reported.sample());
+  assert.doesNotMatch(reported.cacheText, /快取寫入|Cache written/, "Absent write fields stay absent after a zero report");
+  reported.overlay.dispose();
+}
 for (const surface of ["work", "dot", "other"]) {
   const absent = fixture({ surface });
   assert.equal(absent.overlay, undefined);
