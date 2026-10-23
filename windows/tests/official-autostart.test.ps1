@@ -91,7 +91,22 @@ if (Test-Path -LiteralPath (Join-Path $StateRoot 'fail')) { throw 'fixture failu
   Write-DreamSkinState -Path (Join-Path $stateRoot 'state.json') -State @{ codexPid = 999; codexStartedAt = 'old' }
   Invoke-DreamSkinAutostartStep -Candidates @() -Context $context -StateRoot $stateRoot
   if ($stopped -ne 1) { throw 'Exited session retained its recorded injector.' }
+
+  $fake | Add-Member -MemberType NoteProperty -Name HasExited -Value $false
+  function Get-Process { return $fake }
+  Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State @{
+    processId = $fake.Id; startedAt = $startedAt
+  }
+  $stateHash = (Get-FileHash -LiteralPath (Join-Path $stateRoot 'autostart.json')).Hash
+  function Get-CimInstance { $fake.HasExited = $true; return $null }
+  if (Get-DreamSkinAutostartProcess -StateRoot $stateRoot -Strict) { throw 'An exited monitor was returned as live.' }
+  $fake.HasExited = $false
+  function Get-CimInstance { return $null }
+  try { $null = Get-DreamSkinAutostartProcess -StateRoot $stateRoot -Strict; throw 'Uninspectable live monitor was accepted.' }
+  catch { if ($_.Exception.Message -notmatch 'identity does not match') { throw } }
+  if ((Get-FileHash -LiteralPath (Join-Path $stateRoot 'autostart.json')).Hash -cne $stateHash) { throw 'Monitor identity checks modified its saved state.' }
+  Remove-Item Function:\Get-Process
 } finally {
   Remove-Item -LiteralPath $temporary -Recurse -Force
 }
-Write-Host 'PASS: fresh exact identities, graceful refusal, existing/paused/debug skipping, three rapid launches, failure isolation and injector exit cleanup.'
+Write-Host 'PASS: fresh exact identities, graceful refusal, existing/paused/debug skipping, rapid launches, failure isolation, injector cleanup and monitor query/exit race.'
