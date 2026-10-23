@@ -1,23 +1,23 @@
 # Xskin user guide
 
-**macOS/plugin 1.9.4 candidate (not published)** addresses the later 1.9.3 Apply screenshots: media capability/revision changes could invalidate a completed preview, and the panel ignored host height limits. It retains confirmed original-media Blobs, bounds scrolling by host height/maxHeight, uses a thin transparent scrollbar and replaces an unavailable player with an in-stage message. Working Preview remains full-width at 16:9. The earlier approximately 80 MB MP4 filename/preview confirmation did not validate the subsequent Apply state. All 204 isolated layout cases / 720 scroll positions passed; actual-host retesting remains pending. See [candidate installation and evidence](in-app-studio.md). Published downloads and the standalone instructions below remain macOS 1.8.5 / Windows 1.8.4.
+**macOS/plugin 1.9.4** provides an in-Codex panel at **More → Xskin**. It preserves completed original-media previews through Apply, respects host height/maxHeight and uses a thin transparent scrollbar. Working Preview remains full-width at 16:9; unavailable players become a compact in-stage message. After the earlier 1.9.3 post-Apply failures, the user confirmed the same video now keeps its preview, background and bottom controls working in actual-host 1.9.4. All 67 plugin tests, the full macOS runner, 204 isolated layouts / 720 scroll positions and functional-source CI passed. Physical cold starts, exhaustive routes and sustained playback remain pending. See [installation and evidence](in-app-studio.md). The standalone native app remains available below; Windows uses its separate 1.8.5 package.
 
 Xskin is a standalone native macOS app. Import local images or MP4s, inspect a native preview, and apply them as Codex backgrounds from one focused window.
 
 ## Install and open
 
-[Download Xskin 1.8.5 for macOS](https://github.com/timmyc07/Xskin/releases/tag/v1.8.5), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.4 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
+[Download Xskin 1.9.4 for macOS](https://github.com/timmyc07/Xskin/releases/download/v1.9.4/Xskin-v1.9.4-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.5 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
 
 The release uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Confirm that the download came from this project's Release page before opening it.
 
-The published 1.8.5 plugin opens the standalone native app. Download its ZIP from the [1.8.5 release page](https://github.com/timmyc07/Xskin/releases/tag/v1.8.5), retain the complete folder and run these commands inside it. The unpublished embedded candidate instead uses the [source installation guide](in-app-studio.md#install-or-update-locally).
+For the embedded panel, download the [macOS plugin 1.9.4 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.4/xskin-plugin-v1.9.4.zip), retain the complete folder and run these commands inside it:
 
 ```sh
 codex plugin marketplace add .
 codex plugin add codex-background-studio@codex-background-studio-local
 ```
 
-For the published 1.8.5 plugin, ask Codex to “Open Xskin” to launch the separate native window. The unpublished 1.9.4 candidate instead opens an embedded panel. Both retain existing saved media/preferences; candidate Apply requires an existing verified background connection.
+Open **More → Xskin** inside Codex, or ask Codex to “Open Xskin”. The plugin opens an embedded panel; the separate native app remains available. Existing saved media/preferences are shared, and embedded Apply requires an existing verified background connection. See [connection and startup requirements](in-app-studio.md#applying-without-interrupting-the-current-app).
 
 ## Import, preview, and apply
 

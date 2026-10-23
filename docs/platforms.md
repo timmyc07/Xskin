@@ -1,6 +1,6 @@
 # 平台对照
 
-macOS/plugin **1.9.4 candidate (not published)** follows the later 1.9.3 Apply screenshots, which exposed media-capability/revision changes, failed previews and ignored host height limits despite earlier filename/preview confirmation. It retains confirmed original-media Blobs, caps the scrollport with host height/maxHeight, uses a thin transparent scrollbar and shows compact in-stage errors instead of a blank player. The latest own-browser checks pass 204 layouts / 720 scroll positions; actual-host retesting, cold starts, full routes and sustained playback remain pending. Windows 1.8.5 remains a separate shortcut-only candidate with no automatic reopen or in-app panel. Published downloads remain macOS 1.8.5 / Windows 1.8.4. See [implementation and evidence](in-app-studio.md).
+macOS/plugin **1.9.4** retains completed original-media previews through Apply, caps scrolling by host height/maxHeight and uses a thin transparent scrollbar with compact in-stage errors. Following the earlier 1.9.3 failures, the user confirmed the same video’s post-Apply preview, background and bottom controls work in actual-host 1.9.4. All 67 plugin tests, the full macOS runner, 204 isolated layouts / 720 scroll positions and functional-source CI passed. This does not establish cold starts, exhaustive routes or sustained FPS. Windows **1.8.5** is a separate shortcut-only package with no automatic reopen or in-app panel; its physical cold-start/login/Store/route checks remain pending. See [implementation, evidence and limits](in-app-studio.md).
 
 ## 运行模型（两边相同）
 

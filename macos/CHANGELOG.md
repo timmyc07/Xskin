@@ -1,12 +1,13 @@
 # Changelog
 
-## 1.9.4 — candidate, not published
+## 1.9.4 — 2026-10-23
 
 - Fix completed-preview loss after Apply changes media capabilities. Promote only the exact confirmed selection and validated original; share that Blob between preview/background without rereading it through the expired pending capability. Revalidate backend media revision and retain bounded reads, isolation and recovery.
 - Honor host fixed height/maxHeight when its iframe is taller than the visible host area. Preserve partial context, clear explicit unbounded/invalid caps, retain the 96px fallback, and place a thin transparent scrollbar at the viewport edge without shrinking the normal 16:9 preview.
 - Put unavailable-preview feedback inside the existing stage at its message height. Hide failed players and their paused-playback hint; preserve Refresh, Apply state and original media quality.
+- Correct packaged Windows-guide links to this repository in all three macOS package builders.
 - All 67 plugin tests, the full macOS runner, Doctor and passive live Verify pass. The local update preserves media/settings, language and the official process. The own-browser fixture passes 204 layouts / 720 scroll positions, including oversized iframe, zero/absent/reported safe areas, fixed/max host bounds, four languages, large text and failed previews. Image/MP4 Apply reuse their Blob with zero additional reads; the separate 77.6 MiB synthetic regression reads 156 chunks once.
-- Earlier 1.9.3 import/preview confirmation was followed by post-Apply failure screenshots, so release and acceptance are paused for actual 1.9.4 retesting. Earlier e3c5143 CI 39950557639 / 39950557677 passed; final new-head checks, physical cold starts, full route visuals and sustained playback remain pending. Published downloads remain macOS 1.8.5 / Windows 1.8.4.
+- Earlier 1.9.3 import/preview confirmation was followed by post-Apply failures. The user has now confirmed the same video’s post-Apply preview, background and bottom controls work in actual-host 1.9.4. Functional source `bdd6751` passed [CI](https://github.com/timmyc07/Xskin/actions/runs/39955991318) and [Windows Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39955991299). Final documentation-head checks remain separate. Physical cold starts, full route visuals, sustained playback and CDP/CSS authorization remain unconfirmed; Windows 1.8.5 stays shortcut-only.
 
 ## 1.9.3 — earlier unpublished candidate
 

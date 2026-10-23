@@ -40,7 +40,7 @@ rewrite_links() {
   [ -f "$file" ] || return 0
   /usr/bin/sed \
     -e 's#\.\./docs/#docs/#g' \
-    -e 's#\.\./windows/#https://github.com/Fei-Away/Codex-Dream-Skin/tree/main/windows/#g' \
+    -e 's#\.\./windows/#https://github.com/timmyc07/Xskin/tree/main/windows/#g' \
     "$file" > "${file}.standalone"
   /bin/mv "${file}.standalone" "$file"
 }
