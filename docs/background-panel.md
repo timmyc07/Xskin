@@ -4,7 +4,7 @@ Xskin is a standalone native macOS app. Import local images or MP4s, inspect a n
 
 ## Install and open
 
-[Download Xskin 1.8.2 for macOS](https://github.com/timmyc07/Xskin/releases/tag/v1.8.2), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.1 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
+[Download Xskin 1.8.3 for macOS](https://github.com/timmyc07/Xskin/releases/tag/v1.8.3), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.2 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.2). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
 
 The release uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Confirm that the download came from this project's Release page before opening it.
 
@@ -47,7 +47,9 @@ A cold start still needs app loading and media decoding. CDP/CSS injection autho
 
 ## Conversation usage
 
-macOS 1.8.2 / Windows 1.8.1 place usage in a translucent strip **above** the task input. Long metrics wrap within the available width; the native project/files/plugins toolbar retains its own placement and controls. Home has no empty usage strip. Composer and toolbar surfaces reveal the selected background, with matching translucent material in video mode.
+macOS 1.8.3 / Windows 1.8.2 place usage in a translucent strip **above** the task input. Long metrics wrap within the available width; the native project/files/plugins toolbar retains its own placement and controls. Home has no empty usage strip. Composer and toolbar surfaces reveal the selected background, with matching translucent material in video mode.
+
+Long local histories recover their earlier usage without waiting for another event. Unknown usage shows a waiting/reconnecting label; it is not displayed as an all-empty metric row. Native header and settings/menu materials use the shared tint, with actual-route visual validation still pending.
 
 ## Media and playback limits
 

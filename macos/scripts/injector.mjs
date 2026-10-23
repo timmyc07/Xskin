@@ -824,7 +824,7 @@ async function verifySession(session) {
   })()`);
 }
 
-export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, prepareFirstFrame = false) {
+export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, prepareFirstFrame = false, expectedStyleRevision) {
   const deadline = Date.now() + timeoutMs;
   let lastResult;
   let previousVideoTime = null;
@@ -835,6 +835,10 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
+    if (expectedStyleRevision !== undefined) {
+      lastResult.styleMatches = lastResult.styleRevision === expectedStyleRevision;
+      lastResult.pass &&= lastResult.styleMatches;
+    }
     if (prepareFirstFrame && expectedTheme.video &&
       !(lastResult.surface === 'work' && lastResult.video?.hostHidden === true) &&
       !(lastResult.surface === 'dot' && lastResult.video?.cardsVisible === false && lastResult.dotCards.length === 0)) {
@@ -916,11 +920,7 @@ async function runOneShot(options) {
       if (options.mode !== "remove") await updateUsageOverlay(session, usageReader);
       const result = options.mode === "remove"
         ? await verifyRemovedSession(session)
-        : await waitForVerifiedSession(session, options.timeoutMs, loaded.theme, options.prepareFirstFrame);
-      if (options.mode !== "remove") {
-        result.styleMatches = result.styleRevision === loaded.styleRevision;
-        result.pass &&= result.styleMatches;
-      }
+        : await waitForVerifiedSession(session, options.timeoutMs, loaded.theme, options.prepareFirstFrame, loaded.styleRevision);
       results.push({ targetId: target.id, surface: probe.surface, result });
 
       if (options.screenshot && !screenshotCaptured) {

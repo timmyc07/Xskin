@@ -875,7 +875,7 @@ async function verifySession(session) {
   })()`);
 }
 
-export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, prepareFirstFrame = false) {
+export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, prepareFirstFrame = false, expectedStyleRevision) {
   const deadline = Date.now() + timeoutMs;
   let lastResult;
   let previousVideoTime = null;
@@ -886,6 +886,10 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
+    if (expectedStyleRevision !== undefined) {
+      lastResult.styleMatches = lastResult.styleRevision === expectedStyleRevision;
+      lastResult.pass &&= lastResult.styleMatches;
+    }
     if (prepareFirstFrame && expectedTheme.video &&
       !(lastResult.surface === 'work' && lastResult.video?.hostHidden === true) &&
       !(lastResult.surface === 'dot' && lastResult.video?.cardsVisible === false && lastResult.dotCards.length === 0)) {
@@ -958,13 +962,7 @@ async function runOneShot(options) {
         if (options.mode !== "remove") await updateUsageOverlay(session, usageReader);
         const verified = options.mode === "remove"
           ? await verifyRemovedSession(session)
-          : (options.reload || options.mode === "once" || options.mode === "verify")
-            ? await waitForVerifiedSession(session, options.timeoutMs, loadedPayload.theme, options.prepareFirstFrame)
-            : await verifySession(session);
-        if (options.mode !== "remove") {
-          verified.styleMatches = verified.styleRevision === loadedPayload.styleRevision;
-          verified.pass &&= verified.styleMatches;
-        }
+          : await waitForVerifiedSession(session, options.timeoutMs, loadedPayload.theme, options.prepareFirstFrame, loadedPayload.styleRevision);
         results.push({ targetId: target.id, markers: probe.markers, result: verified });
         if (options.screenshot && !screenshotCaptured) {
           await capture(session, options.screenshot);

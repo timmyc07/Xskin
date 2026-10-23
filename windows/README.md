@@ -1,8 +1,8 @@
-# Xskin for Windows 1.8.1
+# Xskin for Windows 1.8.2
 
-未發布的 **1.8.2 原始碼**已補上長工具輸出前的用量回補、等待／重新連線提示，以及頁面頂欄、清單、設定、選單與對話框的共用半透明材質。[覆蓋與驗證](https://github.com/timmyc07/Xskin/blob/codex/fix-usage-availability/docs/surface-materials.md)。下方已發布下載仍是 1.8.1。 後續另補原生材質色票與黏性頂欄裝飾層；官方各頁面的實機目視驗證仍待完成。
+**1.8.2** 補上長紀錄用量回復、等待／重新連線提示與原生半透明材質。最終審核移除重複檔尾讀取，並讓更新驗證等待新版樣式載入。[審核與驗證限制](https://github.com/timmyc07/Xskin/blob/windows-v1.8.2/docs/release-1.8.3-review.md)。官方各頁目視與 Windows 實機冷啟動仍待驗證。
 
-[下載 Windows 1.8.1](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.1/Xskin-1.8.1-windows-x64.zip) · [發行說明與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1) · [English](README.en.md)
+[下載 Windows 1.8.2](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.2/Xskin-1.8.2-windows-x64.zip) · [發行說明與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.2) · [English](README.en.md)
 
 ## 安裝與使用
 
@@ -36,7 +36,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\restore-dream-sk
 
 狀態列僅讀取目前本機對話的 session 記錄。新對話仍使用暫時側欄 ID 時，改由目前輸入框取得正式 ID；風扇依任務開始、完成與中斷事件控制。長紀錄首次必要時向前尋找任務狀態，後續只讀新增範圍。session 新建／替換、切換、資料隔離及序列化訂閱均有回歸測試。不讀取 `auth.json`、不推測方案或虛構用量。
 
-CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](https://github.com/timmyc07/Xskin/blob/windows-v1.8.1/docs/direct-launch-shortcut.md)。
+CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](https://github.com/timmyc07/Xskin/blob/windows-v1.8.2/docs/direct-launch-shortcut.md)。
 
 Windows runner、Flutter 分析、6 項測試與打包已通過 CI；實機三次冷啟動、重新登入、Store 更新及首頁／任務頁目視檢查仍待完成。升級請解壓至新資料夾並保留舊套件；若要回復舊版，先關閉背景套用與面板，再從舊套件重新安裝，保留資料目錄。
 

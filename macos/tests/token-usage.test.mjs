@@ -287,6 +287,17 @@ try {
       assert.ok(readBytes - beforeAppend <= Buffer.byteLength(appended) + 1024 * 1024,
         "Large appends to markerless sessions read only new bytes plus the usage-tail overlap");
     }
+    const shortOutput = JSON.stringify({type:'response_item',payload:{type:'function_call_output',output:'x'.repeat(80)}}) + '\n';
+    const denseHistory = `${usage(4000)}\n${lifecycle("task_started")}\n${shortOutput.repeat(20000)}`;
+    await fs.writeFile(historyFile, denseHistory);
+    const denseReader = new TokenUsageReader({codexHome:root,now:() => now});
+    const beforeDense = readBytes;
+    const dense = await denseReader.read(historyId);
+    assert.equal(dense.totalTokens, 4000);
+    assert.equal(dense.running, true);
+    console.log(`Dense history: ${Buffer.byteLength(denseHistory)} bytes, ${readBytes - beforeDense} bytes read.`);
+    assert.ok(readBytes - beforeDense <= Buffer.byteLength(denseHistory) + 1024,
+      "Reverse recovery must not reread the parsed 1 MiB tail; only its first partial line may overlap.");
   } finally { fs.open = originalOpen; }
 
   class SerialReader extends TokenUsageReader {

@@ -1,6 +1,6 @@
 # Usage availability and shared surface materials
 
-Unreleased source: macOS 1.8.3 / Windows 1.8.2. Updated 2026-10-23, Asia/Taipei. Published v1.8.2 / windows-v1.8.1 assets are unchanged.
+Release: macOS 1.8.3 / Windows 1.8.2. Updated 2026-10-23, Asia/Taipei. Earlier v1.8.2 / windows-v1.8.1 assets remain unchanged. See the [final release review](release-1.8.3-review.md) for subsequent reader and verification changes.
 
 ## Changes
 

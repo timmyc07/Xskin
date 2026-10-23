@@ -70,9 +70,13 @@ Windows 新任务的记录文件尚未创建时会暂时监听其确切 UUID 的
 
 实现前参考了 [codex-token-overlay](https://github.com/soleillevant0125/codex-token-overlay) 与 [codex-token-meter](https://github.com/prefect12/codex-token-meter) 的开源方案；运行时沿用项目现有脚本与浏览器平台能力，没有增加这些项目作为依赖。
 
+### 2026-10-23 final release review
+
+The release includes bounded long-history recovery, native surface materials and waiting/reconnecting states. Final review avoids a duplicate 1 MiB tail read (24.8% less I/O in the dense-log fixture) and waits for matching CSS inside the existing verification deadline. See [review, release gates and limits](release-1.8.3-review.md). macOS retains official-app launches with one graceful reopen; Windows remains shortcut-only with no automatic reopen.
+
 ### 2026-10-23 overlay layout validation
 
-The subsequent unreleased macOS 1.8.3 / Windows 1.8.2 source addresses missing long-tail usage and utility/settings/menu material coverage. Before the native-header follow-up, full macOS tests/native build, 91 browser-fixture checks and the [Windows runner/Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39829869364) passed. The live Mac update preserved the official process, selected media/theme, config bytes and language. The subsequent header fix adds native surface tokens, clears sticky-header decoration and makes Verify report missing header coverage / reject stale CSS. See [surface coverage and actual validation](surface-materials.md); earlier release results below remain historical. Complete official-page visual checks and physical Windows checks remain pending.
+The subsequent macOS 1.8.3 / Windows 1.8.2 release addresses missing long-tail usage and utility/settings/menu material coverage. Before the native-header follow-up, full macOS tests/native build, 91 browser-fixture checks and the [Windows runner/Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39829869364) passed. The live Mac update preserved the official process, selected media/theme, config bytes and language. The subsequent header fix adds native surface tokens, clears sticky-header decoration and makes Verify report missing header coverage / reject stale CSS. See [surface coverage and actual validation](surface-materials.md); earlier release results below remain historical. Complete official-page visual checks and physical Windows checks remain pending.
 
 The native-header follow-up at `8bf562d` passed the full macOS runner/native build, eight portable Windows regression files and 168 checks in the expanded browser fixture. The new [Windows runner/Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39835142751) also passed. The reported native Space header has not been visually verified: direct native computer-use access was rejected on safety grounds, and the current task-page self-check does not contain that header.
 

@@ -203,3 +203,16 @@ for (const blocked of ['none', 'background', 'before', 'after', 'blur', 'unused-
     'A missing/hidden header must be reported as untested, not as a verified transparent header.');
 }
 console.log('PASS: native utility header backgrounds, gradients, pseudo layers and blur are verified without reading page content.');
+
+for (const catchesUp of [true, false]) {
+  let probes = 0;
+  const session = {async evaluate() {
+    return {pass:true,surface:'codex',themeId:'style-update',videoKey:null,
+      styleRevision:++probes > 1 && catchesUp ? 'current' : 'previous'};
+  }};
+  const result = await waitForVerifiedSession(session, catchesUp ? 1200 : 250,
+    {id:'style-update'}, false, 'current');
+  assert.equal(result.pass, catchesUp, 'Verification waits for the current CSS and fails when stale CSS never updates.');
+  assert.equal(result.styleMatches, catchesUp);
+  if (catchesUp) assert.equal(probes, 2, 'A healthy previous stylesheet cannot end verification before the new CSS arrives.');
+}

@@ -1,9 +1,12 @@
 # Runtime notes
 
+- Final release review removes duplicate parsed-tail reads while retaining first-line overlap and bounded buffers. Expected CSS revision matching runs inside the verification deadline, so a transient old stylesheet cannot finish verification early.
+
+
 - Native-header follow-up: web `--bg-*` tokens do not cover native `--color-surface*` paint. Map both families, clear utility-header pseudo paint/blur and structural settings containers, and keep control/image colors. Verify reports the loaded CSS hash and visible header coverage; an absent header is untested, not proof of transparency. Official route visual checks remain pending.
 
 
-- Unreleased 1.8.2 shares bounded long-tail recovery and explicit waiting/reconnecting states with macOS. Composer remounts trigger one immediate resubscription while subsequent serialized polls stay stable.
+- 1.8.2 shares bounded long-tail recovery and explicit waiting/reconnecting states with macOS. Composer remounts trigger one immediate resubscription while subsequent serialized polls stay stable.
 - Shared native/Work semantic materials cover page headers/lists, settings and portal menus, including nested theme scopes. Dot, native control colors and document thumbnails remain isolated; Pause removes the scoped rules. Windows startup remains shortcut-only.
 
 - 1.8.1 places usage before the native composer in normal flow and hides empty Home rows. Translucent composer/home-toolbar materials preserve native geometry and keep footer controls clear, including on narrow windows. Startup remains shortcut-only without automatic reopen.

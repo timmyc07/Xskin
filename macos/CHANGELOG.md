@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.8.3 — 2026-10-23 (unreleased)
+## 1.8.3 — 2026-10-23
+
+- Final review: avoid rereading the parsed history tail (24.8% less I/O in the dense 3.18 MB fixture); keep 1 MiB per-read limits and partial-line recovery. Wait for the expected stylesheet revision inside the existing verification deadline rather than rejecting a transient update immediately.
 
 - Follow up the still-opaque native headers: map the missing `--color-surface*` family, clear utility-header paint/blur and structural settings containers. Verify reports missing header coverage and rejects stale CSS or painted header layers; actual official-route visual verification remains pending.
 

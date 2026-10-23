@@ -283,12 +283,14 @@ export class TokenUsageReader {
           record.pending = Buffer.alloc(0);
           record.skipFirst = true;
         }
+        const readStart = record.offset;
         const bytes = Buffer.alloc(stat.size - record.offset);
         const { bytesRead } = await handle.read(bytes, 0, bytes.length, record.offset);
         record.offset += bytesRead;
         const data = Buffer.concat([record.pending, bytes.subarray(0, bytesRead)]);
+        const firstNewline = data.indexOf(10);
         let start = 0;
-        for (let end = data.indexOf(10); end !== -1; end = data.indexOf(10, start)) {
+        for (let end = firstNewline; end !== -1; end = data.indexOf(10, start)) {
           if (record.skipFirst) record.skipFirst = false;
           else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end).toString("utf8"), updates, this.now());
           start = end + 1;
@@ -300,7 +302,8 @@ export class TokenUsageReader {
         }
         // Recover each missing event type without revisiting previously parsed history.
         if (recoveryStart !== null) {
-          await readEarlierState(handle, stat.size, recoveryStart, completeFirstLine, updates, this.now());
+          const recoveryEnd = readStart + (firstNewline === -1 ? data.length : firstNewline + 1);
+          await readEarlierState(handle, recoveryEnd, recoveryStart, completeFirstLine, updates, this.now());
           if (updates.usage) { record.usage = updates.usage; record.sampledAt = updates.sampledAt; }
           if (Number.isFinite(updates.activityAt)) { record.running = updates.running; record.activityAt = updates.activityAt; }
           if (updates.limitsRead) {
