@@ -5,19 +5,19 @@
 ### Make Codex feel like your workspace.
 
 Bring your favorite images and original 4K videos into Codex.<br>
-Import, preview, and apply from native macOS and Flutter Windows apps.
+Import, preview, and apply inside Codex on macOS or from the native macOS and Flutter Windows apps.
 
-[![macOS](https://img.shields.io/badge/macOS-1.8.5-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.8.5)
-[![Windows](https://img.shields.io/badge/Windows-1.8.4-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4)
+[![macOS](https://img.shields.io/badge/macOS-1.9.3-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.9.3)
+[![Windows](https://img.shields.io/badge/Windows-1.8.5-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.4/Xskin-1.8.4-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/download/v1.8.5/Xskin-v1.8.5-macos-arm64.zip)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.5/Xskin-1.8.5-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/download/v1.9.3/Xskin-v1.9.3-macos-arm64.zip)** · **[macOS Codex plugin](https://github.com/timmyc07/Xskin/releases/download/v1.9.3/xskin-plugin-v1.9.3.zip)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
-> **macOS / plugin 1.9.3 候選版（尚未發布）。** 使用者已確認 1.9.2 背景與控制項正常。1.9.3 改為滿寬 16:9 預覽、卡片外標題、貼合整體的原生語言選單與長文字換行；進度及錯誤緊鄰預覽操作，不降低原片畫質。53 項 plugin 測試及自有瀏覽器排版檢查通過；新版視覺與使用者回報約 80 MB MP4 的匯入問題仍待實機確認，尚未確認該檔失敗原因。公開穩定版下載維持 macOS 1.8.5、Windows 1.8.4；Windows 1.8.5 仍為獨立候選版。[安裝、連線限制及驗證範圍](docs/in-app-studio.md)。
+> **macOS / plugin 1.9.3、Windows 1.8.5。** macOS 可從 Codex 左側「更多 → Xskin」選擇、預覽與套用背景，面板採滿寬 16:9 預覽、原生語言選單與長文字換行；進度及錯誤緊鄰預覽操作，不降低原片畫質。使用者已確認 1.9.2 背景／控制項，以及 1.9.3 中原先失敗的約 80 MB MP4 能顯示檔名與預覽。53 項 plugin 測試、完整 macOS runner 與自有瀏覽器排版檢查通過；冷啟動、完整頁面目視與長時間播放仍有待驗項目。Windows 維持捷徑啟動、不自動重開。[安裝、連線限制及驗證範圍](docs/in-app-studio.md)。
 
 > **macOS 1.8.5 / Windows 1.8.4** retain the latest plan reported in each conversation and distinguish unconfirmed cache writes from measured counts. Hidden pages suspend usage instead of reporting a false disconnection. No account access or credentials are added. [Usage fields, source evidence and validation](docs/usage-fields.md).
 
@@ -42,7 +42,7 @@ A quiet photograph. A moving landscape. A workspace that feels a little more lik
 3. **Apply** when you are ready. Xskin checks the result, restores the previous configuration if applying fails, and retains the import for retry.
 
 - **Windows:** extract the complete ZIP and open **xskin.exe**. Keep the accompanying DLLs, `data`, `scripts` and `assets` together. Flutter and Node.js are bundled.
-- **macOS:** extract the app, move **Xskin.app** to Applications, and open it. No separate Node.js, package manager or Xcode is needed.
+- **macOS:** install the [Codex plugin](docs/in-app-studio.md#install-or-update-locally), then open **More → Xskin** inside Codex. The standalone **Xskin.app** remains available; move it to Applications to use it. Packaged users need no separate Node.js, package manager or Xcode.
 
 > The macOS app uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Download from this project's Release page and review the [user guide](docs/background-panel.md).
 
@@ -68,9 +68,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-macOS 1.8.5 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen.
+macOS 1.9.3 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen. Opening the embedded panel alone does not enable automatic startup; Apply and mask changes require an existing verified background connection.
 
-Windows 1.8.4 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
+Windows 1.8.5 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
 
 ### Leave room around the input
 
@@ -125,7 +125,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Installation | Extract the complete Windows ZIP, or move Xskin.app to Applications on macOS |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- Releases are platform-specific: **windows-v1.8.4** for Windows x64 and **v1.8.5** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
+- Releases are platform-specific: **windows-v1.8.5** for Windows x64 and **v1.9.3** for macOS arm64/plugin. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
 - Windows uses Codex (Xskin) without automatic reopen. macOS supports the official entry with one graceful reopen per fresh launch, or the optional direct entry.
 - Automated macOS tests and Windows runner/Flutter checks passed. Three physical cold starts, login/Store-update checks and complete official-app Home/task visual inspection remain pending; see the [validation report](docs/platforms.md#2026-10-23-overlay-layout-validation). CDP/CSS authorization remains unconfirmed.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
@@ -159,7 +159,7 @@ cd macos
 npm test
 ```
 
-Windows 1.8.4 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.8.5 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
+Windows 1.8.5 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.9.3 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
 
 </details>
 
@@ -171,4 +171,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.8.5)
+**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.9.3)

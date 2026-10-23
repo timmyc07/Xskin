@@ -1,23 +1,23 @@
 # Xskin user guide
 
-The **macOS 1.9.3 candidate (not published)** provides an in-app panel through the official MCP App global sidebar entry. The user confirmed **More → Xskin**, video preview and Apply in 1.9.1, then background and controls in 1.9.2. The new candidate makes Preview full-width at 16:9, places the settings heading above its card, styles the compact native language selector and wraps long labels. Progress and import errors appear beside the preview actions. Its applied media is drawn inside its own iframe and its scrollport ends above the unchanged host composer. Pending media stays separate; matching active/preview media share one Blob. Private chunks open no HTTP preview port. Original 4K60 bytes remain unchanged; a short diagnostic passed, while sustained playback, new visuals and the newly reported video import still need actual-host verification. See [installation, connection requirements and actual validation](in-app-studio.md). The remaining instructions below describe the published **1.8.5 standalone app and plugin**, whose plugin opens a separate native window.
+**macOS/plugin 1.9.3** provides an in-app panel through the official MCP App global sidebar entry. Open **More → Xskin** to choose, preview and apply backgrounds inside Codex. Preview fills its section at 16:9; headings sit above cards, long text wraps, and the compact native language selector follows host colors. Progress/errors stay beside the preview actions. Applied media is drawn inside Xskin's own iframe and its scrollport ends above the unchanged host composer. Pending media stays separate; matching active/preview media share one Blob, and private chunks open no HTTP preview port. The user confirmed 1.9.2 background/controls and that the previously failing approximately 80 MB MP4 displays its filename/preview in local 1.9.3. Original MP4 quality is unchanged; sustained playback and full route/cold-start acceptance remain pending. See [installation, connection requirements and validation](in-app-studio.md). The standalone native app below remains available for users who prefer a separate window.
 
 Xskin is a standalone native macOS app. Import local images or MP4s, inspect a native preview, and apply them as Codex backgrounds from one focused window.
 
 ## Install and open
 
-[Download Xskin 1.8.5 for macOS](https://github.com/timmyc07/Xskin/releases/tag/v1.8.5), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.4 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
+[Download Xskin 1.9.3 for macOS](https://github.com/timmyc07/Xskin/releases/download/v1.9.3/Xskin-v1.9.3-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.5 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
 
 The release uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Confirm that the download came from this project's Release page before opening it.
 
-You can also install the Codex plugin to launch the same native app. Extract the plugin ZIP, keep the complete `codex-background-studio` folder, and run these commands inside it:
+To use the in-app panel, download the [macOS plugin ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.3/xskin-plugin-v1.9.3.zip), retain the complete `codex-background-studio` folder and run these commands inside it:
 
 ```sh
 codex plugin marketplace add .
 codex plugin add codex-background-studio@codex-background-studio-local
 ```
 
-Ask Codex to “Open Xskin” to launch its independent native window. Plugin installation normally places the app at `~/Applications/Xskin.app`.
+Open **More → Xskin** inside Codex, or ask Codex to “Open Xskin”. The plugin opens an embedded panel; it does not launch the separate native window. Existing native installations and saved media/preferences remain available. See the [in-app connection and startup requirements](in-app-studio.md#applying-without-interrupting-the-current-app).
 
 ## Import, preview, and apply
 

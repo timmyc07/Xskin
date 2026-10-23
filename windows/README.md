@@ -1,12 +1,12 @@
-# Xskin for Windows 1.8.4
+# Xskin for Windows 1.8.5
 
-**1.8.5 候選版（尚未發布）** 保留 overlay 圓角接合，並將用量列納入 composer layout。16 種自有瀏覽器模型與 head `2952710` 的 Windows runner／Flutter／打包 CI 已通過；實機三次冷啟動、登入／Store 更新及各頁目視仍待驗收。下列穩定版下載維持 1.8.4，啟動仍為受管捷徑，不自動關閉或重開 Codex。[測試範圍](../docs/in-app-studio.md#composer-spacing-follow-up)。
+**1.8.5** 保留 overlay 圓角接合，並將用量列納入 composer layout。16 種自有瀏覽器模型及自動化檢查已通過；實機三次冷啟動、登入／Store 更新及各頁目視仍待驗收。啟動仍為受管捷徑，不自動關閉或重開 Codex；macOS 內嵌面板與實機確認不代表 Windows 通過。[測試範圍](../docs/in-app-studio.md#composer-spacing-follow-up)。
 
 1.8.4 保留同一對話紀錄最後合法回報的方案，並明示它不是即時帳戶狀態。快取寫入來源為 0 時顯示「未確認」，提示保留來源值與預設值限制；缺少欄位不補 0。[欄位語義、來源及驗證](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md)。Windows 實機驗收仍待完成。
 
 **1.8.2** 補上長紀錄用量回復、等待／重新連線提示與原生半透明材質。最終審核移除重複檔尾讀取，並讓更新驗證等待新版樣式載入。[審核與驗證限制](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/release-1.8.3-review.md)。官方各頁目視與 Windows 實機冷啟動仍待驗證。
 
-[下載 Windows 1.8.4](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.4/Xskin-1.8.4-windows-x64.zip) · [發行說明與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4) · [English](README.en.md)
+[下載 Windows 1.8.5](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.5/Xskin-1.8.5-windows-x64.zip) · [發行說明與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5) · [English](README.en.md)
 
 ## 安裝與使用
 

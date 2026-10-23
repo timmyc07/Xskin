@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.9.3 — candidate, not published
+## 1.9.3 — 2026-10-23
 
 - Expand Preview to the section's full width at 16:9 while retaining the complete original image/video without lowering resolution or re-encoding. Place the settings heading above its card rather than across its border.
 - Match the compact native language selector to host colors and spacing, retain native keyboard/popup behavior and wrap long settings labels and filenames inside their containers.
-- Move progress and errors immediately after preview actions. Translate supported import failures, including source/data-folder access and image conversion, rather than hiding the error below settings. Cancelled picker completions cannot start an import; the displayed version identifies the panel bundle. The user's reported approximately 80 MB MP4 import still needs reproduction; its actual failure cause is unconfirmed.
+- Move progress and errors immediately after preview actions. Translate supported import failures, including source/data-folder access and image conversion, rather than hiding the error below settings. Cancelled picker completions cannot start an import; the displayed version identifies the panel bundle. The user confirmed that the previously failing approximately 80 MB MP4 now shows its filename and preview in local 1.9.3. The previous failure's exact cause was not established.
 - All 53 plugin tests and the full macOS runner pass. The own-browser fixture passes 48 cases / 240 scroll positions plus eight narrow 200%-text cases with a 240-character filename; inner widths, text bounds, preview geometry, settings heading and adjacent chooser error are checked.
-- The user confirmed 1.9.2 background and controls, then reported the refinements above. New visuals/video import and new-head CI remain pending. Earlier `2952710` CI success does not validate this head; stable downloads remain macOS 1.8.5 / Windows 1.8.4.
+- The user confirmed 1.9.2 background/controls and the actual-file import/preview in local 1.9.3. All 53 plugin tests and the full macOS runner pass. At `ff85d35`, [CI](https://github.com/timmyc07/Xskin/actions/runs/39948391600) passed static/plugin, PowerShell 5.1/7 and macOS backend checks; [Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39948391587) and final documentation-head checks are pending here. Three physical cold starts, complete Home/task visuals and sustained playback remain pending; this is not a new Apply confirmation for that MP4. Windows 1.8.5 remains shortcut-only.
 
 ## 1.9.2 — earlier unpublished candidate
 
