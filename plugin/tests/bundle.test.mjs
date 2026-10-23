@@ -26,7 +26,7 @@ await fs.mkdir(path.join(runtime, "scripts"), { recursive: true });
 await fs.copyFile(new URL("../../macos/scripts/image-metadata.mjs", import.meta.url), path.join(runtime, "scripts/image-metadata.mjs"));
 const manifest = JSON.parse(await fs.readFile(path.join(plugin, "package.json"), "utf8"));
 await fs.writeFile(path.join(runtime, "VERSION"), `${manifest.version}\n`);
-await fs.symlink(path.join(source, "node_modules"), path.join(plugin, "node_modules"), "dir");
+await fs.symlink(path.join(source, "node_modules"), path.join(plugin, "node_modules"), process.platform === "win32" ? "junction" : "dir");
 await run(process.execPath, [path.join(plugin, "build.mjs")], { timeout: 15000 });
 await fs.unlink(path.join(plugin, "node_modules"));
 

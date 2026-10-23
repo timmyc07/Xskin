@@ -14,7 +14,7 @@ try {
   $runtimeSourceRoot = Join-Path $temporaryRoot $runtimeSourceName
   $runtimeStateRoot = Join-Path $temporaryRoot 'runtime-state'
   New-Item -ItemType Directory -Path $runtimeSourceRoot | Out-Null
-  foreach ($directoryName in @('assets', 'scripts')) {
+  foreach ($directoryName in @('assets', 'scripts', 'presets', 'VERSION')) {
     Copy-Item -LiteralPath (Join-Path $Root $directoryName) -Destination $runtimeSourceRoot `
       -Recurse -Force -ErrorAction Stop
   }
@@ -22,11 +22,11 @@ try {
   $engine = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot
   $sourcePrefix = $runtimeSourceRoot.TrimEnd('\') + '\'
   $runtimeSourceFiles = @(
-    Get-ChildItem -LiteralPath (Join-Path $runtimeSourceRoot 'assets'), (Join-Path $runtimeSourceRoot 'scripts') `
+    Get-ChildItem -LiteralPath (Join-Path $runtimeSourceRoot 'assets'), (Join-Path $runtimeSourceRoot 'scripts'), (Join-Path $runtimeSourceRoot 'presets'), (Join-Path $runtimeSourceRoot 'VERSION') `
       -Recurse -File -Force
   )
   $runtimeEngineFiles = @(
-    Get-ChildItem -LiteralPath (Join-Path $engine.Root 'assets'), (Join-Path $engine.Root 'scripts') `
+    Get-ChildItem -LiteralPath (Join-Path $engine.Root 'assets'), (Join-Path $engine.Root 'scripts'), (Join-Path $engine.Root 'presets'), (Join-Path $engine.Root 'VERSION') `
       -Recurse -File -Force
   )
   if ($runtimeSourceFiles.Count -ne $runtimeEngineFiles.Count -or
@@ -179,7 +179,7 @@ try {
 
   $invalidRuntimeRoot = Join-Path $temporaryRoot 'invalid-runtime-source'
   New-Item -ItemType Directory -Path $invalidRuntimeRoot | Out-Null
-  foreach ($directoryName in @('assets', 'scripts')) {
+  foreach ($directoryName in @('assets', 'scripts', 'presets', 'VERSION')) {
     Copy-Item -LiteralPath (Join-Path $runtimeSourceRoot $directoryName) -Destination $invalidRuntimeRoot `
       -Recurse -Force -ErrorAction Stop
   }
@@ -692,19 +692,20 @@ try {
   $themeStateRoot = Join-Path $temporaryRoot 'theme-state'
   $themePaths = Initialize-DreamSkinThemeStore -SkillRoot $Root -StateRoot $themeStateRoot
   $initialTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
-  if ($initialTheme.Theme.id -cne 'preset-romantic-rose' -or
-    $initialTheme.Theme.name -cne '桥本有菜' -or
+  if ($initialTheme.Theme.id -cne 'preset-midnight-aurora' -or
+    $initialTheme.Theme.name -cne '午夜极光' -or
     $initialTheme.Theme.appearance -cne 'auto' -or
-    $initialTheme.Theme.art.safeArea -cne 'left' -or
-    $initialTheme.Theme.art.taskMode -cne 'ambient' -or
     [System.IO.Path]::GetExtension($initialTheme.ImagePath) -cne '.jpg') {
-    throw 'Default Windows theme did not seed the Arina Hashimoto wallpaper contract.'
+    throw 'Default Windows theme did not match the macOS Midnight Aurora preset.'
   }
   $preseededThemes = @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot)
-  if ($preseededThemes.Count -ne 1 -or
-    $preseededThemes[0].Id -cne 'preset-romantic-rose' -or
-    $preseededThemes[0].Name -cne '桥本有菜') {
-    throw 'Arina Hashimoto was not preseeded in the Windows saved-theme menu.'
+  if ($preseededThemes.Count -ne 6) { throw 'The six macOS presets were not seeded in the saved-theme menu.' }
+  foreach ($preset in $preseededThemes) {
+    $bundled = Read-DreamSkinTheme -ThemeDirectory (Join-Path $Root ('presets\' + $preset.Id))
+    $savedPreset = Read-DreamSkinTheme -ThemeDirectory $preset.Path
+    if ((Get-FileHash -LiteralPath $bundled.ImagePath).Hash -cne (Get-FileHash -LiteralPath $savedPreset.ImagePath).Hash) {
+      throw 'A seeded preset differs from its macOS original.'
+    }
   }
   $updatedTheme = Set-DreamSkinActiveTheme -ImagePath (Join-Path $Root 'assets\dream-reference.jpg') `
     -Theme $null -Name '测试主题' -StateRoot $themeStateRoot
@@ -718,11 +719,11 @@ try {
   $null = Initialize-DreamSkinThemeStore -SkillRoot $Root -StateRoot $themeStateRoot
   $idempotentTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
   if ($idempotentTheme.Theme.id -cne 'custom' -or
-    @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot).Count -ne 1) {
+    @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot).Count -ne 6) {
     throw 'Theme-store initialization overwrote the active custom theme or duplicated its bundled preset.'
   }
   $savedTheme = Save-DreamSkinCurrentTheme -Name '已保存主题' -StateRoot $themeStateRoot
-  if ($savedTheme.Theme.name -cne '已保存主题' -or @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot).Count -ne 2) {
+  if ($savedTheme.Theme.name -cne '已保存主题' -or @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot).Count -ne 7) {
     throw 'Saved theme creation or discovery failed.'
   }
   $null = Use-DreamSkinSavedTheme -ThemeDirectory $savedTheme.Directory -StateRoot $themeStateRoot
@@ -821,8 +822,8 @@ try {
     throw 'Restore still executes the WindowsApps path instead of activating the registered package.'
   }
   $startSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\start-dream-skin.ps1')
-  if ($startSource.Contains('Stop-DreamSkinCodex') -or $startSource.Contains('NewLaunchPid') -or
-    $startSource.Contains('Confirm-DreamSkinRestart')) { throw 'Startup still closes an official Codex process.' }
+  if ($startSource.Contains('Stop-DreamSkinCodex') -or $startSource.Contains('Confirm-DreamSkinRestart') -or
+    -not $startSource.Contains('Stop-DreamSkinNewCodexLaunch')) { throw 'Startup must limit graceful quit to a verified fresh official launch.' }
   if ($startSource.Contains('Start-Process -FilePath $codex.Executable') -or
     -not $startSource.Contains('Start-DreamSkinCodex -Codex $codex')) {
     throw 'Start still executes the WindowsApps path instead of activating the registered package.'
@@ -942,8 +943,11 @@ try {
   & (Join-Path $PSScriptRoot 'xskin-theme.test.ps1')
   & (Join-Path $PSScriptRoot 'xskin-parity.test.ps1')
   & (Join-Path $PSScriptRoot 'autostart.test.ps1')
+  & (Join-Path $PSScriptRoot 'official-autostart.test.ps1')
+  & (Join-Path $PSScriptRoot 'scheduled-autostart.test.ps1')
   & (Join-Path $PSScriptRoot 'default-state-root.test.ps1')
   & (Join-Path $PSScriptRoot 'automatic-setup.test.ps1')
+  & (Join-Path $PSScriptRoot 'package-docs.test.ps1')
   & (Join-Path $PSScriptRoot 'quiet-launcher.test.ps1')
   & (Join-Path $PSScriptRoot 'graceful-quit.test.ps1')
   & (Join-Path $PSScriptRoot 'injector-process.test.ps1')

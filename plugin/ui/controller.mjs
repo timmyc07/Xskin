@@ -22,7 +22,7 @@ export function createStudioController(app, render) {
   const publish = () => { if (!disposed) render(view); };
   const receive = result => {
     const state = result?._meta?.[STUDIO_META];
-    if (state && typeof state.version === "string" && state.platform === "macos" &&
+    if (state && typeof state.version === "string" && ["macos", "windows"].includes(state.platform) &&
       Number.isFinite(state.maskOpacity) && state.maskOpacity >= 0 && state.maskOpacity <= 1 &&
       LANGUAGES.includes(state.language)) view.state = state;
     if (result?.isError) {

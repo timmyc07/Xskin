@@ -1,4 +1,4 @@
-# Xskin inside Codex (macOS 1.9.4)
+# Xskin inside Codex (macOS and Windows 1.9.4)
 
 The updated local plugin adds an official MCP App global entrypoint named **Xskin**. Open it from the left navigation (including **More** when the host places it there), choose an image or MP4, inspect the preview, then select **Apply background**. A separate Xskin window is unnecessary. Native navigation placement is controlled by Codex; this plugin does not alter its menus.
 
@@ -21,9 +21,9 @@ codex plugin add codex-background-studio@codex-background-studio-local
 
 The existing CLI supports these commands (`codex-cli 0.163.0-alpha.11.1` was checked locally). Reload/restart the desktop app if its plugin tools or global navigation have not refreshed. In the Plugins directory, verify that the local Xskin plugin is enabled. Asking to “Open Xskin” invokes the same MCP App. Installing the plugin and opening its panel do not apply settings.
 
-The companion Windows 1.8.5 package joins the usage strip to the composer’s upper corners and includes it inside the composer layout; its startup remains shortcut-only and it has no in-app studio.
+Windows 1.9.4 includes the same MCP App and its own contained PowerShell launcher. Use the Windows plugin ZIP, which installs `mcp.windows.json` as `mcp.json`; the macOS archive retains its shell launcher. The Windows package bundles Node and needs no npm or Flutter installation. From source, build with `windows/scripts/build-release.ps1` after installing the locked plugin dependencies. Add the extracted Windows plugin folder through the same local marketplace commands above. See [Windows setup](../windows/README.en.md).
 
-This MCP server requires macOS and local execution. Windows keeps its separate 1.8.5 package and shortcut-only startup. Do not install this macOS launcher as a Windows MCP server.
+Both platforms require local execution. Windows reads the existing physical/MSIX-aware state locator, shares imports and preferences with Flutter, preserves original MP4 bytes, and uses a cancellable native Windows file picker. Opening or refreshing the embedded panel is read-only. Import prepares the engine without enabling startup or changing official appearance settings. Apply, mask and Resume require the existing verified connection; interrupted changes use explicit recovery. Windows monitoring must be explicitly enabled for future official launches.
 
 ### Installed plugin, but no Xskin navigation entry
 
@@ -43,11 +43,11 @@ A successful Apply can replace a pending media capability with an active one. Ve
 
 Embedded Apply, mask and Resume require an existing verified Xskin background connection. They never open, quit or restart Codex, including rollback and an app-exit race. If the current official session started without that connection, explicitly enable **Apply when official Codex opens**, fully exit Codex and open the official app again. That fresh launch performs the authorized one-time handoff; then return to Xskin and apply the pending import. The optional direct entry also stays ordinary while that preference is disabled or paused. Existing saved media and preferences remain available. The panel cannot create a persistent official custom-background setting; no such supported interface has been established.
 
-On first import the embedded panel prepares the managed engine without enabling automatic startup or rewriting official appearance preferences. An existing enabled preference is retained. Explicitly enabling **Apply when official Codex opens** retains the established macOS behavior: each future fresh ordinary launch gracefully reopens once. Paused/existing sessions are skipped; quits are never forced. Windows never uses that handoff. Opening or importing in this panel alone does not authorize future handoffs.
+On first import the embedded panel prepares the managed engine without enabling automatic startup or rewriting official appearance preferences. An existing enabled preference is retained. Explicitly enabling **Apply when official Codex opens** makes each future fresh ordinary launch gracefully reopen once on either platform. Paused/existing sessions are skipped; quits are never forced. Windows uses the existing registered MSIX identity and Restart Manager quit request, plus a per-user Task Scheduler login monitor. Opening or importing in this panel alone does not authorize future handoffs.
 
 ## Boundaries and privacy
 
-- The launcher reuses Codex's verified signed bundled Node. No official app files or signatures are modified; the plugin cache is managed by the official plugin installer.
+- macOS reuses Codex's verified signed bundled Node; Windows includes its unmodified Node distribution and license. No official app files or signatures are modified; the plugin cache is managed by the official plugin installer.
 - The global tool accepts only `{}`. Setting tools accept strict bounded values or a pending-import UUID, never shell commands or arbitrary paths. Only the native chooser selects a local source file. The app-only recovery tool also accepts only `{}` and reuses the existing recovery transaction.
 - State, preview capabilities and media chunks are returned in private tool `_meta`, not model-visible text. Errors expose a fixed safe code rather than paths or logs.
 - Preview transfer uses the app-only `xskin_read_media` tool: a private session capability identifies approved current/pending media, and each read returns at most **512 KiB**. The panel assembles a local **Blob** without opening an HTTP preview port. Each chunk rechecks file identity; replacement, expired capabilities and cross-session access fail. CSP allows Blob media and no external media/connect origin. Original MP4 bytes are retained; the 256 MiB video limit is unchanged.

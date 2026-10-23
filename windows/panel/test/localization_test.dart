@@ -15,9 +15,13 @@ void main() {
       }
     }
     for (final language in languages.keys) {
-      expect(localizedText('autostartHint', language), contains('Codex'));
-      expect(localizedText('autostartHint', language), isNot(contains('reopens')));
+      expect(localizedText('autostartLabel', language), contains('Codex'));
       expect(localizedText('autostartEnabled', language), contains('Codex'));
     }
+    expect(localizedText('autostartHint', 'en'), contains('reopens once'));
+    expect(
+      localizedText('autostartHint', 'en'),
+      contains('Paused sessions are skipped'),
+    );
   });
 }

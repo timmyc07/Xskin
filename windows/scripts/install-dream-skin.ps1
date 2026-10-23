@@ -28,7 +28,6 @@ try {
     Initialize-XskinAutostart -SkillRoot $engine.Root -StateRoot $StateRoot
     Set-XskinLaunchShortcuts -StateRoot $StateRoot
   }
-  Remove-DreamSkinLegacyAutostart -StateRoot $StateRoot
   Remove-XskinLegacyShortcuts -StateRoot $StateRoot
-  Write-Host 'Xskin installed. Fully exit Codex, then open Codex (Xskin). The panel can stay closed.'
+  Write-Host 'Xskin installed. Fresh official Codex launches apply the saved background with one graceful reopen. The panel can stay closed.'
 } finally { Exit-DreamSkinOperationLock -Mutex $operationLock }

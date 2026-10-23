@@ -1,59 +1,50 @@
-# Xskin for Windows 1.8.5
+# Xskin for Windows 1.9.4
 
-**1.8.5** 保留 overlay 圓角接合與 composer layout 修正，啟動仍為受管捷徑，不自動關閉或重開 Codex。功能來源 `bdd6751` 的 Windows runner／Flutter／打包 CI 已通過；實機三次冷啟動、登入／Store 更新及頁面目視仍待驗收。macOS 的實機確認不能代替 Windows 驗證。[驗證範圍](../docs/in-app-studio.md#composer-spacing-follow-up)。
+本版本將 macOS 1.9.4 已完成的內嵌工作室、原始媒體預覽、套用後保留預覽、中斷復原、六組預設與官方啟動自動套用移植到 Windows。沿用 Flutter 面板、PowerShell 引擎與 Store 套件啟動；沒有增加額外產品功能。[對齊範圍與驗證](../docs/windows-parity.md) · [English](README.en.md)
 
-1.8.4 保留同一對話紀錄最後合法回報的方案，並明示它不是即時帳戶狀態。快取寫入來源為 0 時顯示「未確認」，提示保留來源值與預設值限制；缺少欄位不補 0。[欄位語義、來源及驗證](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md)。Windows 實機驗收仍待完成。
+1.9.4 為目前原始碼／本地建置版本。先前公開版本仍是 [Windows 1.8.5](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5)，不包含內嵌工作室；請勿將舊下載當成新版本。
 
-**1.8.2** 補上長紀錄用量回復、等待／重新連線提示與原生半透明材質。最終審核移除重複檔尾讀取，並讓更新驗證等待新版樣式載入。[審核與驗證限制](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/release-1.8.3-review.md)。官方各頁目視與 Windows 實機冷啟動仍待驗證。
+## Codex 內嵌工作室
 
-[下載 Windows 1.8.5](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.5/Xskin-1.8.5-windows-x64.zip) · [發行說明與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5) · [English](README.en.md)
+建置後使用完整的 `xskin-plugin-v1.9.4-windows-x64.zip`，解壓並保留整個資料夾。套件包括 Windows 專用 `mcp.json`、PowerShell 啟動器、Node 與編譯後工作室，不需要安裝 npm 或 Flutter。
 
-## 安裝與使用
+```powershell
+codex plugin marketplace add "D:\完整路徑\Xskin-plugin"
+codex plugin add codex-background-studio@codex-background-studio-local
+```
 
-1. 安裝官方 Microsoft Store `OpenAI.Codex`，解壓完整 Xskin 套件，再開啟 `Install Xskin.exe`。也可先開啟 `xskin.exe` 完成首次設定。套件內附 Node，不需另裝 Flutter。
-2. 安裝／升級保留正在執行的 Codex、帳號、背景、語言、遮罩及暫停狀態。只停止身分驗證通過的 Xskin 程序，再更新受管引擎。
-3. **完整退出 Codex**（只關閉視窗可能仍在系統匣），再從桌面或開始功能表點 **Codex (Xskin)**。一次操作只要求官方套件啟動一次；面板不必常駐。
-4. 可使用 Windows 的右鍵選單釘選該捷徑至開始功能表或工作列。不改工作列私有登錄資料，也不攔截官方入口。
-5. 匯入圖片／MP4、確認預覽後按套用。若普通 Codex 已開啟且無可驗證連線，Xskin 會要求手動完整退出；不關閉或重新啟動它。失敗會保留待套用素材並復原先前主題。
+重新載入外掛後從導航中的 Xskin（可能位於 More）開啟，或要求呼叫 `xskin_open`。選擇圖片／MP4、查看預覽，再明確套用。預覽影片預設暫停，套用後保留已載入的原始媒體。遮罩、四語設定、暫停與恢復已儲存背景和 Flutter 共用狀態。Refresh 只讀取狀態；中斷變更使用明確的 Recover 操作，保留待套用素材。
 
-暫停時點捷徑會開啟普通官方 Codex，且維持暫停。**繼續顯示皮膚／Apply** 才是明確恢復；如果普通 Codex 已開啟，先手動退出，再恢復。關閉「從 Codex（Xskin）套用背景」只影響後續捷徑啟動。登入 Windows 不會啟動監控器或 Codex，捷徑仍可直接使用。
+內嵌 Apply、遮罩與 Resume 只使用現有且驗證通過的背景連線，不會開啟或重開目前的 Codex。沒有連線時，明確啟用「官方 Codex 開啟時自動套用」，完整退出 Codex（只關閉視窗可能仍在系統匣），再開啟官方程式。之後每次新的普通啟動會正常重開一次以建立連線。既有、暫停、停用及偵錯工作階段會略過；拒絕退出時不強制關閉，也不反覆嘗試。
 
-## 升級、資料目錄與還原
+只開啟／重新整理面板或匯入素材，不會啟用自動套用，也不改官方外觀偏好。監控器由目前使用者的登入排程維持，面板可關閉；關閉自動套用或 Restore 只移除身分相符的 Xskin 排程。安裝時已存在的 Codex 工作階段保持運作。
 
-舊登入監控排程與 Startup 捷徑僅在完整身分吻合時移除。受管 `Codex (Xskin)` 捷徑包含實際 `-StateRoot`，可使用中文、emoji、空格與自訂路徑；同名外來捷徑不會被覆寫或刪除。預設資料位於 `%LOCALAPPDATA%\CodexDreamSkin`；MSIX 重新導向時沿用實際儲存位置，並在移除舊排程前保存 `%USERPROFILE%\.xskin-state-root.json` 目錄索引（位於 AppData 外，避免檔案／登錄隔離）。不要手動搬走該目錄。
+## 獨立面板與直接啟動
 
-引擎更新先停止驗證過的 injector，再停止舊 PowerShell／quiet host，避免其子程序持有串流導致無法更新。新 quiet host 以 PowerShell 退出為準，不等待孫程序釋放輸出串流。升級保留既有 bundled Node；交換失敗時復原舊引擎並恢復 injector，不終止其他 Node 或 Codex。
+使用 `Xskin-1.9.4-windows-x64.zip` 的完整內容，開啟 `Install Xskin.exe` 或 `xskin.exe`。保留全部 DLL／assets／scripts。Flutter 支援拖放、預覽、套用、四語與遮罩；原有 `Codex (Xskin)` 桌面／開始捷徑可直接啟動，不必經過官方入口的重開。既有普通 Codex 無連線時，先手動完整退出。
 
-Pause 只暫停皮膚。Restore 會移除皮膚；目前完整 Restore 會顯示明確的關閉／重開確認，**不屬於捷徑啟動流程**。如要關閉偵錯連接埠，請手動完整退出 Codex。解除安裝只移除受管捷徑及舊排程，保留媒體與偏好。需要復原外觀鍵時，先備妥未送出的輸入，再執行：
+暫停保留設定與登入服務，但停止套用；Resume／Apply 才明確恢復。資料保存在 `%LOCALAPPDATA%\CodexDreamSkin`；MSIX 重新導向或自訂根目錄沿用實際路徑及 `%USERPROFILE%\.xskin-state-root.json`。升級保留背景、匯入、語言、遮罩與暫停，失敗會復原舊引擎／設定。不覆寫同名外來捷徑。首次全新安裝使用 midnight aurora，既有主題不變；主題庫包含與 macOS 相同的六組預設。
+
+## 媒體、用量與恢復
+
+圖片支援 PNG/JPEG/WebP/HEIC/TIFF，來源 ≤50 MiB、每邊 ≤16384px、≤50MP，轉換後最長邊 ≤4096px／≤16 MiB。HEIF/WebP 依 Windows codec。MP4 ≤256 MiB，保留原始位元、解析度與幀率；靜音循環，隱藏或 Reduce Motion 時暫停。遮罩 0–100%，預設 62%。
+
+Codex／Work／Dot 背景及 Token／快取／方案／額度列保留現有共同實作。用量讀取目前本機對話的官方紀錄，不讀 auth.json、不推測方案；背景診斷包含原始影片的總幀／掉幀數。[欄位語義](../docs/usage-fields.md)
+
+完整 Restore 可明確詢問關閉／重開以移除偵錯連線。需要回復受管外觀鍵時執行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\restore-dream-skin.ps1 -RestoreBaseTheme -PromptRestart -Uninstall
 ```
 
-套件完整性或安裝失敗時先保留資料目錄，再重新執行安裝。`config.before-dream-skin.toml` 是安裝前備份；正常還原僅恢復受管外觀鍵，保留其他 UTF-8 TOML。`-RecoverConfigBackup` 是明確要求回復整份備份，會另存當前設定。不要刪除帳號或 `auth.json`。
-
-## 背景、overlay 與限制
-
-圖片支援 PNG/JPEG/WebP/HEIC/TIFF；來源上限 50 MiB、16384px／50MP，轉換為最多 4096px JPEG。MP4 上限 256 MiB，保留原始影片位元與幀率，靜音循環播放；隱藏或 Reduce Motion 時暫停。遮罩 0–100%，預設 62%；支援英、繁中、簡中、日文。
-
-任務用量列位於輸入框上方，窄視窗自動換行，首頁不顯示空白用量列。輸入框與原生專案／檔案／外掛工具列採用一致的半透明材質，顯示圖片或影片背景，保留原生位置、圓角與操作。
-
-狀態列僅讀取目前本機對話的 session 記錄。新對話仍使用暫時側欄 ID 時，改由目前輸入框取得正式 ID；風扇依任務開始、完成與中斷事件控制。長紀錄首次必要時向前尋找任務狀態，後續只讀新增範圍。session 新建／替換、切換、資料隔離及序列化訂閱均有回歸測試。不讀取 `auth.json`、不推測方案或虛構用量。
-
-CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/direct-launch-shortcut.md)。
-
-功能來源 `bdd6751` 的 [CI](https://github.com/timmyc07/Xskin/actions/runs/39955991318) 與 [Windows Flutter／打包 CI](https://github.com/timmyc07/Xskin/actions/runs/39955991299) 已通過，包含 Windows runner、Flutter 分析／測試與打包。發布須通過最終提交檢查，結果另記於 PR 與發行說明。實機三次冷啟動、重新登入、Store 更新及首頁／任務頁目視仍待完成；Mac 使用者的確認不代表 Windows 通過。升級請解壓至新資料夾並保留舊套件；回復舊版時先關閉背景套用與面板，再從舊套件重新安裝，保留資料目錄。
+保留資料目錄。config.toml 只用嚴格 UTF-8、原子寫入及可恢復備份；一般復原保留無關 TOML。只有明確使用 `-RecoverConfigBackup` 才恢復整份備份。CDP 僅 loopback，驗證套件、程序、Browser ID；不修改 WindowsApps、app.asar、簽名、帳號、API Key 或 Base URL。CDP／CSS 注入的官方授權依據仍未確認。
 
 ## 建置與測試
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\tests\run-tests.ps1
-cd windows\panel
-flutter pub get
-flutter analyze
-flutter test
-cd ..\..
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1
+npm ci --prefix plugin --ignore-scripts --no-audit --no-fund
+npm test --prefix plugin
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows\scripts\build-release.ps1 -Flutter "D:\flutter\bin\flutter.bat"
 ```
 
-開發建置需要 Flutter、Visual Studio Desktop development with C++、Windows SDK 與 Node 22+。Mac 靜態檢查與替身測試不能代替 Windows 冷啟動、重新登入、Store 更新或首頁／任務頁實機驗證。
+需要 Node 22+、Flutter 與 Visual Studio C++／Windows SDK。建置會執行 Windows 引擎測試、Flutter analysis／tests，產生獨立面板與內嵌外掛 ZIP／SHA-256。測試使用隔離資料及程序替身；官方 Home／task 目視、實際登入、Store 更新與持續 4K 播放仍須實機驗收。

@@ -1,6 +1,6 @@
 # 平台对照
 
-macOS/plugin **1.9.4** retains completed original-media previews through Apply, caps scrolling by host height/maxHeight and uses a thin transparent scrollbar with compact in-stage errors. Following the earlier 1.9.3 failures, the user confirmed the same video’s post-Apply preview, background and bottom controls work in actual-host 1.9.4. All 67 plugin tests, the full macOS runner, 204 isolated layouts / 720 scroll positions and functional-source CI passed. This does not establish cold starts, exhaustive routes or sustained FPS. Windows **1.8.5** is a separate shortcut-only package with no automatic reopen or in-app panel; its physical cold-start/login/Store/route checks remain pending. See [implementation, evidence and limits](in-app-studio.md).
+macOS/plugin **1.9.4** and Windows **1.9.4** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
 
 ## 运行模型（两边相同）
 
@@ -47,13 +47,14 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 | 实机 verify / 截图 | ✅ | ✅ |
 | 用户选图定制 | ✅ | ✅（系统托盘「更换背景图」） |
 | 背景工作室（圖片 / MP4 匯入、預覽、套用） | ✅（SwiftUI macOS .app） | ✅（Flutter Windows .exe） |
+| Codex 內嵌 Xskin 工作室 | ✅（MCP App） | ✅（1.9.4，同一 MCP App） |
 | 对话 Token / 缓存 / 额度 / 方案 overlay | ✅（Codex 任务输入框上方） | ✅（Codex 任务输入框上方） |
 | 四語介面 / 拖放 / 獨立全版遮罩 | ✅ | ✅（1.5.1） |
 | 面板關閉後由 Codex (Xskin) 啟動 | ✅（1.8.0，受管 .app） | ✅（1.8.0，桌面／開始捷徑） |
-| 點官方 App 自動套用背景 | ✅（1.8.1，新的普通啟動正常重開一次） | ❌（使用受管捷徑，不自動重開） |
+| 點官方 App 自動套用背景 | ✅（新的普通啟動正常重開一次） | ✅（1.9.4，需明確啟用；既有／暫停／偵錯工作階段略過） |
 | 本地主题保存 / 切换 | ✅（菜单栏） | ✅（系统托盘） |
 | 官方签名校验 | ✅ | Store 签名类型 + 包身份 |
-| 客户部署提示词 | ✅ | ❌（可用 Mac 文案改写） |
+| 客户部署提示词 | ✅ | ✅ `windows/CLIENT_DEPLOY_PROMPT.md` |
 | 打客户 ZIP | ✅ `build-client-release.sh` | ✅ `scripts/build-release.ps1` |
 
 ## 对话 Token overlay
@@ -141,7 +142,7 @@ The GitHub workflow summary lagged behind its completed job; the result above wa
 
 `1.2.1-video.2` supports MP4 backgrounds up to 256 MiB through the bundled Skill and menu picker. Video plays silently in a loop and suspends for hidden documents or reduced motion. The static image is retained for loading and failure fallback. Windows also supports MP4 through the Flutter panel and validated local CDP file handoff.
 
-## 1.8.0 managed direct launch
+## Historical 1.8.0 managed direct launch (superseded by Windows 1.9.4)
 
 Windows uses an explicit **Codex (Xskin)** entry. It requests official OS activation once, reuses verified connections and leaves ordinary existing apps running. No Windows automatic close/reopen or login watcher remains. Pinning uses normal system UI. Pause/disabled preferences make the shortcut open ordinary Codex and remain paused.
 

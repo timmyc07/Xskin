@@ -261,15 +261,28 @@
     }
     syncPlayback();
     return {
-      status: () => ({
-        ready: !failed && video.readyState >= 2 && !video.paused,
-        decoded: !failed && video.readyState >= 2,
-        suspended: !failed && Boolean(suspended()),
-        hostHidden: hostHidden(),
-        cardsVisible: SURFACE === "dot" ? dotVisible : undefined,
-        failed, paused: video.paused, currentTime: video.currentTime,
-        width: video.videoWidth, height: video.videoHeight,
-      }),
+      status: () => {
+        let quality = null;
+        try {
+          const sample = video.getVideoPlaybackQuality?.();
+          if (sample && Number.isFinite(sample.creationTime) && sample.creationTime >= 0 &&
+            Number.isSafeInteger(sample.totalVideoFrames) && sample.totalVideoFrames >= 0 &&
+            Number.isSafeInteger(sample.droppedVideoFrames) && sample.droppedVideoFrames >= 0 &&
+            sample.droppedVideoFrames <= sample.totalVideoFrames) {
+            quality = { sampledAtMs: sample.creationTime, totalFrames: sample.totalVideoFrames,
+              droppedFrames: sample.droppedVideoFrames };
+          }
+        } catch {}
+        return {
+          ready: !failed && video.readyState >= 2 && !video.paused,
+          decoded: !failed && video.readyState >= 2,
+          suspended: !failed && Boolean(suspended()),
+          hostHidden: hostHidden(),
+          cardsVisible: SURFACE === "dot" ? dotVisible : undefined,
+          failed, paused: video.paused, currentTime: video.currentTime,
+          width: video.videoWidth, height: video.videoHeight, quality,
+        };
+      },
       syncPlayback,
       syncLayout: syncDotLayout,
       dispose: () => {
@@ -987,7 +1000,7 @@
     videoKey: THEME.videoKey,
     wallpaper: WALLPAPER,
     videoStatus: THEME.video ? () => videoController?.status() ?? {
-      ready: false, suspended: false, failed: false, paused: true, currentTime: 0,
+      ready: false, suspended: false, failed: false, paused: true, currentTime: 0, quality: null,
     } : undefined,
     disposeVideo: () => videoController?.dispose(),
     disposeHost,

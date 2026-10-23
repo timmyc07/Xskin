@@ -365,7 +365,12 @@ test("file symlinks and an approved file swapped to a symlink never expose anoth
   const outside = path.join(directory, "private.png");
   await fs.writeFile(outside, image);
   const link = path.join(theme, "link.png");
-  await fs.symlink(outside, link);
+  try { await fs.symlink(outside, link); }
+  catch (error) {
+    if (process.platform !== "win32" || error.code !== "EPERM") throw error;
+    t.skip("Windows file symlink creation requires Developer Mode or administrator privileges.");
+    return;
+  }
   const linked = await preview.update({ active: { ...active, path: link }, selection });
   assert.equal(linked.active, null);
   assert.ok(linked.selection);
@@ -380,7 +385,7 @@ test("directory symlinks before and after approval are rejected without invalida
   const { directory, theme, pending, active, selection, preview, rejectRead } = await fixture(t);
   const approved = await preview.update({ active, selection });
   await fs.rename(theme, `${theme}.old`);
-  await fs.symlink(`${theme}.old`, theme, "dir");
+  await fs.symlink(`${theme}.old`, theme, process.platform === "win32" ? "junction" : "dir");
   await rejectRead(approved.active.id, 0);
   const linkedActive = await preview.update({ active, selection });
   assert.equal(linkedActive.active, null);
@@ -389,13 +394,13 @@ test("directory symlinks before and after approval are rejected without invalida
   await fs.rename(`${theme}.old`, theme);
   const restored = await preview.update({ active, selection });
   await fs.rename(pending, `${pending}.old`);
-  await fs.symlink(`${pending}.old`, pending, "dir");
+  await fs.symlink(`${pending}.old`, pending, process.platform === "win32" ? "junction" : "dir");
   await rejectRead(restored.selection.id, 0);
   const linkedPending = await preview.update({ active, selection });
   assert.ok(linkedPending.active);
   assert.equal(linkedPending.selection, null);
   const linkedRoot = path.join(directory, "linked-root");
-  await fs.symlink(path.dirname(theme), linkedRoot, "dir");
+  await fs.symlink(path.dirname(theme), linkedRoot, process.platform === "win32" ? "junction" : "dir");
   const rootPreview = await createMediaPreview({ stateRoot: linkedRoot });
   try {
     assert.deepEqual(await rootPreview.update({ active: { ...active, path: path.join(linkedRoot, "theme", path.basename(active.path)) } }),

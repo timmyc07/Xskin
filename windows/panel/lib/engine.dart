@@ -4,6 +4,11 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
+class XskinFailure extends StateError {
+  XskinFailure(this.code, String details) : super(details);
+  final String code;
+}
+
 class PanelState {
   PanelState.fromJson(Map<String, dynamic> json)
     : name = json['name'] as String,
@@ -18,7 +23,12 @@ class PanelState {
       autostart = json['autostart'] as bool,
       autostartLoaded = json['autostartLoaded'] as bool,
       language = json['language'] as String,
-      saved = List<Map<String, dynamic>>.from(json['saved'] as List);
+      saved = List<Map<String, dynamic>>.from(json['saved'] as List),
+      messageCode = json['messageCode'] as String? {
+    if (!maskOpacity.isFinite || maskOpacity < 0 || maskOpacity > 1) {
+      throw XskinFailure('maskResponseInvalid', 'Invalid overlay opacity.');
+    }
+  }
 
   final String name;
   final String imagePath;
@@ -33,6 +43,7 @@ class PanelState {
   final bool autostartLoaded;
   final String language;
   final List<Map<String, dynamic>> saved;
+  final String? messageCode;
 }
 
 class XskinEngine {
@@ -45,7 +56,8 @@ class XskinEngine {
   ]) async {
     final script = path.join(root, 'scripts', 'xskin-command.ps1');
     if (!File(script).existsSync()) {
-      throw const FileSystemException(
+      throw XskinFailure(
+        'resourcesUnavailable',
         'Extract the complete Xskin ZIP before opening the app.',
       );
     }
@@ -112,19 +124,41 @@ class XskinEngine {
         );
         if (json.isEmpty) {
           final stderr = errors.toString().trim();
-          throw StateError(
+          throw XskinFailure(
+            'responseInvalid',
             stderr.isEmpty
                 ? 'The background engine exited without a result (code $code).'
                 : stderr,
           );
         }
-        final result = jsonDecode(json) as Map<String, dynamic>;
+        late Map<String, dynamic> result;
+        try {
+          result = jsonDecode(json) as Map<String, dynamic>;
+        } catch (_) {
+          throw XskinFailure(
+            'responseInvalid',
+            'Invalid background service response.',
+          );
+        }
         if (code != 0 || result['ok'] != true) {
-          throw StateError(
+          throw XskinFailure(
+            result['errorCode'] as String? ?? 'operationFailed',
             result['error'] as String? ?? 'The background operation failed.',
           );
         }
-        return PanelState.fromJson(result['state'] as Map<String, dynamic>);
+        try {
+          return PanelState.fromJson({
+            ...result['state'] as Map<String, dynamic>,
+            'messageCode': result['messageCode'],
+          });
+        } on XskinFailure {
+          rethrow;
+        } catch (_) {
+          throw XskinFailure(
+            'responseInvalid',
+            'Incomplete background settings.',
+          );
+        }
       } finally {
         await output.cancel();
         await errorOutput.cancel();

@@ -17,7 +17,7 @@ Import, preview, and apply inside Codex on macOS or from the native macOS and Fl
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
-> **macOS / plugin 1.9.4 · Windows 1.8.5.** Manage backgrounds inside Codex on macOS through **More → Xskin**, or use the standalone app on either platform. The embedded panel is macOS-only; Windows uses **Codex (Xskin)** shortcuts without automatic reopen. See [installation and validation](docs/in-app-studio.md).
+> **macOS / plugin 1.9.4 · Windows 1.8.5.** Manage backgrounds inside Codex on macOS and Windows through **More → Xskin**, or use the standalone app on either platform. Windows source 1.9.4 adds the same embedded panel and opt-in official-launch service; use its matching plugin package. See [installation and validation](docs/in-app-studio.md).
 
 [Windows guide](windows/README.md) · [macOS guide](docs/background-panel.md) · [Windows performance measurements](windows/references/performance.md)
 
@@ -87,7 +87,7 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 macOS 1.9.4 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen. Opening the embedded panel alone does not enable automatic startup; Apply and mask changes require an existing verified background connection.
 
-Windows 1.8.5 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
+Windows source 1.9.4 ports the same embedded studio, retained original-media previews, recovery and six presets. Explicitly enable **Apply when official Codex opens** to start the per-user login monitor; future fresh ordinary launches gracefully reopen once. Existing, paused and debugging sessions are skipped. Codex (Xskin) remains the direct-launch option. See [Windows parity and validation](docs/windows-parity.md). Published downloads below remain 1.8.5 until a new release is published.
 
 ### Leave room around the input
 
@@ -127,11 +127,11 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Processor | Windows x64 or Apple Silicon; no Intel Mac prebuilt binary |
 | Required software | Official Codex Desktop; Windows uses the registered Microsoft Store `OpenAI.Codex` package |
 | Installation | macOS: install the Codex plugin, or move Xskin.app to Applications. Windows: extract the complete ZIP. |
-| In-Codex panel | macOS local execution only; Windows uses the standalone app |
+| In-Codex panel | macOS and Windows local execution; use the matching platform plugin package |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
 - Releases are platform-specific: **windows-v1.8.5** for Windows x64 and **v1.9.4** for macOS arm64/plugin. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
-- Windows uses Codex (Xskin) without automatic reopen. macOS supports the official entry with one graceful reopen per fresh launch, or the optional direct entry.
+- Both platforms support the optional Codex (Xskin) direct entry and an explicitly enabled official-app entry with one graceful reopen per fresh launch. Windows source 1.9.4 adds the latter.
 - Automated macOS tests and Windows runner/Flutter checks passed. Three physical cold starts, login/Store-update checks and complete official-app Home/task visual inspection remain pending; see the [validation report](docs/platforms.md#2026-10-23-overlay-layout-validation). CDP/CSS authorization remains unconfirmed.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
 - Codex updates may change the interface or launch behavior and affect background application. Disable automatic apply and report version details if problems occur.
@@ -164,7 +164,7 @@ cd macos
 npm test
 ```
 
-Windows 1.8.5 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.9.4 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
+Windows and macOS source 1.9.4 support official-app launches through their explicitly enabled service with one graceful reopen; existing/paused sessions are skipped. Codex (Xskin) remains optional. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
 
 </details>
 

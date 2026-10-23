@@ -724,6 +724,32 @@ videoFixture.window.__CODEX_DREAM_SKIN_STATE__.setVideo({ name: "background.mp4"
 assert.equal(videoFixture.window.__CODEX_DREAM_SKIN_STATE__.videoStatus().width, 3840);
 assert.equal(videoFixture.window.__CODEX_DREAM_SKIN_STATE__.videoStatus().height, 2160);
 const videoNode = videoFixture.nodes.get("codex-dream-skin-video");
+const videoState = videoFixture.window.__CODEX_DREAM_SKIN_STATE__;
+assert.equal(videoState.videoStatus().quality, null, "An unavailable quality API must not fabricate zero frame counts.");
+const qualityTimers = videoFixture.timers.size;
+const qualityObservers = videoFixture.observers.length + videoFixture.resizeObservers.length;
+videoNode.getVideoPlaybackQuality = () => ({ creationTime: 1250.5, totalVideoFrames: 120, droppedVideoFrames: 3 });
+assert.deepEqual(JSON.parse(JSON.stringify(videoState.videoStatus().quality)),
+  { sampledAtMs: 1250.5, totalFrames: 120, droppedFrames: 3 });
+videoNode.getVideoPlaybackQuality = () => ({ creationTime: 0, totalVideoFrames: 0, droppedVideoFrames: 0 });
+assert.deepEqual(JSON.parse(JSON.stringify(videoState.videoStatus().quality)),
+  { sampledAtMs: 0, totalFrames: 0, droppedFrames: 0 }, "Actual zero counters remain distinct from an unavailable API.");
+for (const invalid of [null, {}, { creationTime: NaN, totalVideoFrames: 10, droppedVideoFrames: 0 },
+  { creationTime: -1, totalVideoFrames: 10, droppedVideoFrames: 0 },
+  { creationTime: 1, totalVideoFrames: 1.5, droppedVideoFrames: 0 },
+  { creationTime: 1, totalVideoFrames: -1, droppedVideoFrames: 0 },
+  { creationTime: 1, totalVideoFrames: 10, droppedVideoFrames: -1 },
+  { creationTime: 1, totalVideoFrames: 10, droppedVideoFrames: 11 },
+  { creationTime: 1, totalVideoFrames: Number.MAX_SAFE_INTEGER + 1, droppedVideoFrames: 0 }]) {
+  videoNode.getVideoPlaybackQuality = () => invalid;
+  assert.equal(videoState.videoStatus().quality, null, "Invalid quality snapshots must remain unavailable.");
+}
+videoNode.getVideoPlaybackQuality = () => { throw new Error("quality unavailable"); };
+assert.equal(videoState.videoStatus().quality, null, "A quality API failure cannot break playback status.");
+delete videoNode.getVideoPlaybackQuality;
+assert.equal(videoFixture.timers.size, qualityTimers);
+assert.equal(videoFixture.observers.length + videoFixture.resizeObservers.length, qualityObservers,
+  "Reading self-owned video counters must add no timers or observers.");
 assert.ok(videoNode.muted && videoNode.defaultMuted && videoNode.loop && videoNode.autoplay && videoNode.playsInline);
 assert.equal(videoNode.controls, false);
 assert.equal(videoFixture.attributes.get("data-dream-video-ready"), "true");

@@ -181,7 +181,11 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
       _state = state;
       if (!_maskEdited) _mask = state.maskOpacity;
       _language = state.language;
-      _status = state.pending
+      _status =
+          state.messageCode != null &&
+              translations.containsKey(state.messageCode)
+          ? state.messageCode!
+          : state.pending
           ? 'statusReady'
           : state.applied
           ? 'statusApplied'
@@ -272,7 +276,10 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
     } catch (error) {
       if (mounted) {
         setState(() {
-          _status = 'operationFailed';
+          _status =
+              error is XskinFailure && translations.containsKey(error.code)
+              ? error.code
+              : 'operationFailed';
           _details = error is StateError
               ? error.message.toString()
               : error.toString();

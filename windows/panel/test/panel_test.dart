@@ -36,7 +36,9 @@ class FakeEngine extends XskinEngine {
   ]) async {
     calls.add(action);
     if (fail) throw StateError('Node.js 22 or newer is required.');
-    if (action == 'import' && failImport) throw StateError('Invalid media.');
+    if (action == 'import' && failImport) {
+      throw XskinFailure('invalidVideo', 'Invalid media.');
+    }
     if (action == 'apply') {
       data['pending'] = false;
       data['applied'] = true;
@@ -113,6 +115,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(engine.calls, contains('import'));
+      expect(find.text('無法讀取 MP4，請選擇有效的影片檔案。'), findsOneWidget);
       expect(
         tester
             .widget<FilledButton>(

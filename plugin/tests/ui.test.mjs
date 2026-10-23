@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
+import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { createStudioController, LANGUAGES, STUDIO_META } from "../ui/controller.mjs";
 import { mediaIdentity, releaseVideo } from "../ui/media.mjs";
@@ -141,7 +142,7 @@ test("failed tool results can reconcile restored state without discarding pendin
   assert.equal(controller.view.state.maskOpacity, .35);
   assert.equal(controller.view.state.selection.id, selectionId);
   assert.equal(controller.view.notice, null);
-  for (const changes of [{ platform: "windows" }, { maskOpacity: NaN }, { language: "unknown" }]) {
+  for (const changes of [{ platform: "linux" }, { maskOpacity: NaN }, { language: "unknown" }]) {
     assert.equal(controller.receive(result(state(changes))), false);
     assert.equal(controller.view.state, restored);
   }
@@ -336,7 +337,7 @@ async function uiFixture(initialState, initialHostContext = { theme: "dark", sty
     }
   }
   const bundle = await build({
-    entryPoints: [new URL("../ui/index.mjs", import.meta.url).pathname], bundle: true, write: false,
+    entryPoints: [fileURLToPath(new URL("../ui/index.mjs", import.meta.url))], bundle: true, write: false,
     format: "iife", platform: "browser", target: "es2022", logLevel: "silent",
     plugins: [{ name: "mock-app-sdk", setup(build) {
       build.onResolve({ filter: /^@modelcontextprotocol\/ext-apps$/ }, () => ({ path: "sdk", namespace: "mock-sdk" }));

@@ -1,5 +1,7 @@
 # Windows 1.8.1 / macOS 1.8.2: migration and validation
 
+Historical report: Windows source 1.9.4 supersedes the shortcut-only behavior below with an explicitly enabled official-launch monitor and the shared embedded studio. See [current Windows parity and validation](windows-parity.md). The recorded older test results below are not current-version acceptance.
+
 Source baseline: `945b90f` on `codex/fix-windows-startup-overlay`. Windows work: `codex/direct-launch-shortcut`; macOS follow-up: `codex/macos-native-launch`; overlay follow-up: `codex/overlay-layout-transparency`. Updated 2026-10-23, Asia/Taipei for [Windows 1.8.1](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.1) and [macOS 1.8.2](https://github.com/timmyc07/Xskin/releases/tag/v1.8.2). The user authorized one automatic graceful reopen on macOS only, retaining its official-app entry; Windows remains shortcut-only without automatic reopen. Physical startup and visual checks below remain pending after publication.
 
 ## Authorization boundary

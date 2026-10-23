@@ -1,6 +1,13 @@
 ﻿. (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
 
+function New-XskinFailure {
+  param([Parameter(Mandatory = $true)][string]$Code, [Parameter(Mandatory = $true)][string]$Message)
+  $failure = [InvalidOperationException]::new($Message)
+  $failure.Data['errorCode'] = $Code
+  return $failure
+}
+
 function New-XskinImport {
   param(
     [Parameter(Mandatory = $true)][string]$ImagePath,
@@ -9,7 +16,20 @@ function New-XskinImport {
     [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
   )
   Assert-DreamSkinImageFile -Path $ImagePath
-  if ($VideoPath) { Assert-DreamSkinVideoFile -Path $VideoPath }
+  if ($VideoPath) {
+    try {
+      Assert-DreamSkinNoReparseComponents -Path $VideoPath
+      $video = Get-Item -LiteralPath $VideoPath -ErrorAction Stop
+    } catch {
+      $code = if ($_.CategoryInfo.Category -eq 'PermissionDenied') { 'fileAccessDenied' } else { 'invalidLocalFile' }
+      throw (New-XskinFailure -Code $code -Message $_.Exception.Message)
+    }
+    if ($video.PSIsContainer -or $video.Length -lt 1 -or $video.Length -gt 256MB) {
+      throw (New-XskinFailure -Code videoSizeLimit -Message 'MP4 must be a regular file no larger than 256 MiB.')
+    }
+    try { Assert-DreamSkinVideoFile -Path $VideoPath }
+    catch { throw (New-XskinFailure -Code invalidVideo -Message $_.Exception.Message) }
+  }
   $directory = Join-Path $StateRoot ('imports\' + [guid]::NewGuid().ToString('N'))
   Ensure-DreamSkinManagedDirectory -Path $directory -Root $StateRoot
   try {
@@ -19,7 +39,7 @@ function New-XskinImport {
   $name = if ($Name) { $Name } else { [System.IO.Path]::GetFileNameWithoutExtension($source) }
   $theme = [pscustomobject]@{
     id = 'xskin-' + [guid]::NewGuid().ToString('N')
-    name = $name.Substring(0, [Math]::Min(80, $name.Length))
+    name = $name
     image = $imageName
     layout = 'wallpaper'
     appearance = 'dark'
@@ -40,13 +60,20 @@ function New-XskinImport {
 
 function Convert-XskinImage {
   param([Parameter(Mandatory = $true)][string]$Source, [Parameter(Mandatory = $true)][string]$Destination)
-  Assert-DreamSkinNoReparseComponents -Path $Source
+  try {
+    Assert-DreamSkinNoReparseComponents -Path $Source
+    $file = Get-Item -LiteralPath $Source -ErrorAction Stop
+  } catch {
+    $code = if ($_.CategoryInfo.Category -eq 'PermissionDenied') { 'fileAccessDenied' } else { 'invalidLocalFile' }
+    throw (New-XskinFailure -Code $code -Message $_.Exception.Message)
+  }
   Assert-DreamSkinNoReparseComponents -Path $Destination
   if ([IO.Path]::GetExtension($Source).ToLowerInvariant() -notin @('.png','.jpg','.jpeg','.webp','.heic','.heif','.tif','.tiff')) {
-    throw 'Choose MP4, PNG, JPEG, WebP, HEIC, or TIFF.'
+    throw (New-XskinFailure -Code unsupportedFormat -Message 'Choose MP4, PNG, JPEG, WebP, HEIC, or TIFF.')
   }
-  $file = Get-Item -LiteralPath $Source
-  if ($file.PSIsContainer -or $file.Length -lt 1 -or $file.Length -gt 50MB) { throw 'Images must be regular files no larger than 50 MiB.' }
+  if ($file.PSIsContainer -or $file.Length -lt 1 -or $file.Length -gt 50MB) {
+    throw (New-XskinFailure -Code imageSizeLimit -Message 'Images must be regular files no larger than 50 MiB.')
+  }
   Add-Type -AssemblyName PresentationCore
   $stream = [IO.File]::Open($Source, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
   try {
@@ -54,7 +81,9 @@ function Convert-XskinImage {
       [Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat, [Windows.Media.Imaging.BitmapCacheOption]::OnDemand)
     $frame = $decoder.Frames[0]
     if ($frame.PixelWidth -lt 1 -or $frame.PixelHeight -lt 1 -or $frame.PixelWidth -gt 16384 -or
-      $frame.PixelHeight -gt 16384 -or [long]$frame.PixelWidth * $frame.PixelHeight -gt 50000000) { throw 'Unsupported image dimensions (16384px / 50MP limit).' }
+      $frame.PixelHeight -gt 16384 -or [long]$frame.PixelWidth * $frame.PixelHeight -gt 50000000) {
+      throw (New-XskinFailure -Code imageDimensions -Message 'Unsupported image dimensions (16384px / 50MP limit).')
+    }
     $scale = [Math]::Min(1, 4096 / [double][Math]::Max($frame.PixelWidth, $frame.PixelHeight))
     $scaled = [Windows.Media.Imaging.TransformedBitmap]::new($frame, [Windows.Media.ScaleTransform]::new($scale,$scale))
     $encoder = [Windows.Media.Imaging.JpegBitmapEncoder]::new()
@@ -63,7 +92,8 @@ function Convert-XskinImage {
     $output = [IO.File]::Open($Destination, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
     try { $encoder.Save($output) } finally { $output.Dispose() }
   } catch {
-    throw "Image conversion failed. HEIC/HEIF requires a Windows image codec. $($_.Exception.Message)"
+    if ($_.Exception.Data['errorCode']) { throw }
+    throw (New-XskinFailure -Code imageConversion -Message "Image conversion failed. HEIC/HEIF requires a Windows image codec. $($_.Exception.Message)")
   } finally { $stream.Dispose() }
   Assert-DreamSkinImageFile -Path $Destination
 }
@@ -74,7 +104,7 @@ function Read-XskinSettings {
   Assert-DreamSkinNoReparseComponents -Path $file
   if (-not (Test-Path -LiteralPath $file)) { return [pscustomobject]@{} }
   $settings = (Read-DreamSkinUtf8File -Path $file) | ConvertFrom-Json
-  if ($null -eq $settings -or $settings -is [array] -or $settings -is [string]) { throw 'Invalid studio settings.' }
+  if ($null -eq $settings -or $settings -is [array] -or $settings -is [string]) { throw (New-XskinFailure -Code invalidStudio -Message 'Invalid studio settings.') }
   if ($settings.language -and $settings.language -notin @('en','zh-Hant','zh-Hans','ja')) { throw 'Unsupported saved language.' }
   return $settings
 }
@@ -183,19 +213,19 @@ function Save-XskinStateRoot {
 
 function Get-XskinAutostart {
   param([Parameter(Mandatory = $true)][string]$StateRoot)
-  $enabled = (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -ne $false
-  $loaded = @(Get-XskinLaunchShortcutPaths | Where-Object {
-    (Test-Path -LiteralPath $_) -and (Test-XskinLaunchShortcut -Link (Get-DreamSkinShortcut -Path $_) -StateRoot $StateRoot)
-  }).Count -eq 2
-  return [pscustomobject]@{ Enabled = $enabled; Loaded = $loaded; Foreign = $false }
+  $enabled = (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $true
+  $startup = Get-DreamSkinAutostart -StateRoot $StateRoot
+  return [pscustomobject]@{ Enabled = $enabled; Loaded = $startup.Loaded; Foreign = $startup.Foreign }
 }
 
 function Initialize-XskinAutostart {
   param([Parameter(Mandatory = $true)][string]$SkillRoot, [Parameter(Mandatory = $true)][string]$StateRoot)
   $settings = Read-XskinSettings -StateRoot $StateRoot
-  if ($settings.launchSetupVersion -eq 2) { return }
+  if ($settings.launchSetupVersion -eq 3) { return }
   $legacy = Get-DreamSkinAutostart -StateRoot $StateRoot
-  $enabled = -not $settings.automaticSetupComplete -or $legacy.Enabled
+  $enabled = if ($null -ne $settings.shortcutSkinEnabled) { [bool]$settings.shortcutSkinEnabled } else {
+    -not $settings.automaticSetupComplete -or $legacy.Enabled
+  }
   Set-XskinAutostart -Enabled $enabled -SkillRoot $SkillRoot -StateRoot $StateRoot
 }
 
@@ -203,12 +233,14 @@ function Set-XskinAutostart {
   param([Parameter(Mandatory = $true)][bool]$Enabled, [Parameter(Mandatory = $true)][string]$SkillRoot,
     [Parameter(Mandatory = $true)][string]$StateRoot)
   $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
+  if ((Get-DreamSkinAutostart -StateRoot $StateRoot).Foreign) { throw 'Refusing to change an unrelated automatic-startup task.' }
   $null = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
   Set-XskinLaunchShortcuts -StateRoot $StateRoot
   # Persist the physical store before deleting the legacy task that used to locate it.
   Save-XskinStateRoot -StateRoot $StateRoot
-  Remove-DreamSkinLegacyAutostart -StateRoot $StateRoot
-  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 2; shortcutSkinEnabled = $Enabled }
+  if ($Enabled) { Enable-DreamSkinAutostart -StateRoot $StateRoot }
+  else { Disable-DreamSkinAutostart -StateRoot $StateRoot }
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 3; shortcutSkinEnabled = $Enabled }
 }
 
 function Test-XskinApplied {
@@ -222,22 +254,88 @@ function Test-XskinApplied {
   return $null -ne $identity -and $identity.BrowserId -ceq $state.browserId
 }
 
+function Start-XskinTransaction {
+  param([string]$StateRoot, [string]$Next)
+  $active = Join-Path $StateRoot 'active-theme'
+  $previous = Read-DreamSkinTheme -ThemeDirectory $active
+  if ($previous.Theme.PSObject.Properties['xskinTransaction']) {
+    throw (New-XskinFailure -Code invalidBackground -Message 'The active background contains transaction metadata.')
+  }
+  $journal = Join-Path $active '.xskin-transaction.json'
+  Assert-DreamSkinNoReparseComponents -Path $journal
+  if (Test-Path -LiteralPath $journal) { throw (New-XskinFailure -Code operationBusy -Message 'Recover the interrupted background operation first.') }
+  $previous.Theme | Add-Member -NotePropertyName xskinTransaction -NotePropertyValue @{
+    schemaVersion = 1
+    previous = Read-DreamSkinUtf8File -Path $previous.ThemePath
+    next = $Next
+    paused = Test-DreamSkinPaused -StateRoot $StateRoot
+  }
+  $json = $previous.Theme | ConvertTo-Json -Depth 12
+  if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 1MB) {
+    throw (New-XskinFailure -Code invalidBackground -Message 'Background transaction metadata exceeds its size limit.')
+  }
+  Write-DreamSkinUtf8FileAtomically -Path $journal -Content $json
+}
+
+function Repair-XskinTransaction {
+  param([Parameter(Mandatory = $true)][string]$StateRoot)
+  $active = Join-Path $StateRoot 'active-theme'
+  $journal = Join-Path $active '.xskin-transaction.json'
+  try {
+    Assert-DreamSkinNoReparseComponents -Path $journal
+    if (-not (Test-Path -LiteralPath $journal)) { return $false }
+    $file = Get-Item -LiteralPath $journal
+    if ($file.PSIsContainer -or $file.Length -lt 1 -or $file.Length -gt 1MB) { throw 'Invalid transaction file.' }
+    $saved = Read-DreamSkinTheme -ThemeDirectory $active -ThemeFile '.xskin-transaction.json'
+    $transaction = $saved.Theme.xskinTransaction
+    if ($null -eq $transaction -or $transaction.schemaVersion -ne 1 -or
+      (($transaction.PSObject.Properties.Name | Sort-Object) -join ',') -cne 'next,paused,previous,schemaVersion' -or
+      $transaction.previous -isnot [string] -or $transaction.next -isnot [string] -or $transaction.paused -isnot [bool]) {
+      throw 'Invalid background transaction.'
+    }
+    $previous = $transaction.previous | ConvertFrom-Json
+    $next = $transaction.next | ConvertFrom-Json
+    if ($null -eq $previous -or $null -eq $next -or $previous -is [array] -or $next -is [array] -or
+      -not $previous.image -or -not $next.image -or $previous.PSObject.Properties['xskinTransaction'] -or
+      $next.PSObject.Properties['xskinTransaction']) { throw 'Invalid background transaction settings.' }
+    $saved.Theme.PSObject.Properties.Remove('xskinTransaction')
+    if (($saved.Theme | ConvertTo-Json -Depth 12 -Compress) -cne ($previous | ConvertTo-Json -Depth 12 -Compress)) {
+      throw 'The saved background does not match its transaction.'
+    }
+    $current = Read-DreamSkinUtf8File -Path (Join-Path $active 'theme.json')
+    if ($current -cne $transaction.previous -and $current -cne $transaction.next) {
+      throw 'The current background was changed outside the interrupted operation.'
+    }
+    Write-DreamSkinUtf8FileAtomically -Path (Join-Path $active 'theme.json') -Content $transaction.previous
+    $null = Set-DreamSkinPaused -Paused $transaction.paused -StateRoot $StateRoot
+    Remove-Item -LiteralPath $journal -Force
+    return $true
+  } catch { throw (New-XskinFailure -Code invalidBackground -Message $_.Exception.Message) }
+}
+
 function Set-XskinMask {
   param([Parameter(Mandatory = $true)][double]$Opacity, [Parameter(Mandatory = $true)][string]$StateRoot,
     [Parameter(Mandatory = $true)][scriptblock]$Apply)
   if ([double]::IsNaN($Opacity) -or [double]::IsInfinity($Opacity) -or $Opacity -lt 0 -or $Opacity -gt 1) {
-    throw 'Mask opacity must be a number between 0 and 1.'
+    throw (New-XskinFailure -Code invalidMask -Message 'Mask opacity must be a number between 0 and 1.')
   }
   $active = Join-Path $StateRoot 'active-theme'
   $theme = Read-DreamSkinTheme -ThemeDirectory $active
-  $previous = Read-DreamSkinUtf8File -Path $theme.ThemePath
   $theme.Theme | Add-Member -NotePropertyName maskOpacity -NotePropertyValue $Opacity -Force
-  Write-DreamSkinTheme -ThemeDirectory $active -Theme $theme.Theme
-  try { & $Apply | Out-Host } catch {
+  $next = ($theme.Theme | ConvertTo-Json -Depth 8) + "`r`n"
+  Start-XskinTransaction -StateRoot $StateRoot -Next $next
+  try {
+    Write-DreamSkinUtf8FileAtomically -Path $theme.ThemePath -Content $next
+    & $Apply | Out-Host
+    Remove-Item -LiteralPath (Join-Path $active '.xskin-transaction.json') -Force
+  } catch {
     $failure = $_
-    Write-DreamSkinUtf8FileAtomically -Path $theme.ThemePath -Content $previous
-    try { & $Apply | Out-Null } catch {}
-    throw $failure
+    try { $null = Repair-XskinTransaction -StateRoot $StateRoot }
+    catch { throw (New-XskinFailure -Code maskFailedUnrestored -Message $_.Exception.Message) }
+    if (-not (Test-DreamSkinPaused -StateRoot $StateRoot)) {
+      try { & $Apply | Out-Null } catch {}
+    }
+    throw (New-XskinFailure -Code maskFailedRestored -Message $failure.Exception.Message)
   }
 }
 
@@ -248,8 +346,6 @@ function Invoke-XskinApply {
     [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin')
   )
   $operation = Enter-DreamSkinOperationLock
-  $backup = Join-Path $StateRoot ('.xskin-rollback-' + [guid]::NewGuid().ToString('N'))
-  $preserveBackup = $false
   try {
     if (-not (Test-DreamSkinThemePathWithin -Path $ThemeDirectory -Root $StateRoot)) {
       throw 'Select an imported or saved Xskin theme.'
@@ -257,33 +353,40 @@ function Invoke-XskinApply {
     $candidate = Read-DreamSkinTheme -ThemeDirectory $ThemeDirectory
     $paths = Get-DreamSkinThemePaths -StateRoot $StateRoot
     $previous = Read-DreamSkinTheme -ThemeDirectory $paths.Active
-    $wasPaused = Test-DreamSkinPaused -StateRoot $StateRoot
-    Ensure-DreamSkinManagedDirectory -Path $backup -Root $StateRoot
-    Copy-Item -LiteralPath $previous.ImagePath -Destination $backup
-    if ($previous.VideoPath) { Copy-Item -LiteralPath $previous.VideoPath -Destination $backup }
-    Write-DreamSkinTheme -ThemeDirectory $backup -Theme $previous.Theme
-    $previous = Read-DreamSkinTheme -ThemeDirectory $backup
+    $newFiles = @()
     try {
-      $null = Set-DreamSkinActiveTheme -ImagePath $candidate.ImagePath -VideoPath $candidate.VideoPath `
-        -Theme $candidate.Theme -StateRoot $StateRoot
+      foreach ($source in @($candidate.ImagePath, $candidate.VideoPath)) {
+        if (-not $source) { continue }
+        $name = New-DreamSkinThemeImageName -Extension ([IO.Path]::GetExtension($source))
+        $target = Join-Path $paths.Active $name
+        Assert-DreamSkinNoReparseComponents -Path $target
+        Copy-Item -LiteralPath $source -Destination $target -ErrorAction Stop
+        $newFiles += $target
+        $property = if ($source -ceq $candidate.ImagePath) { 'image' } else { 'video' }
+        $candidate.Theme | Add-Member -NotePropertyName $property -NotePropertyValue $name -Force
+      }
+      $next = ($candidate.Theme | ConvertTo-Json -Depth 8) + "`r`n"
+      Start-XskinTransaction -StateRoot $StateRoot -Next $next
+      Write-DreamSkinUtf8FileAtomically -Path (Join-Path $paths.Active 'theme.json') -Content $next
       & $Apply | Out-Host
+      Remove-Item -LiteralPath (Join-Path $paths.Active '.xskin-transaction.json') -Force
     } catch {
       $applyError = $_
       try {
-        $null = Set-DreamSkinActiveTheme -ImagePath $previous.ImagePath -VideoPath $previous.VideoPath `
-          -Theme $previous.Theme -StateRoot $StateRoot
-        $null = Set-DreamSkinPaused -Paused $wasPaused -StateRoot $StateRoot
+        $null = Repair-XskinTransaction -StateRoot $StateRoot
       } catch {
-        $preserveBackup = $true
-        throw "Apply and rollback failed. Previous theme preserved at ${backup}: $($_.Exception.Message)"
+        throw (New-XskinFailure -Code applyFailedUnrestored -Message $_.Exception.Message)
       }
-      throw $applyError
+      foreach ($file in $newFiles) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
+      if (-not (Test-DreamSkinPaused -StateRoot $StateRoot)) {
+        try { & $Apply | Out-Null } catch {}
+      }
+      throw (New-XskinFailure -Code applyFailedRestored -Message $applyError.Exception.Message)
+    }
+    foreach ($file in @($previous.ImagePath, $previous.VideoPath)) {
+      if ($file) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
     }
   } finally {
-    try {
-      if (-not $preserveBackup -and (Test-Path -LiteralPath $backup)) {
-        Remove-DreamSkinRuntimeTree -Path $backup -StateRoot $StateRoot
-      }
-    } finally { Exit-DreamSkinOperationLock -Mutex $operation }
+    Exit-DreamSkinOperationLock -Mutex $operation
   }
 }

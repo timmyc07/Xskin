@@ -12,3 +12,7 @@ The Flutter application source and its theme engine retain the repository's MIT 
 - ANGLE Windows binaries: https://github.com/alexmercerind/flutter-windows-ANGLE-OpenGL-ES/releases/tag/v1.0.1 ; ANGLE source: https://github.com/google/angle
 
 Native libraries are separate, unmodified DLLs that can be replaced or rebuilt. The MIT license of the media_kit Dart wrapper does not replace the licenses of libmpv, FFmpeg or the graphics libraries. Consult those upstream source/build projects when redistributing the native binaries.
+
+The embedded studio bundles MCP server/client 2.3.1, MCP Apps 2.0.3 and Zod 4.6.7. Their original licenses and notices are included in `plugin/dist/THIRD_PARTY_NOTICES.txt` in the Windows plugin package.
+
+All six `presets/` packs are byte-identical copies of the macOS packs. The five abstract demo presets retain the repository's existing license. `presets/preset-romantic-rose/background.jpg` and `assets/dream-reference.jpg` are maintainer-supplied reference artwork excluded from the MIT software license, subject to the same artwork/likeness/redistribution limits recorded in `NOTICE.md`.

@@ -42,7 +42,7 @@ try {
   }
   Assert-DreamSkinPort -Port $Port
 
-  Remove-DreamSkinLegacyAutostart -StateRoot $StateRoot
+  Disable-DreamSkinAutostart -StateRoot $StateRoot
   Write-XskinSettings -StateRoot $StateRoot -Values @{ shortcutSkinEnabled = $false }
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root

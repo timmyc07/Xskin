@@ -35,7 +35,7 @@ $redistributables = Get-ChildItem -LiteralPath (Join-Path $studio 'VC\Redist\MSV
 $crt = Join-Path $redistributables[0].FullName 'x64\Microsoft.VC143.CRT'
 if (-not (Test-Path -LiteralPath $crt)) { throw 'The x64 Visual C++ redistributable is required for the portable package.' }
 Copy-Item -Path (Join-Path $crt '*.dll') -Destination $package
-foreach ($name in @('scripts','assets','references','README.md','README.en.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','VERSION')) {
+foreach ($name in @('scripts','assets','presets','references','README.md','README.en.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','VERSION')) {
   Copy-Item -LiteralPath (Join-Path $root $name) -Destination $package -Recurse
 }
 . (Join-Path $root 'scripts\common-windows.ps1')
@@ -50,9 +50,12 @@ $quietLauncher = Join-Path $package 'scripts\xskin-quiet.exe'
 if ($LASTEXITCODE -ne 0) { throw 'The GUI-only Xskin launcher could not be built.' }
 Copy-Item -LiteralPath $quietLauncher -Destination (Join-Path $package 'Install Xskin.exe')
 Copy-Item -LiteralPath (Join-Path $repository 'macos\LICENSE'), (Join-Path $repository 'macos\NOTICE.md') -Destination $package
+& (Join-Path $PSScriptRoot 'prepare-package-docs.ps1') -PackageRoot $package
 $zip = Join-Path $release "Xskin-$version-windows-x64.zip"
 Compress-Archive -Path $package -DestinationPath $zip -Force
 $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
 [System.IO.File]::WriteAllText(($zip + '.sha256'), "$hash  $([System.IO.Path]::GetFileName($zip))`n", [System.Text.Encoding]::ASCII)
 Write-Host "Flutter Windows app: $(Join-Path $package 'xskin.exe')"
 Write-Host "Release ZIP: $zip"
+& (Join-Path $PSScriptRoot 'build-plugin-release.ps1') -RuntimeRoot $package
+if ($LASTEXITCODE -ne 0) { throw 'The embedded Windows plugin could not be packaged.' }

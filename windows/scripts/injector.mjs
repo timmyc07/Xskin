@@ -9,7 +9,7 @@ import { TokenUsageReader } from "./token-usage.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.8.5";
+const SKIN_VERSION = "1.9.4";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -152,6 +152,10 @@ export class CdpSession {
       this.close();
       return;
     }
+    if (!message || typeof message !== "object") {
+      this.close();
+      return;
+    }
     if (message.id) {
       const waiter = this.pending.get(message.id);
       if (!waiter) return;
@@ -161,7 +165,11 @@ export class CdpSession {
       else waiter.resolve(message.result);
       return;
     }
-    for (const listener of this.listeners.get(message.method) ?? []) listener(message.params ?? {});
+    for (const listener of this.listeners.get(message.method) ?? []) {
+      try { listener(message.params ?? {}); } catch (error) {
+        console.error(`[dream-skin] CDP listener failed: ${error.message}`);
+      }
+    }
   }
 
   on(method, listener) {

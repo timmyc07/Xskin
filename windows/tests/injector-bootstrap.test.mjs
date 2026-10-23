@@ -4,11 +4,34 @@ import path from "node:path";
 import vm from "node:vm";
 import { EventEmitter } from "node:events";
 import { fileURLToPath } from "node:url";
-import { earlyPayloadFor } from "../scripts/injector.mjs";
+import { CdpSession, earlyPayloadFor } from "../scripts/injector.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const injectorPath = path.resolve(here, "../scripts/injector.mjs");
 const source = await fs.readFile(injectorPath, "utf8");
+
+for (const data of ["null", "false", "42", '"unexpected"', "not-json"]) {
+  const session = Object.create(CdpSession.prototype);
+  Object.assign(session, { pending: new Map(), closed: false, ws: { close() {} } });
+  assert.doesNotThrow(() => session.onMessage({ data }));
+  assert.equal(session.closed, true, "Malformed CDP data must close only its Xskin connection.");
+}
+{
+  const session = Object.create(CdpSession.prototype);
+  const received = [];
+  const errors = [];
+  const originalError = console.error;
+  Object.assign(session, { listeners: new Map([["fixture", [
+    () => { throw new Error("listener failure"); },
+    params => received.push(params.value),
+  ]]]) });
+  try {
+    console.error = message => errors.push(message);
+    assert.doesNotThrow(() => session.onMessage({ data: JSON.stringify({ method: "fixture", params: { value: 42 } }) }));
+  } finally { console.error = originalError; }
+  assert.deepEqual(received, [42], "A failing CDP callback cannot suppress the other listeners.");
+  assert.match(errors[0], /listener failure/);
+}
 
 function createFixture() {
   const observers = [];

@@ -1,9 +1,9 @@
 name: Windows Flutter
 on:
   push:
-    paths: ['windows/**', '.github/workflows/windows.yml']
+    paths: ['windows/**', 'plugin/**', 'plugin.json', 'mcp.windows.json', 'skills/background-studio/**', '.github/workflows/windows.yml']
   pull_request:
-    paths: ['windows/**', '.github/workflows/windows.yml']
+    paths: ['windows/**', 'plugin/**', 'plugin.json', 'mcp.windows.json', 'skills/background-studio/**', '.github/workflows/windows.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,7 +22,12 @@ jobs:
           cache: true
       - name: Test and package Windows app
         shell: powershell
-        run: ./windows/scripts/build-release.ps1
+        run: |
+          npm ci --prefix plugin --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin dependencies could not be installed.' }
+          npm test --prefix plugin
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin tests failed.' }
+          ./windows/scripts/build-release.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: Xskin-Windows

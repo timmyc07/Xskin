@@ -15,21 +15,35 @@ try {
   if ((Get-FileHash -LiteralPath $pending.VideoPath).Hash -ne (Get-FileHash -LiteralPath $source).Hash) { throw 'Import changed video bytes.' }
   $null = Set-DreamSkinPaused -Paused $true -StateRoot $stateRoot
   $failed = $false
+  $attempts = @{ Count = 0 }
   try {
-    Invoke-XskinApply -ThemeDirectory $pending.Directory -StateRoot $stateRoot -Apply { throw 'forced verification failure' }
+    Invoke-XskinApply -ThemeDirectory $pending.Directory -StateRoot $stateRoot -Apply {
+      $attempts.Count++
+      $null = Set-DreamSkinPaused -Paused $false -StateRoot $stateRoot
+      throw 'forced verification failure'
+    }
   } catch {
     if ($_.Exception.Message -notmatch 'forced verification failure') { throw }
     $failed = $true
   }
   $restored = Read-DreamSkinTheme -ThemeDirectory $paths.Active
   if (-not $failed -or $restored.Theme.id -ne $original.Theme.id -or $restored.VideoPath -or
-    -not (Test-DreamSkinPaused -StateRoot $stateRoot)) { throw 'Failed apply did not restore theme and pause state.' }
+    -not (Test-DreamSkinPaused -StateRoot $stateRoot) -or $attempts.Count -ne 1) { throw 'Failed apply did not restore theme and pause state.' }
   Invoke-XskinApply -ThemeDirectory $pending.Directory -StateRoot $stateRoot -Apply { }
   $active = Read-DreamSkinTheme -ThemeDirectory $paths.Active
   if (-not $active.VideoPath -or (Get-FileHash -LiteralPath $active.VideoPath).Hash -ne (Get-FileHash -LiteralPath $source).Hash) { throw 'Video apply failed.' }
   $name = -join @([char]0x4E2D,[char]0x6587)
   $saved = Save-DreamSkinCurrentTheme -Name $name -StateRoot $stateRoot
   if ($saved.Theme.name -ne $name -or -not $saved.VideoPath) { throw 'Saved theme lost its Unicode name or video.' }
+  $savedMetadata = Read-DreamSkinUtf8File -Path $saved.ThemePath
+  $presetImage = Join-Path $paths.Saved 'preset-midnight-aurora\background.jpg'
+  [IO.File]::WriteAllText($presetImage, 'corrupt bundled image')
+  $null = Initialize-DreamSkinThemeStore -SkillRoot $root -StateRoot $stateRoot
+  if ((Read-DreamSkinUtf8File -Path $saved.ThemePath) -cne $savedMetadata -or
+    @(Get-DreamSkinSavedThemes -StateRoot $stateRoot).Count -ne 7 -or
+    (Get-FileHash -LiteralPath $presetImage).Hash -cne (Get-FileHash -LiteralPath (Join-Path $root 'presets\preset-midnight-aurora\background.jpg')).Hash) {
+    throw 'Preset refresh damaged a custom saved theme or did not restore the bundled image.'
+  }
   $image = New-XskinImport -ImagePath $saved.ImagePath -StateRoot $stateRoot
   Invoke-XskinApply -ThemeDirectory $image.Directory -StateRoot $stateRoot -Apply { }
   if ((Read-DreamSkinTheme -ThemeDirectory $paths.Active).VideoPath) { throw 'Image apply retained the previous video.' }
@@ -40,6 +54,26 @@ try {
     throw 'Failed apply was accepted.'
   } catch { if ($_.Exception.Message -notmatch 'second forced failure') { throw } }
   if (-not (Read-DreamSkinTheme -ThemeDirectory $paths.Active).VideoPath) { throw 'Rollback lost the previous video.' }
+  $active = Read-DreamSkinTheme -ThemeDirectory $paths.Active
+  $beforeInterrupted = Read-DreamSkinUtf8File -Path $active.ThemePath
+  $active.Theme | Add-Member -NotePropertyName maskOpacity -NotePropertyValue 0.83 -Force
+  $next = ($active.Theme | ConvertTo-Json -Depth 8) + "`r`n"
+  Start-XskinTransaction -StateRoot $stateRoot -Next $next
+  Write-DreamSkinUtf8FileAtomically -Path $active.ThemePath -Content $next
+  $journal = Join-Path $paths.Active '.xskin-transaction.json'
+  $journalBytes = Read-DreamSkinUtf8File -Path $journal
+  Write-DreamSkinUtf8FileAtomically -Path $journal -Content '{broken'
+  try { Repair-XskinTransaction -StateRoot $stateRoot; throw 'Invalid recovery journal was accepted.' }
+  catch { if ($_.Exception.Data['errorCode'] -ne 'invalidBackground') { throw } }
+  if ((Read-DreamSkinUtf8File -Path $journal) -cne '{broken') { throw 'Invalid journal was removed.' }
+  Write-DreamSkinUtf8FileAtomically -Path $journal -Content $journalBytes
+  Write-DreamSkinUtf8FileAtomically -Path $active.ThemePath -Content ($next + ' ')
+  try { Repair-XskinTransaction -StateRoot $stateRoot; throw 'Recovery overwrote an external change.' }
+  catch { if ($_.Exception.Data['errorCode'] -ne 'invalidBackground') { throw } }
+  Write-DreamSkinUtf8FileAtomically -Path $active.ThemePath -Content $next
+  if (-not (Repair-XskinTransaction -StateRoot $stateRoot) -or
+    (Read-DreamSkinUtf8File -Path $active.ThemePath) -cne $beforeInterrupted -or
+    (Repair-XskinTransaction -StateRoot $stateRoot)) { throw 'Interrupted recovery was not exact or idempotent.' }
   $lock = Enter-DreamSkinOperationLock
   Exit-DreamSkinOperationLock -Mutex $lock
 } finally {

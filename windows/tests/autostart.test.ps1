@@ -39,25 +39,11 @@ try {
   $legacyHash = (Get-FileHash -LiteralPath $legacyPath).Hash
   Remove-XskinLegacyShortcuts -StateRoot $stateRoot
   if ((Get-FileHash -LiteralPath $legacyPath).Hash -cne $legacyHash) { throw 'An unrelated same-name legacy shortcut was removed.' }
-  $script:events = [Collections.Generic.List[string]]::new()
-  $script:legacyTask = @{ Enabled = $true }
-  function Get-DreamSkinAutostartTask { return $script:legacyTask }
-  function Test-DreamSkinAutostartTask { return $true }
-  function Get-DreamSkinAutostartProcess { return @{ Id = 1 } }
-  function Read-DreamSkinState { return @{ injectorPid = 1 } }
-  function Stop-DreamSkinRecordedInjector { $script:events.Add('injector'); return $true }
-  function Stop-DreamSkinAutostart {
-    if ($script:legacyTask.Enabled) { throw 'Legacy task could restart during migration.' }
-    $script:events.Add('monitor')
-  }
-  function Get-DreamSkinAutostartTaskFolder {
-    $folder = New-Object psobject
-    $folder | Add-Member -MemberType ScriptMethod -Name DeleteTask -Value { param($Name,$Flags) $script:events.Add('task') }
-    return $folder
-  }
-  function Get-DreamSkinAutostartTaskName { return 'fixture' }
-  function Get-DreamSkinAutostartShortcutPath { return Join-Path $temporary 'absent.lnk' }
-  Remove-DreamSkinLegacyAutostart -StateRoot $stateRoot
-  if (($script:events -join ',') -cne 'injector,monitor,task') { throw 'Legacy pipe-holder shutdown order regressed.' }
+  $script:startupPath = Join-Path $temporary 'startup.lnk'
+  function Get-DreamSkinAutostartShortcutPath { return $script:startupPath }
+  Set-DreamSkinShortcut -Path $script:startupPath -TargetPath (Join-Path $temporary 'foreign.exe') -Arguments '' -WorkingDirectory $temporary -Description 'Unrelated shortcut'
+  $startupHash = (Get-FileHash -LiteralPath $script:startupPath).Hash
+  Remove-DreamSkinLegacyStartupShortcut -StateRoot $stateRoot
+  if ((Get-FileHash -LiteralPath $script:startupPath).Hash -cne $startupHash) { throw 'An unrelated startup shortcut was removed.' }
 } finally { Remove-Item -LiteralPath $temporary -Recurse -Force }
-Write-Host 'PASS: Unicode managed links, repeated setup, foreign-name preservation and legacy pipe-holder shutdown order.'
+Write-Host 'PASS: Unicode managed links, repeated setup and foreign shortcut preservation.'

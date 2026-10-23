@@ -8,12 +8,12 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "xskin-startup-"));
 const scripts = path.join(temporary, "scripts");
-async function run(mode, state) {
+async function run(mode, state, flags = []) {
   await fs.mkdir(state, { recursive: true });
   await fs.writeFile(path.join(state, "mode.txt"), mode);
   return new Promise((resolve, reject) => {
     const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-      path.join(scripts, "start-dream-skin.ps1"), "-StateRoot", state], { windowsHide: true, timeout: 15000 });
+      path.join(scripts, "start-dream-skin.ps1"), "-StateRoot", state, ...flags], { windowsHide: true, timeout: 15000 });
     let output = "";
     child.stdout.on("data", value => { output += value; });
     child.stderr.on("data", value => { output += value; });
@@ -36,8 +36,17 @@ function Get-DreamSkinCodexInstall { return [pscustomobject]@{ Executable = 'C:\
 function Get-DreamSkinCodexStatePathCandidate { return $null }
 function Get-DreamSkinCodexInstallFromState { return $null }
 function Get-DreamSkinCodexProcesses {
+  if ($script:fixtureMode.StartsWith('auto') -and -not (Test-Path (Join-Path $script:fixtureState 'stopped'))) { return ,@(@{ ProcessId = 12345 }) }
   if ($script:fixtureMode -eq 'ordinary' -or (Test-Path (Join-Path $script:fixtureState 'running'))) { return ,@(@{ ProcessId = 12345 }) }
   return ,@()
+}
+function Get-DreamSkinRegisteredCodexInstalls { return @(Get-DreamSkinCodexInstall) }
+function Get-DreamSkinAutostart { return @{ Enabled = $true } }
+function Test-DreamSkinNewCodexLaunch { return $true }
+function Stop-DreamSkinNewCodexLaunch {
+  Event 'graceful'
+  if ($script:fixtureMode -eq 'auto-refused') { throw 'fixture quit refused' }
+  [IO.File]::WriteAllText((Join-Path $script:fixtureState 'stopped'), 'stopped')
 }
 function Get-DreamSkinThemePaths { return @{ Root = $StateRoot; Active = $StateRoot; PauseFile = (Join-Path $StateRoot 'paused') } }
 function Initialize-DreamSkinThemeStore { return Get-DreamSkinThemePaths }
@@ -49,7 +58,7 @@ function Test-DreamSkinPortAvailable { return $true }
 function Start-DreamSkinCodex {
   param($Codex, $Arguments)
   Event $(if ($Arguments) { 'launch' } elseif (Test-Path (Join-Path $script:fixtureState 'running')) { 'activate' } else { 'normal' })
-  if ($script:fixtureMode -eq 'launch-failure') { throw 'fixture launch failure' }
+  if ($script:fixtureMode -eq 'launch-failure' -or ($script:fixtureMode -eq 'auto-launch-failure' -and $Arguments)) { throw 'fixture launch failure' }
   [IO.File]::WriteAllText((Join-Path $script:fixtureState 'running'), 'running')
 }
 function Stop-DreamSkinCodex { throw 'Official Codex must never be closed.' }
@@ -67,6 +76,7 @@ function Start-Process {
 function Get-DreamSkinProcessStartedAt { return [datetime]::UtcNow.ToString('o') }
 function Invoke-DreamSkinNative {
   param($FilePath, $ArgumentList, [switch]$DiscardStderr)
+  if ($ArgumentList -contains '--check-payload') { Event 'preflight'; return @{ ExitCode = 0; Output = @('{}') } }
   if ($ArgumentList -contains '--remove') { Event 'remove'; return @{ ExitCode = 0; Output = @('{}') } }
   Event 'verify'
   return @{ ExitCode = $(if ($script:fixtureMode -eq 'verify-failure') { 2 } else { 0 }); Output = @('{}') }
@@ -79,6 +89,30 @@ function Invoke-DreamSkinNative {
     result = await run("repeat", state);
     assert.equal(result.code, 0, result.output);
     assert.equal(await fs.readFile(path.join(state, "events.txt"), "utf8"), "lock\nlaunch\ninjector\nverify\nunlock\nlock\nactivate\nunlock\n");
+  }
+  const existing = path.join(temporary, "existing-only");
+  const refusedExisting = await run("ordinary", existing, ["-ExistingOnly"]);
+  assert.equal(refusedExisting.code, 1, refusedExisting.output);
+  assert.equal(await fs.readFile(path.join(existing, "events.txt"), "utf8"), "lock\nunlock\n");
+  await fs.writeFile(path.join(existing, "running"), "running");
+  await fs.writeFile(path.join(existing, "paused"), "paused");
+  const appliedExisting = await run("repeat", existing, ["-ExistingOnly", "-Resume"]);
+  assert.equal(appliedExisting.code, 0, appliedExisting.output);
+  const reusedExisting = await run("repeat", existing, ["-ExistingOnly"]);
+  assert.equal(reusedExisting.code, 0, reusedExisting.output);
+  assert.equal(await fs.readFile(path.join(existing, "events.txt"), "utf8"), "lock\nunlock\nlock\ninjector\nverify\nunlock\nlock\nunlock\n");
+  const failedExisting = await run("verify-failure", existing, ["-ExistingOnly", "-Resume"]);
+  assert.equal(failedExisting.code, 1, failedExisting.output);
+  const existingEvents = await fs.readFile(path.join(existing, "events.txt"), "utf8");
+  assert.ok(!/activate|launch|normal/.test(existingEvents), existingEvents);
+  for (const mode of ["auto", "auto-refused", "auto-launch-failure"]) {
+    const state = path.join(temporary, mode);
+    const automatic = await run(mode, state, ["-NewLaunchPid", "12345", "-NewLaunchStartedAt", "fixture"]);
+    assert.equal(automatic.code, mode === "auto" ? 0 : 1, automatic.output);
+    const events = await fs.readFile(path.join(state, "events.txt"), "utf8");
+    if (mode === "auto") assert.equal(events, "lock\npreflight\ngraceful\nlaunch\ninjector\nverify\nunlock\n");
+    if (mode === "auto-refused") assert.equal(events, "lock\npreflight\ngraceful\nunlock\n");
+    if (mode === "auto-launch-failure") assert.equal(events, "lock\npreflight\ngraceful\nlaunch\nnormal\nunlock\n");
   }
   const moved = path.join(temporary, 'different-engine');
   assert.equal((await run('cold', moved)).code, 0);
@@ -113,4 +147,4 @@ function Invoke-DreamSkinNative {
     }
   }
 } finally { await fs.rm(temporary, { recursive: true, force: true }); }
-console.log("PASS: three cold-start fixtures launch once each, repeated clicks reuse one injector; ordinary, paused and failed sessions are never closed/reopened.");
+console.log("PASS: direct cold starts/reuse, ExistingOnly without activation, fresh graceful handoffs, refused quit and failed-activation ordinary recovery.");

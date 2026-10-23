@@ -148,11 +148,12 @@ function Test-DreamSkinThemePathWithin {
 function Read-DreamSkinTheme {
   param(
     [Parameter(Mandatory = $true)][string]$ThemeDirectory,
-    [switch]$SkipImageMetadata
+    [switch]$SkipImageMetadata,
+    [ValidateSet('theme.json','.xskin-transaction.json')][string]$ThemeFile = 'theme.json'
   )
   $directory = [System.IO.Path]::GetFullPath($ThemeDirectory)
   Assert-DreamSkinNoReparseComponents -Path $directory
-  $themePath = Join-Path $directory 'theme.json'
+  $themePath = Join-Path $directory $ThemeFile
   Assert-DreamSkinNoReparseComponents -Path $themePath
   if (-not (Test-Path -LiteralPath $themePath -PathType Leaf)) {
     throw "Theme metadata is missing: $themePath"
@@ -217,42 +218,32 @@ function Initialize-DreamSkinThemeStore {
   foreach ($directory in @($paths.Root, $paths.Active, $paths.Saved, $paths.Images)) {
     Ensure-DreamSkinManagedDirectory -Path $directory -Root $paths.Root
   }
-  $assetRoot = Join-Path $SkillRoot 'assets'
-  $assetImage = Join-Path $assetRoot 'dream-reference.jpg'
-  Assert-DreamSkinImageFile -Path $assetImage
+  $presetsRoot = Join-Path $SkillRoot 'presets'
+  Assert-DreamSkinNoReparseComponents -Path $presetsRoot
+  foreach ($preset in Get-ChildItem -LiteralPath $presetsRoot -Directory -Filter 'preset-*') {
+    if ($preset.Name -notmatch '^preset-[a-z]+(?:-[a-z]+)*$') { throw 'Invalid bundled preset ID.' }
+    $source = Read-DreamSkinTheme -ThemeDirectory $preset.FullName -SkipImageMetadata
+    if ($source.Theme.id -cne $preset.Name -or $source.VideoPath) { throw 'Invalid bundled image preset.' }
+    $destination = Join-Path $paths.Saved $preset.Name
+    Ensure-DreamSkinManagedDirectory -Path $destination -Root $paths.Root
+    $image = Join-Path $destination ([IO.Path]::GetFileName($source.ImagePath))
+    Assert-DreamSkinNoReparseComponents -Path $image
+    if (-not (Test-Path -LiteralPath $image) -or
+      (Get-FileHash -LiteralPath $image).Hash -cne (Get-FileHash -LiteralPath $source.ImagePath).Hash) {
+      Copy-Item -LiteralPath $source.ImagePath -Destination $image -Force
+    }
+    $metadata = Join-Path $destination 'theme.json'
+    Assert-DreamSkinNoReparseComponents -Path $metadata
+    $json = Read-DreamSkinUtf8File -Path $source.ThemePath
+    if (-not (Test-Path -LiteralPath $metadata) -or (Read-DreamSkinUtf8File -Path $metadata) -cne $json) {
+      Write-DreamSkinUtf8FileAtomically -Path $metadata -Content $json
+    }
+  }
   $activeTheme = Join-Path $paths.Active 'theme.json'
   Assert-DreamSkinNoReparseComponents -Path $activeTheme
   if (-not (Test-Path -LiteralPath $activeTheme -PathType Leaf)) {
-    Ensure-DreamSkinManagedDirectory -Path $paths.Active -Root $paths.Root
-    Assert-DreamSkinNoReparseComponents -Path (Join-Path $paths.Active 'dream-reference.jpg')
-    $activeImage = Join-Path $paths.Active 'dream-reference.jpg'
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'dream-reference.jpg') `
-      -Destination $activeImage -Force
-    Assert-DreamSkinNoReparseComponents -Path $activeImage
-    Assert-DreamSkinImageFile -Path $activeImage
-    $imageArchive = Join-Path $paths.Images 'dream-reference.jpg'
-    Assert-DreamSkinNoReparseComponents -Path $imageArchive
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'dream-reference.jpg') `
-      -Destination $imageArchive -Force
-    Assert-DreamSkinNoReparseComponents -Path $imageArchive
-    Assert-DreamSkinImageFile -Path $imageArchive
-    Assert-DreamSkinNoReparseComponents -Path $activeTheme
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'theme.json') -Destination $activeTheme -Force
-  }
-  $presetDirectory = Join-Path $paths.Saved 'preset-romantic-rose'
-  $presetTheme = Join-Path $presetDirectory 'theme.json'
-  Assert-DreamSkinNoReparseComponents -Path $presetDirectory
-  Assert-DreamSkinNoReparseComponents -Path $presetTheme
-  if (-not (Test-Path -LiteralPath $presetTheme -PathType Leaf)) {
-    Ensure-DreamSkinManagedDirectory -Path $presetDirectory -Root $paths.Root
-    $presetImage = Join-Path $presetDirectory 'dream-reference.jpg'
-    Assert-DreamSkinNoReparseComponents -Path $presetImage
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'dream-reference.jpg') `
-      -Destination $presetImage -Force
-    Assert-DreamSkinNoReparseComponents -Path $presetImage
-    Assert-DreamSkinImageFile -Path $presetImage
-    Assert-DreamSkinNoReparseComponents -Path $presetTheme
-    Copy-Item -LiteralPath (Join-Path $assetRoot 'theme.json') -Destination $presetTheme -Force
+    $default = Read-DreamSkinTheme -ThemeDirectory (Join-Path $paths.Saved 'preset-midnight-aurora')
+    $null = Set-DreamSkinActiveTheme -ImagePath $default.ImagePath -Theme $default.Theme -StateRoot $StateRoot
   }
   $null = Read-DreamSkinTheme -ThemeDirectory $paths.Active
   return $paths

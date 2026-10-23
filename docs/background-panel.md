@@ -41,7 +41,7 @@ English is the default. Use the in-app language selector to switch to **Traditio
 
 1. Apply the background you want to keep.
 2. On macOS, enable **Apply when official Codex opens**. Open the official app as usual; a new ordinary launch gracefully reopens once with the background. The panel can stay closed, including after login. An already-open session is left alone, and a refused quit is never forced.
-3. On Windows, enable **Use background from Codex (Xskin)**. Fully exit Codex, then open **Codex (Xskin)** from Desktop/Start. The panel can stay closed. Windows never automatically closes/reopens Codex.
+3. On Windows source 1.9.4, explicitly enable **Apply when official Codex opens** for the same fresh-launch handoff, or fully exit and use **Codex (Xskin)** directly. Existing ordinary sessions are left running. The panel can stay closed.
 
 The optional macOS ~/Applications/Codex (Xskin).app starts directly with the background connection, avoiding the reopen. Pin it using normal system UI if preferred. Paused/disabled entries open ordinary Codex and retain pause. Upgrades manage only verified Xskin services/shortcuts and preserve media, language and opacity. Historical managed Dock pins are restored; new setup does not replace official pins automatically.
 

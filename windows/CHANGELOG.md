@@ -1,5 +1,13 @@
 # Windows Changelog
 
+## 1.9.4 — 2026-10-23
+
+- Port the completed macOS 1.9.4 embedded MCP App to Windows using the same UI, bounded host viewport, four languages, mask, original-media preview and Apply promotion. Add the contained Windows launcher/manifest and native cancellable file chooser; keep paths, media and errors in private metadata.
+- Share active/pending media and preferences with Flutter. Add stable localized errors, a read-only setup/status path, existing-connection-only embedded Apply/mask/Resume, and explicit journal recovery after interrupted background or mask changes.
+- Restore opt-in official-app automatic backgrounds through the per-user login monitor. Verify fresh package/PID/start/session identity, skip existing/debug/paused sessions, request graceful quit only and prevent duplicate handoffs. Keep the optional direct shortcut and preserve settings/media during upgrades and rollback.
+- Seed the same six presets as macOS, defaulting only new stores to midnight aurora. Match renderer original-video frame/drop diagnostics and malformed CDP frame handling.
+- Package standalone Flutter and Windows plugin ZIPs with bundled Node and SHA-256 files. Flutter metadata is 1.9.4+18. See `docs/windows-parity.md` for actual validation and remaining physical checks.
+
 ## 1.8.5 — 2026-10-23
 
 - At functional source `bdd6751`, [CI](https://github.com/timmyc07/Xskin/actions/runs/39955991318) and [Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39955991299) passed. Final documentation-head publication checks remain separate. macOS confirmation does not replace Windows physical acceptance.

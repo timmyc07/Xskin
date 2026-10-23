@@ -11,7 +11,7 @@ const invalid = () => Object.assign(new Error("The preview media is unavailable.
 
 export const PREVIEW_CHUNK_BYTES = 512 * 1024;
 
-export async function createMediaPreview({ stateRoot }) {
+export async function createMediaPreview({ stateRoot, platform = "darwin" }) {
   stateRoot = path.resolve(stateRoot);
   let entries = new Map();
   let closed = false;
@@ -41,8 +41,10 @@ export async function createMediaPreview({ stateRoot }) {
 
   const approve = async (slot, media) => {
     if (!media) return null;
-    const parent = slot === "active" ? path.join(stateRoot, "theme")
-      : typeof media.id === "string" && uuid.test(media.id) ? path.join(stateRoot, "studio", `import-${media.id}`) : null;
+    const parent = slot === "active" ? path.join(stateRoot, platform === "win32" ? "active-theme" : "theme")
+      : typeof media.id === "string" && uuid.test(media.id)
+        ? platform === "win32" ? path.join(stateRoot, "imports", media.id.replaceAll("-", ""))
+          : path.join(stateRoot, "studio", `import-${media.id}`) : null;
     if (!parent || typeof media.path !== "string" || path.dirname(media.path) !== parent ||
       !["image", "video"].includes(media.kind)) throw invalid();
     const extension = path.extname(media.path).toLowerCase();

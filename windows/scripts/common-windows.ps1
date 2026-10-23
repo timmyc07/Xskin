@@ -212,6 +212,7 @@ function Install-DreamSkinRuntimeEngine {
   $fullStateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
   $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $fullStateRoot
   $required = @(
+    'VERSION',
     'assets\dream-reference.jpg',
     'assets\dream-skin.css',
     'assets\renderer-inject.js',
@@ -240,7 +241,8 @@ function Install-DreamSkinRuntimeEngine {
       throw "Dream Skin runtime source is incomplete: $relative"
     }
   }
-  foreach ($directoryName in @('assets', 'scripts')) {
+  $runtimeDirectories = @('assets', 'scripts', 'presets')
+  foreach ($directoryName in $runtimeDirectories) {
     $sourceDirectory = Join-Path $sourceRoot $directoryName
     if ((Test-DreamSkinPathEqual -Left $fullStateRoot -Right $sourceDirectory) -or
       (Test-DreamSkinPathWithin -Path $fullStateRoot -Root $sourceDirectory)) {
@@ -255,9 +257,11 @@ function Install-DreamSkinRuntimeEngine {
   $backupRoot = Join-Path $fullStateRoot ".engine-backup-$token"
   Ensure-DreamSkinManagedDirectory -Path $stagingRoot -Root $fullStateRoot
   $resumeState = $null
+  $resumeAutostart = $null
 
   try {
-    foreach ($directoryName in @('assets', 'scripts')) {
+    Copy-Item -LiteralPath (Join-Path $sourceRoot 'VERSION') -Destination $stagingRoot -ErrorAction Stop
+    foreach ($directoryName in $runtimeDirectories) {
       Copy-Item -LiteralPath (Join-Path $sourceRoot $directoryName) -Destination $stagingRoot `
         -Recurse -Force -ErrorAction Stop
     }
@@ -270,11 +274,11 @@ function Install-DreamSkinRuntimeEngine {
 
     $sourcePrefix = $sourceRoot.TrimEnd('\') + '\'
     $sourceFiles = @(
-      Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'assets'), (Join-Path $sourceRoot 'scripts') `
+      Get-ChildItem -LiteralPath (@((Join-Path $sourceRoot 'VERSION')) + @($runtimeDirectories | ForEach-Object { Join-Path $sourceRoot $_ })) `
         -Recurse -File -Force -ErrorAction Stop
     )
     $stagedFiles = @(
-      Get-ChildItem -LiteralPath (Join-Path $stagingRoot 'assets'), (Join-Path $stagingRoot 'scripts') `
+      Get-ChildItem -LiteralPath (@((Join-Path $stagingRoot 'VERSION')) + @($runtimeDirectories | ForEach-Object { Join-Path $stagingRoot $_ })) `
         -Recurse -File -Force -ErrorAction Stop
     )
     if ($sourceFiles.Count -ne $stagedFiles.Count) {
@@ -305,7 +309,12 @@ function Install-DreamSkinRuntimeEngine {
       if (Test-Path -LiteralPath $bundledNode -PathType Leaf) {
         Copy-Item -LiteralPath $bundledNode -Destination (Join-Path $stagingRoot 'scripts\node.exe') -Force
       }
-      # Stop inherited pipe holders before the legacy quiet host waits for EOF.
+      $startupTask = Get-DreamSkinAutostartTask
+      if ($startupTask -and $startupTask.Enabled -and (Test-DreamSkinAutostartTask -Task $startupTask -StateRoot $fullStateRoot)) {
+        $resumeAutostart = $startupTask
+        $startupTask.Enabled = $false
+      }
+      # Stop inherited pipe holders before the quiet host releases its executable.
       Stop-DreamSkinAutostart -StateRoot $fullStateRoot
       Move-Item -LiteralPath $engine.Root -Destination $backupRoot -ErrorAction Stop
       $hasBackup = $true
@@ -335,36 +344,43 @@ function Install-DreamSkinRuntimeEngine {
     }
     return Get-DreamSkinRuntimeEnginePaths -StateRoot $fullStateRoot
   } finally {
-    if (Test-Path -LiteralPath $stagingRoot) {
-      try { Remove-DreamSkinRuntimeTree -Path $stagingRoot -StateRoot $fullStateRoot } catch {
-        try {
-          Write-Warning "Could not remove the staged Dream Skin runtime: $($_.Exception.Message)"
-        } catch {
-          # Cleanup must never mask the runtime installation result.
+    try {
+      if (Test-Path -LiteralPath $stagingRoot) {
+        try { Remove-DreamSkinRuntimeTree -Path $stagingRoot -StateRoot $fullStateRoot } catch {
+          try {
+            Write-Warning "Could not remove the staged Dream Skin runtime: $($_.Exception.Message)"
+          } catch {
+            # Cleanup must never mask the runtime installation result.
+          }
         }
       }
-    }
-    if ($null -ne $resumeState) {
-      $daemon = $null
-      try {
-        $resumeState.nodePath = (Get-DreamSkinNodeRuntime -RuntimePath (Join-Path $engine.Scripts 'node.exe')).Path
-        $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
-          $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
-          '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
-          '--pause-file', (Join-Path $fullStateRoot 'paused'))
-        $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
-          -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
-          -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
-          -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
-        Start-Sleep -Milliseconds 500
-        if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
-        $resumeState.injectorPid = $daemon.Id
-        $resumeState.injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
-        if (-not $resumeState.injectorStartedAt) { throw 'The resumed watcher identity could not be recorded.' }
-        Write-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json') -State $resumeState
-      } catch {
-        if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
-        throw
+      if ($null -ne $resumeState) {
+        $daemon = $null
+        try {
+          $resumeState.nodePath = (Get-DreamSkinNodeRuntime -RuntimePath (Join-Path $engine.Scripts 'node.exe')).Path
+          $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
+            $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
+            '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
+            '--pause-file', (Join-Path $fullStateRoot 'paused'))
+          $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
+            -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
+            -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
+          Start-Sleep -Milliseconds 500
+          if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
+          $resumeState.injectorPid = $daemon.Id
+          $resumeState.injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
+          if (-not $resumeState.injectorStartedAt) { throw 'The resumed watcher identity could not be recorded.' }
+          Write-DreamSkinState -Path (Join-Path $fullStateRoot 'state.json') -State $resumeState
+        } catch {
+          if ($null -ne $daemon -and -not $daemon.HasExited) { Stop-Process -InputObject $daemon -Force }
+          throw
+        }
+      }
+    } finally {
+      if ($resumeAutostart) {
+        $resumeAutostart.Enabled = $true
+        Start-DreamSkinAutostart -StateRoot $fullStateRoot
       }
     }
   }
