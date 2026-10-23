@@ -1,12 +1,20 @@
 # Changelog
 
-## 1.9.2 — candidate, new host visuals pending
+## 1.9.3 — candidate, not published
+
+- Expand Preview to the section's full width at 16:9 while retaining the complete original image/video without lowering resolution or re-encoding. Place the settings heading above its card rather than across its border.
+- Match the compact native language selector to host colors and spacing, retain native keyboard/popup behavior and wrap long settings labels and filenames inside their containers.
+- Move progress and errors immediately after preview actions. Translate supported import failures, including source/data-folder access and image conversion, rather than hiding the error below settings. Cancelled picker completions cannot start an import; the displayed version identifies the panel bundle. The user's reported approximately 80 MB MP4 import still needs reproduction; its actual failure cause is unconfirmed.
+- All 53 plugin tests and the full macOS runner pass. The own-browser fixture passes 48 cases / 240 scroll positions plus eight narrow 200%-text cases with a 240-character filename; inner widths, text bounds, preview geometry, settings heading and adjacent chooser error are checked.
+- The user confirmed 1.9.2 background and controls, then reported the refinements above. New visuals/video import and new-head CI remain pending. Earlier `2952710` CI success does not validate this head; stable downloads remain macOS 1.8.5 / Windows 1.8.4.
+
+## 1.9.2 — earlier unpublished candidate
 
 - Confine the entire panel scrollport above the host composer at every scroll position, reserving the reported bottom safe area or a 96px fallback. Keep the official input present and unchanged.
 - Render the applied original background inside Xskin's own iframe, including over an opaque host canvas. Keep pending imports isolated to Preview; matching active/preview media share a Blob, with at most two media Blobs. Stop decorative video while hidden, paused or under Reduce Motion.
 - Replace header-wide language radios with a compact native select in a separate settings row. Retain four languages, keyboard access, first-setup availability, explicit recovery and cancellation.
 - Preserve original media without transcoding, including the checked 4K60 file. Add own-video frame/drop diagnostics using the existing Verify interval. A 5.48-second local sample measured approximately 59.1 presented FPS with zero additional dropped frames at 3840×2160; sustained playback remains unverified.
-- The user confirmed 1.9.1 video preview and Apply work. An isolated opaque-canvas Chrome fixture passes 48 layout/theme/language cases and 240 scroll positions; this does not establish 1.9.2 host visual acceptance. New-head CI remains pending; the earlier 1.9.1 workflow at `4c7cdd7` is separate. Stable downloads remain macOS 1.8.5 / Windows 1.8.4.
+- The user confirmed 1.9.1 video preview/Apply and later 1.9.2 background/controls. At `2952710`, 51 plugin tests, the full macOS runner, 48 opaque-canvas Chrome cases / 240 scroll positions and both [CI](https://github.com/timmyc07/Xskin/actions/runs/39942511976) and [Windows Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/39942512050) passed. Physical cold starts, complete Home/task visuals and sustained playback remain pending. Stable downloads remain macOS 1.8.5 / Windows 1.8.4.
 
 ## 1.9.1 — candidate, desktop acceptance pending
 

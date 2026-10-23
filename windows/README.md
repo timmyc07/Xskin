@@ -1,6 +1,6 @@
 # Xskin for Windows 1.8.4
 
-**1.8.5 候選版（尚未發布）** 保留 overlay 與輸入框上方圓角的接合，並將用量列移入 composer layout，讓父層量測能包含新增高度。自有瀏覽器的 16 種高度保留模型已覆蓋此契約，不能代替 Windows 實機頁面或冷啟動驗收。下列穩定版下載仍為 1.8.4；啟動維持受管捷徑，不自動關閉或重開 Codex。[測試範圍](../docs/in-app-studio.md#composer-spacing-follow-up)。
+**1.8.5 候選版（尚未發布）** 保留 overlay 圓角接合，並將用量列納入 composer layout。16 種自有瀏覽器模型與 head `2952710` 的 Windows runner／Flutter／打包 CI 已通過；實機三次冷啟動、登入／Store 更新及各頁目視仍待驗收。下列穩定版下載維持 1.8.4，啟動仍為受管捷徑，不自動關閉或重開 Codex。[測試範圍](../docs/in-app-studio.md#composer-spacing-follow-up)。
 
 1.8.4 保留同一對話紀錄最後合法回報的方案，並明示它不是即時帳戶狀態。快取寫入來源為 0 時顯示「未確認」，提示保留來源值與預設值限制；缺少欄位不補 0。[欄位語義、來源及驗證](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md)。Windows 實機驗收仍待完成。
 
@@ -42,7 +42,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\restore-dream-sk
 
 CDP 限於 loopback 並驗證 Store 包、程序與 Browser ID。未修改官方檔案不等於獲得官方授權：**CDP／CSS 注入的適用授權依據仍待確認，不作合規保證**。已查閱的官方依據、實際測試與實機待驗項目見 [驗證與授權範圍](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/direct-launch-shortcut.md)。
 
-1.8.3 的 Windows runner、Flutter 分析、6 項測試與打包已通過 CI；本次 1.8.4 結果另見[欄位驗證](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md)。實機三次冷啟動、重新登入、Store 更新及首頁／任務頁目視檢查仍待完成。升級請解壓至新資料夾並保留舊套件；若要回復舊版，先關閉背景套用與面板，再從舊套件重新安裝，保留資料目錄。
+1.8.5 的 [CI](https://github.com/timmyc07/Xskin/actions/runs/39942511976) 與 [Windows Flutter／打包 CI](https://github.com/timmyc07/Xskin/actions/runs/39942512050) 已在 `2952710` 通過，包含 Windows runner、Flutter 分析／測試與打包。實機三次冷啟動、重新登入、Store 更新及首頁／任務頁目視仍待完成；Mac 使用者的確認不代表 Windows 通過。升級請解壓至新資料夾並保留舊套件；回復舊版時先關閉背景套用與面板，再從舊套件重新安裝，保留資料目錄。
 
 ## 建置與測試
 

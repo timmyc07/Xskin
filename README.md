@@ -17,7 +17,7 @@ Import, preview, and apply from native macOS and Flutter Windows apps.
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
-> **macOS 1.9.2 候選版：App 內背景與設定佈局修復。** 使用者已確認 1.9.1 的「更多 → Xskin」、影片預覽及套用成功。1.9.2 在面板自己的 iframe 內顯示已套用背景，並讓整個內容捲動區避開宿主輸入列；語言改為設定列右側的緊湊選單。待套用素材與目前背景分開，原檔與 4K60 素材不轉碼；新版實機視覺仍待驗收；本機 5.48 秒短取樣約 59.1 FPS、無新增掉幀，長時間播放仍待驗。私有 MCP 分塊及本機 Blob 不開 HTTP 預覽埠。公開穩定版下載維持 macOS 1.8.5、Windows 1.8.4；Windows 1.8.5 仍為獨立候選版。[安裝、連線限制及驗證範圍](docs/in-app-studio.md)。
+> **macOS / plugin 1.9.3 候選版（尚未發布）。** 使用者已確認 1.9.2 背景與控制項正常。1.9.3 改為滿寬 16:9 預覽、卡片外標題、貼合整體的原生語言選單與長文字換行；進度及錯誤緊鄰預覽操作，不降低原片畫質。53 項 plugin 測試及自有瀏覽器排版檢查通過；新版視覺與使用者回報約 80 MB MP4 的匯入問題仍待實機確認，尚未確認該檔失敗原因。公開穩定版下載維持 macOS 1.8.5、Windows 1.8.4；Windows 1.8.5 仍為獨立候選版。[安裝、連線限制及驗證範圍](docs/in-app-studio.md)。
 
 > **macOS 1.8.5 / Windows 1.8.4** retain the latest plan reported in each conversation and distinguish unconfirmed cache writes from measured counts. Hidden pages suspend usage instead of reporting a false disconnection. No account access or credentials are added. [Usage fields, source evidence and validation](docs/usage-fields.md).
 

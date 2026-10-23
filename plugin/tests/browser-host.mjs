@@ -77,6 +77,15 @@ const qa = (command = "inspect", args = {}) => new Promise((resolve, reject) => 
 });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const check = (ok, description) => { if (!ok) throw new Error(description); };
+const checkLayout = (view, label) => {
+  check(view.internalOverflows.length === 0, `${label} inner overflow: ${JSON.stringify(view.internalOverflows)}`);
+  check(view.textOverflows.length === 0, `${label} text outside card/control: ${JSON.stringify(view.textOverflows[0])}`);
+  const { stage, section, media } = view.previewGeometry;
+  check(Math.abs(stage.width - section.width) <= 1, `${label} preview must fill its section width`);
+  check(Math.abs(stage.height - stage.width * 9 / 16) <= 1, `${label} preview must retain 16:9`);
+  for (const edge of ["left", "right", "top", "bottom"]) check(Math.abs(media[edge] - stage[edge]) <= 2, `${label} media bounds must fill stage ${edge}`);
+  check(view.settingsHeading.labelledBy === "settings-heading" && view.settingsHeading.bounds.bottom <= view.settingsHeading.fieldset.top + 1, `${label} section heading must stay outside its labelled card`);
+};
 const wait = async (predicate, description) => {
   for (let i = 0; i < 150; i++) { const view = await qa(); if (predicate(view)) return view; await sleep(20); }
   throw new Error(`Timed out: ${description}`);
@@ -103,6 +112,20 @@ for (const id of ["width", "theme", "language", "canvas"]) document.getElementBy
 document.getElementById("video").onclick = async () => { state.selection = { ...sample("video"), id: fixtureId }; await update(); };
 document.getElementById("empty").onclick = async () => { state.active = state.selection = null; state.needsSetup = true; await update(); };
 document.getElementById("teardown").onclick = async () => { await bridge.teardownResource({}); report.textContent = "Own fixture teardown completed."; };
+document.getElementById("showcase").onclick = async () => {
+  const height = Math.max(680, innerHeight - 90);
+  frame.style.height = `${height}px`;
+  frame.parentElement.style.width = "1280px";
+  state.active = { ...sample("image"), name: "Sample landscape.png", applied: true };
+  state.selection = null;
+  state.maskOpacity = .45;
+  state.language = "zh-Hant";
+  state.needsSetup = false;
+  bridge.setHostContext({ theme: "dark", containerDimensions: { width: 1280, height } });
+  document.body.classList.add("sample-mode");
+  await update();
+  await qa("top");
+};
 document.getElementById("run").onclick = async () => {
   const lines = [];
   const receipt = { fixture: "Cross-origin MCP App over an opaque canvas, sample media only", officialAppTested: false, cases: [] };
@@ -125,7 +148,10 @@ document.getElementById("run").onclick = async () => {
       check(view.settingsBackground.includes("0.72"), "settings must retain a translucent host surface");
       check(view.primaryBackground === (theme === "dark" ? "rgb(255, 255, 255)" : "rgb(23, 23, 23)"), "host primary button token");
       check(view.overflow <= 1, `horizontal overflow ${width}/${theme}/${language}`);
+      checkLayout(view, `${width}/${theme}/${language}`);
       check(view.checkedLanguage === language, "language select must match saved preference");
+      check(Math.abs((view.languageRow.label.top + view.languageRow.label.bottom) / 2 - (view.languageRow.control.top + view.languageRow.control.bottom) / 2) <= 1,
+        "normal-size language label and compact selector must share one settings row");
       check(view.languageScheme === theme, "native select must use the host control theme");
       check(view.languageOptionBackground === (theme === "dark" ? "rgb(35, 35, 35)" : "rgb(247, 247, 247)"), "options must inherit explicit host surface colors");
       for (const id of ["choose", "apply", "language", "refresh", "mask", "autostart", "pause"]) {
@@ -150,12 +176,35 @@ document.getElementById("run").onclick = async () => {
       await bridge.sendToolResult({ ...reply(), isError: true, _meta: { ...reply()._meta, "com.xskin/error": "apply_failed_restored" } });
       view = await wait(view => view.connectionHint && view.errorVisible, "localized connection guidance");
       check(view.overflow <= 1 && view.error.length > 40, "localized recovery must fit");
+      checkLayout(view, `error ${width}/${theme}/${language}`);
       state.active.applied = true;
       await qa("click", { id: "refresh" });
       await wait(view => !view.errorVisible && !view.controls.pause.disabled, "refresh");
-      receipt.cases.push({ width, canvas, theme, language, safeAreaBottom: composerHeight, pauseBottom: view.controls.pause.box.bottom, viewportHeight: view.height, overflow: view.overflow, positions });
+      receipt.cases.push({ width, canvas, theme, language, safeAreaBottom: composerHeight, pauseBottom: view.controls.pause.box.bottom, viewportHeight: view.height, overflow: view.overflow, previewGeometry: view.previewGeometry, internalOverflows: view.internalOverflows, textOverflows: view.textOverflows, positions });
       lines.push(`PASS ${width}px canvas=${canvas} UI=${theme} ${language}: Blob preview, applied background, contained scrollport, focus, recovery`);
     }
+    receipt.largeTextCases = [];
+    state.selection.name = `Long 中文 🌌 ${"x".repeat(240)}.png`;
+    for (const theme of ["dark", "light"]) for (const language of ["en", "zh-Hant", "zh-Hans", "ja"]) {
+      for (const [id, value] of Object.entries({ width: 320, theme, language })) document.getElementById(id).value = String(value);
+      await changeHost();
+      let view = await qa("fontScale", { scale: 2 });
+      checkLayout(view, `320/200%/${theme}/${language}`);
+      check(view.scrollport.bottom <= view.height - composerHeight + 1 && view.reservedHits.length === 0, "large text must remain inside reserved scrollport");
+      receipt.largeTextCases.push({ width: 320, theme, language, scale: 2, filenameLength: state.selection.name.length, previewGeometry: view.previewGeometry, internalOverflows: view.internalOverflows, textOverflows: view.textOverflows });
+    }
+    await qa("fontScale", { scale: 1 });
+    lines.push("PASS 8 narrow 200% text cases with a 240-character filename; inner containers and text rects stay bounded");
+    failNext = true;
+    await qa("click", { id: "choose" });
+    let chooseError = await wait(view => view.errorVisible && !view.controls.choose.disabled, "choose failure feedback");
+    check(chooseError.errorLocation.withinPreview, "choose error must stay inside preview near its actions");
+    const errorGap = chooseError.errorLocation.bounds.top - chooseError.errorLocation.actions.bottom;
+    check(errorGap >= -1 && errorGap <= 100, "choose error must follow its actions instead of the settings footer");
+    checkLayout(chooseError, "choose error");
+    receipt.chooseFailure = { withinPreview: true, gapAfterActions: errorGap, errorTextLength: chooseError.error.length };
+    await qa("click", { id: "refresh" });
+    await wait(view => !view.errorVisible, "clear choose error");
     bridge.setHostContext({ theme: "light" });
     let view = await qa();
     check(parseFloat(view.insetBottom) === composerHeight, "partial context must preserve insets");

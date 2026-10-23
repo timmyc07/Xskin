@@ -131,6 +131,7 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
         pickerController = null;
         pickerDone = null;
       }
+      if (controller.signal.aborted) throw failure("cancelled");
       const chosen = stdout.endsWith("\n") ? stdout.slice(0, -1) : stdout;
       if (!chosen) return { ...await status(), cancelled: true };
       if (!path.isAbsolute(chosen) || /[\p{Cc}\u2028\u2029]/u.test(chosen)) throw failure("invalid_local_file");

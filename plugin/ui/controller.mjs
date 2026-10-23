@@ -8,6 +8,11 @@ const ERROR_KEYS = {
   missing_selection: "chooseAgain", invalid_local_file: "chooseAgain", source_changed: "chooseAgain",
   resume_unavailable: "connectionNeeded", apply_failed_restored: "changeRestored", mask_failed_restored: "changeRestored",
   apply_failed_unrestored: "restoreFailed", mask_failed_unrestored: "restoreFailed",
+  video_size_limit: "videoTooLarge", image_size_limit: "imageTooLarge",
+  unsupported_format: "supportedFormats", invalid_video: "invalidVideo", invalid_image: "invalidImage",
+  image_dimensions: "imageDimensions", image_conversion: "imageConversion",
+  invalid_lock: "setupError", invalid_studio: "setupError",
+  file_access_denied: "fileAccessDenied",
 };
 
 export function createStudioController(app, render) {

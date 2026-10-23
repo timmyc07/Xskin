@@ -196,6 +196,26 @@ test("known failures give a localized recovery path without exposing backend mes
   }
 });
 
+test("failed file selection reports a specific translated cause while preserving the saved and pending media", async () => {
+  const previous = state({ active: { name: "Saved", kind: "video", applied: true } });
+  for (const [code, key] of Object.entries({ video_size_limit: "videoTooLarge", image_size_limit: "imageTooLarge",
+    unsupported_format: "supportedFormats", invalid_video: "invalidVideo", invalid_image: "invalidImage",
+    image_dimensions: "imageDimensions", image_conversion: "imageConversion", file_access_denied: "fileAccessDenied" })) {
+    const calls = [];
+    const controller = createStudioController({ async callServerTool(request) {
+      calls.push(request.name);
+      return { isError: true, _meta: { "com.xskin/error": code } };
+    } }, () => {});
+    controller.receive(result(previous));
+    assert.equal(await controller.choose(), false);
+    assert.equal(controller.view.error, key);
+    assert.equal(controller.view.state, previous);
+    assert.equal(controller.view.notice, null);
+    assert.deepEqual(calls, ["xskin_choose_media"]);
+    for (const language of LANGUAGES) assert.ok(translate(key, language).length > 15);
+  }
+});
+
 test("all four languages cover UI controls and announcements", async () => {
   const html = await fs.readFile(new URL("../ui/studio.html", import.meta.url), "utf8");
   for (const [key, values] of Object.entries(translations)) {

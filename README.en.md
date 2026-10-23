@@ -1,6 +1,6 @@
 # Xskin
 
-> **macOS 1.9.2 candidate: in-app background and settings layout fixes.** The user confirmed **More → Xskin**, video preview and Apply work in 1.9.1. The new candidate renders the applied background inside its own iframe and confines scrolling above the host composer. Language uses a compact settings-row selector. Pending media stays separate; original media, including the checked 4K60 file, is not transcoded. New host visuals still await acceptance. A 5.48-second local sample measured about 59.1 FPS with no additional dropped frames; sustained playback remains unverified. Private MCP chunks and local Blobs open no HTTP preview port. Stable downloads remain macOS 1.8.5 and Windows 1.8.4; Windows 1.8.5 remains a separate candidate. See [installation, connection requirements and validation](docs/in-app-studio.md).
+> **macOS / plugin 1.9.3 candidate (not published).** The user confirmed the 1.9.2 background and controls work. This candidate adds full-width 16:9 Preview, headings above cards, a host-styled native language selector and long-text wrapping. Progress/errors sit beside preview actions; original media quality is unchanged. All 53 plugin tests and isolated browser layout checks passed. New visuals and the user's approximately 80 MB MP4 import still need actual-host verification; that file's failure cause is unconfirmed. Stable downloads remain macOS 1.8.5 and Windows 1.8.4, with a separate Windows 1.8.5 candidate. See [installation, evidence and limits](docs/in-app-studio.md).
 
 English is now the primary documentation language.
 

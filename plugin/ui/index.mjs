@@ -143,7 +143,7 @@ function render(view) {
   wasBusy = Boolean(busy);
   document.documentElement.lang = language();
   for (const node of document.querySelectorAll("[data-text]")) node.textContent = t(node.dataset.text);
-  elements.version.textContent = state?.version ?? version;
+  elements.version.textContent = version;
   elements.studio.setAttribute("aria-busy", String(Boolean(busy) || (!connected && !connectionFailed)));
   elements.language.value = language();
   elements.language.disabled = !connected || Boolean(busy) || Boolean(state?.pendingRecovery);

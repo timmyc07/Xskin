@@ -232,6 +232,24 @@ try {
   const beforeCancelled = calls.length;
   await assert.rejects(studio.choose(cancelled.signal), { errorCode: "cancelled" });
   assert.equal(calls.length, beforeCancelled, "An already-cancelled request never launches a picker");
+  const completionCancellation = new AbortController();
+  const completionStudio = await createStudio(runtime, { home, platform: "darwin", execute: async (...args) => {
+    const result = await execute(...args);
+    if (args[0] === "/usr/bin/osascript") completionCancellation.abort();
+    return result;
+  } });
+  const beforeCompletion = structuredClone(raw);
+  const importsBeforeCompletion = calls.filter(call => call.file === "/bin/bash" && call.args[2] === "import").length;
+  chosen = path.join(root, "完成時取消的 影片 🌙.mp4");
+  try {
+    await assert.rejects(completionStudio.choose(completionCancellation.signal), { errorCode: "cancelled" });
+    assert.equal(calls.filter(call => call.file === "/bin/bash" && call.args[2] === "import").length, importsBeforeCompletion,
+      "Cancellation when the native picker completes must not dispatch an import from its resolved stdout.");
+    assert.deepEqual(raw, beforeCompletion, "A picker completion/cancellation race preserves the current and pending media.");
+  } finally {
+    chosen = "";
+    await completionStudio.close();
+  }
   const cancellation = new AbortController();
   holdPicker = new Promise(resolve => { release = resolve; });
   const aborted = studio.choose(cancellation.signal);

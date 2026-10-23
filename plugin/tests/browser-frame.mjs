@@ -10,6 +10,27 @@ const view = () => {
   const ids = ["choose", "apply", "refresh", "mask", "autostart", "pause", "resume", "recover", "retry", "language"];
   const scrollport = element("studio");
   const bounds = rect(scrollport);
+  const overflowNodes = new Set(document.querySelectorAll("#studio, #settings, .actions, .media-info, .preference-row, .error, button, select"));
+  const internalOverflows = [...overflowNodes].filter(node => node.clientWidth > 0 && node.scrollWidth - node.clientWidth > 1)
+    .map(node => ({ node: node.id || node.className || node.tagName, client: node.clientWidth, scroll: node.scrollWidth }));
+  const textOverflows = [];
+  for (const card of document.querySelectorAll(".setting-row, .preference-row, .actions, .media-info, .error")) {
+    const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const text = walker.currentNode;
+      if (!text.textContent.trim() || text.parentElement.closest("select")) continue;
+      const owner = text.parentElement.closest("button") || card;
+      const box = rect(owner);
+      if (!box.width || !box.height) continue;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      for (const line of range.getClientRects()) if (line.left < box.left - 1 || line.right > box.right + 1 || line.top < box.top - 1 || line.bottom > box.bottom + 1)
+        textOverflows.push({ node: owner.id || owner.className, text: text.textContent.trim().slice(0, 40), box, line: { left: line.left, right: line.right, top: line.top, bottom: line.bottom } });
+    }
+  }
+  const stage = rect(element("preview-stage"));
+  const previewMedia = element("image").hidden ? element("video") : element("image");
+  const heading = rect(element("settings-heading"));
   const reservedHits = [];
   for (let y = bounds.bottom + 2; y < innerHeight; y += 16) for (const x of [bounds.left + 8, (bounds.left + bounds.right) / 2, bounds.right - 8]) {
     const hit = document.elementFromPoint(x, y);
@@ -24,14 +45,20 @@ const view = () => {
     settingsBackground: getComputedStyle(element("settings")).backgroundColor,
     languageScheme: getComputedStyle(element("language")).colorScheme,
     languageOptionBackground: getComputedStyle(element("language").options[0]).backgroundColor,
+    languageRow: { label: rect(document.querySelector('label[for="language"]')), control: rect(element("language")) },
     primaryBackground: getComputedStyle(element("apply")).backgroundColor,
     paddingBottom: parseFloat(getComputedStyle(element("studio")).paddingBottom),
     reservedBottom: parseFloat(getComputedStyle(document.body).paddingBottom),
     scrollport: { ...bounds, scrollTop: scrollport.scrollTop, maxScroll: scrollport.scrollHeight - scrollport.clientHeight },
     reservedHits,
+    internalOverflows, textOverflows,
+    previewGeometry: { stage, section: rect(document.querySelector(".preview-section")), media: rect(previewMedia) },
+    settingsHeading: { bounds: heading, fieldset: rect(element("settings")), labelledBy: element("settings").getAttribute("aria-labelledby") },
     insetBottom: styles.getPropertyValue("--studio-safe-bottom"),
     previewError: !element("preview-error").hidden,
     error: element("error").textContent, errorVisible: !element("error-box").hidden,
+    errorLocation: { withinPreview: document.querySelector(".preview-section").contains(element("error-box")),
+      bounds: rect(element("error-box")), actions: rect(document.querySelector(".actions")) },
     connectionHint: !element("connection-hint").hidden,
     name: element("media-name").textContent,
     busy: element("studio").getAttribute("aria-busy"),
@@ -63,6 +90,12 @@ window.addEventListener("message", async event => {
     } else if (command === "scroll") node.scrollIntoView({ block: "end" });
     else if (command === "fraction") element("studio").scrollTop = (element("studio").scrollHeight - element("studio").clientHeight) * args.fraction;
     else if (command === "top") element("studio").scrollTop = 0;
+    else if (command === "fontScale") {
+      for (const [key, size] of Object.entries({ "--font-text-sm-size": 14, "--font-text-xs-size": 13, "--font-heading-md-size": 24, "--font-heading-xs-size": 15 })) {
+        if (args.scale === 1) document.documentElement.style.removeProperty(key);
+        else document.documentElement.style.setProperty(key, `${size * args.scale}px`);
+      }
+    }
     else if (command !== "inspect") throw new Error("Unknown own-fixture command");
     await new Promise(resolve => requestAnimationFrame(resolve));
     parent.postMessage({ fixture: "xskin-qa", id, result: view() }, hostOrigin);
