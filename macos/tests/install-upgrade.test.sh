@@ -48,6 +48,9 @@ AUTOSTART_JOB_LABEL=fixture
 PORT=19341
 CREATE_LAUNCHERS=false
 LAUNCH_AFTER_INSTALL=false
+AUTOSTART_ON_FIRST_INSTALL=true
+PREPARE_ONLY=false
+if [ "$2" = fresh-prepare ]; then PREPARE_ONLY=true; AUTOSTART_ON_FIRST_INSTALL=false; fi
 NODE=/usr/bin/true
 export fixture
 mkdir -p "$PROJECT_ROOT/scripts" "$INSTALL_ROOT/scripts" "$THEME_DIR"
@@ -56,12 +59,14 @@ printf new > "$PROJECT_ROOT/version"
 cat > "$PROJECT_ROOT/scripts/install-dream-skin-macos.sh" <<'INSTALL'
 #!/bin/bash
 printf 'install\n' >> "$fixture/events"
+printf '%s\n' "$*" > "$fixture/install-args"
 if [ -f "$fixture/new-agent" ]; then : > "$fixture/startup.plist"; fi
 [ ! -e "$fixture/fail-install" ]
 INSTALL
 for directory in "$PROJECT_ROOT" "$INSTALL_ROOT"; do
   cat > "$directory/scripts/start-dream-skin-macos.sh" <<'START'
 #!/bin/bash
+[ "$*" = '--port 19341 --existing-only' ] || exit 1
 printf 'resume:%s\n' "$(cat "$(dirname "$0")/../version")" >> "$fixture/events"
 START
   cat > "$directory/scripts/autostart-dream-skin-macos.sh" <<'AUTO'
@@ -70,6 +75,9 @@ printf 'startup:%s\n' "$(cat "$(dirname "$0")/../version")" >> "$fixture/events"
 AUTO
   chmod +x "$directory/scripts/"*.sh
  done
+if [ "$2" = rollback-legacy ]; then
+  printf '#!/bin/bash\n[ "$*" = "--port 19341" ] || exit 1\nprintf "unsafe-legacy-start\\n" >> "$fixture/events"\n' > "$INSTALL_ROOT/scripts/start-dream-skin-macos.sh"
+fi
 cat > "$PROJECT_ROOT/scripts/injector.mjs" <<'JS'
 // Fixture payload validation is stubbed by NODE.
 JS
@@ -78,7 +86,7 @@ printf original > "$fixture/preferences"
 printf 'check_autostart_agent() { :; }\n' > "$PROJECT_ROOT/scripts/autostart-dream-skin-macos.sh"
 chmod +x "$PROJECT_ROOT/scripts/autostart-dream-skin-macos.sh"
 case "$2" in
-  active|rollback|unknown) : > "$STATE_PATH"; : > "$AUTOSTART_AGENT_PATH" ;;
+  active|rollback|rollback-legacy|unknown) : > "$STATE_PATH"; : > "$AUTOSTART_AGENT_PATH" ;;
   paused) : > "$STATE_PATH" ;;
   rollback-shortcut) : > "$STATE_ROOT/shortcut-enabled"; : > "$fixture/new-agent" ;;
 esac
@@ -96,11 +104,12 @@ function /bin/launchctl() { case "$1" in bootout) printf 'bootout\n' >> "$fixtur
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 deploy_project
 FIXTURE
-for mode in fresh active paused; do
+for mode in fresh fresh-prepare active paused; do
   /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" "$mode"
   [ "$(cat "$TEMPORARY/$mode/installed/version")" = new ]
   [ "$(cat "$TEMPORARY/$mode/preferences")" = original ]
 done
+/usr/bin/grep -q -- '--prepare-only' "$TEMPORARY/fresh-prepare/install-args"
 /usr/bin/grep -Fxq resume:new "$TEMPORARY/active/events"
 ! /usr/bin/grep -q resume: "$TEMPORARY/paused/events"
 ! /usr/bin/grep -q resume: "$TEMPORARY/fresh/events"
@@ -109,6 +118,11 @@ if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" rollback >/dev/null 2>&1; then
 [ "$(cat "$TEMPORARY/rollback/installed/version")" = old ]
 /usr/bin/grep -Fxq resume:old "$TEMPORARY/rollback/events"
 /usr/bin/grep -Fxq startup:old "$TEMPORARY/rollback/events"
+if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" rollback-legacy >"$TEMPORARY/legacy-error" 2>&1; then exit 1; fi
+[ "$(cat "$TEMPORARY/rollback-legacy/installed/version")" = old ]
+[ "$(cat "$TEMPORARY/rollback-legacy/preferences")" = original ]
+! /usr/bin/grep -q unsafe-legacy-start "$TEMPORARY/rollback-legacy/events"
+/usr/bin/grep -Fq 'previous runtime was restored' "$TEMPORARY/legacy-error"
 if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" rollback-shortcut >/dev/null 2>&1; then exit 1; fi
 [ "$(cat "$TEMPORARY/rollback-shortcut/installed/version")" = old ]
 /usr/bin/grep -Fxq bootout "$TEMPORARY/rollback-shortcut/events"
@@ -116,4 +130,49 @@ if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" rollback-shortcut >/dev/null 2
 if /bin/bash "$TEMPORARY/fixture.sh" "$TEMPORARY" unknown >/dev/null 2>&1; then exit 1; fi
 [ "$(cat "$TEMPORARY/unknown/installed/version")" = old ]
 ! /usr/bin/grep -q install "$TEMPORARY/unknown/events"
+/usr/bin/sed -n '/^# Preserve disabled preferences/,/^fi$/p' "$ROOT/scripts/install-dream-skin-macos.sh" > "$TEMPORARY/startup-policy.sh"
+mkdir -p "$TEMPORARY/startup-policy/scripts" "$TEMPORARY/startup-policy/state"
+printf '#!/bin/bash\nprintf "enable\\n" >> "$FIXTURE_STARTUP_EVENTS"\n' > "$TEMPORARY/startup-policy/scripts/autostart-dream-skin-macos.sh"
+printf '#!/bin/bash\nprintf "direct\\n" >> "$FIXTURE_STARTUP_EVENTS"\n' > "$TEMPORARY/startup-policy/scripts/setup-direct-launch.sh"
+chmod +x "$TEMPORARY/startup-policy/scripts/"*.sh
+export FIXTURE_STARTUP_EVENTS="$TEMPORARY/startup-policy/events"
+for first_autostart in true false; do
+  for complete in true false; do
+    for enabled in true false; do
+      STATE_ROOT="$TEMPORARY/startup-policy/state"
+      SCRIPT_DIR="$TEMPORARY/startup-policy/scripts"
+      AUTOSTART_AGENT_PATH="$STATE_ROOT/agent.plist"
+      AUTOSTART_ON_FIRST_INSTALL="$first_autostart"
+      rm -f "$STATE_ROOT/shortcut-enabled" "$STATE_ROOT/shortcut-setup-complete" "$FIXTURE_STARTUP_EVENTS"
+      [ "$complete" != true ] || touch "$STATE_ROOT/shortcut-setup-complete"
+      [ "$enabled" != true ] || touch "$STATE_ROOT/shortcut-enabled"
+      . "$TEMPORARY/startup-policy.sh"
+      expected=direct
+      if [ "$enabled" = true ] || { [ "$first_autostart" = true ] && [ "$complete" = false ]; }; then expected=enable; fi
+      [ "$(cat "$FIXTURE_STARTUP_EVENTS")" = "$expected" ]
+    done
+  done
+done
+mkdir -p "$TEMPORARY/appearance/scripts" "$TEMPORARY/appearance/theme"
+printf '#!/bin/bash\nprintf "changed" > "$CONFIG_PATH"\n: > "$THEME_BACKUP_PATH"\n' > "$TEMPORARY/appearance/scripts/theme-config.mjs"
+printf '#!/bin/bash\nexit 0\n' > "$TEMPORARY/appearance/scripts/injector.mjs"
+printf '{}' > "$TEMPORARY/appearance/theme/theme.json"
+/usr/bin/sed -n '/^# Installation backs up/,/^shell_quote()/p' "$ROOT/scripts/install-dream-skin-macos.sh" | /usr/bin/sed '$d' > "$TEMPORARY/appearance/prepare.sh"
+for prepare in true false; do
+  (
+    PREPARE_ONLY="$prepare"
+    SCRIPT_DIR="$TEMPORARY/appearance/scripts"
+    THEME_DIR="$TEMPORARY/appearance/theme"
+    INJECTOR="$SCRIPT_DIR/injector.mjs"
+    export CONFIG_PATH="$TEMPORARY/appearance/config.toml" THEME_BACKUP_PATH="$TEMPORARY/appearance/backup.json"
+    printf '# 中文設定\n[desktop]\nappearanceTheme = "saved-user-theme"\n' > "$CONFIG_PATH"
+    cp "$CONFIG_PATH" "$CONFIG_PATH.before"
+    rm -f "$THEME_BACKUP_PATH"
+    NODE=/bin/bash
+    seed_bundled_presets() { :; }
+    . "$TEMPORARY/appearance/prepare.sh"
+    if [ "$prepare" = true ]; then cmp -s "$CONFIG_PATH" "$CONFIG_PATH.before"; [ ! -e "$THEME_BACKUP_PATH" ];
+    else [ "$(cat "$CONFIG_PATH")" = changed ]; [ -f "$THEME_BACKUP_PATH" ]; fi
+  )
+done
 printf 'PASS: upgrades resume active watchers, retain paused preferences, roll back failed installs, and preserve unknown-process runtimes.\n'

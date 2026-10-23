@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Xskin</title>
+  <!-- XSKIN_STYLE -->
+</head>
+<body>
+  <main id="studio" aria-busy="true">
+    <header class="toolbar">
+      <div class="brand"><h1>Xskin</h1><span id="version"></span></div>
+      <div class="toolbar-actions">
+        <label class="language-label"><span data-text="language">Language</span>
+          <select id="language" disabled>
+            <option value="en">English</option><option value="zh-Hant">繁體中文</option>
+            <option value="zh-Hans">简体中文</option><option value="ja">日本語</option>
+          </select>
+        </label>
+        <button type="button" id="refresh" data-text="refresh" disabled>Refresh</button>
+      </div>
+    </header>
+    <section class="preview-section" aria-labelledby="preview-heading">
+      <h2 id="preview-heading" data-text="preview">Preview</h2>
+      <div class="preview-stage">
+        <img id="image" width="1200" height="675" alt="Selected background preview" hidden>
+        <video id="video" width="1200" height="675" preload="metadata" controls muted playsinline hidden></video>
+        <div id="preview-mask" aria-hidden="true" hidden></div>
+        <p id="empty" data-text="noMedia">Choose an image or MP4 to preview your background.</p>
+      </div>
+      <p id="preview-error" class="hint" role="status" hidden></p>
+      <p id="video-hint" class="hint" data-text="videoHint" hidden>Video starts paused. Use the player controls to preview it.</p>
+      <div class="media-info"><strong id="media-name"></strong><span id="badge" class="badge" hidden></span></div>
+      <p id="media-details" class="hint"></p>
+      <div class="actions">
+        <button type="button" id="choose" data-text="choose" disabled>Choose image or video</button>
+        <button type="button" id="apply" class="primary" data-text="apply" disabled>Apply background</button>
+      </div>
+    </section>
+    <p id="setup" class="hint" data-text="setup" hidden>Choose a file to prepare Xskin. Your existing media and preferences are kept.</p>
+    <p id="recovery" class="hint" data-text="recovery" hidden>An interrupted change needs recovery. Refresh before making another change.</p>
+    <fieldset id="settings" disabled>
+      <legend data-text="settings">Background settings</legend>
+      <div class="setting-row">
+        <label class="range-label" for="mask"><span data-text="mask">Mask depth</span><output id="mask-value" for="mask">62%</output></label>
+        <input id="mask" type="range" min="0" max="100" step="1" value="62" aria-describedby="mask-hint">
+        <p id="mask-hint" class="hint" data-text="maskHint">Adjust the preview, then release to apply. Keyboard changes also apply.</p>
+      </div>
+      <div class="setting-row">
+        <label class="toggle"><span data-text="autostart">Apply when official Codex opens</span><input id="autostart" type="checkbox" role="switch" aria-describedby="autostart-hint"></label>
+        <p id="autostart-hint" class="hint" data-text="autostartHint">On this Mac, each future ordinary Codex launch gracefully reopens once. Existing and paused sessions are left alone. This panel can stay closed.</p>
+        <p id="service-warning" class="hint" data-text="serviceUnavailable" hidden></p>
+      </div>
+      <div class="setting-row">
+        <p id="connection-hint" class="hint" data-text="connectionHint" hidden></p>
+        <button type="button" id="pause" data-text="pause" disabled>Pause background</button>
+        <button type="button" id="resume" data-text="resume" hidden disabled>Resume saved background</button>
+      </div>
+    </fieldset>
+    <p id="status" class="status" role="status" aria-live="polite" data-text="connecting">Connecting to Xskin…</p>
+    <div id="error-box" class="error" hidden><p id="error" role="alert"></p><button type="button" id="retry" data-text="retry">Retry</button></div>
+  </main>
+  <!-- XSKIN_SCRIPT -->
+</body>
+</html>

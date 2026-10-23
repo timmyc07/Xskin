@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "xskin": {
+      "type": "stdio",
+      "command": "/bin/bash",
+      "args": ["${PLUGIN_ROOT}/plugin/launch-macos.sh"],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

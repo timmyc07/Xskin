@@ -1,5 +1,7 @@
 # Xskin for macOS
 
+**1.9.0 candidate** adds an official MCP App global entrypoint for an in-app Xskin panel. Choose and preview local media, apply on an existing background connection, adjust mask depth, and pause/resume without a separate native window. Settings and language are shared. Actual **More → Xskin** desktop acceptance is pending; stable download links below remain 1.8.5. See [installation and exact limitations](../docs/in-app-studio.md).
+
 **1.8.5** retains the latest valid plan reported in the same session and identifies it as conversation history, not live account status. Zero cache writes are “unconfirmed” with an explanation and source value in the tooltip; missing fields never become zero. [Usage fields, source evidence and validation](https://github.com/timmyc07/Xskin/blob/v1.8.5/docs/usage-fields.md).
 
 After an interrupted apply or mask change, Xskin recovers the previous settings before the next managed operation; keep its data directory. Direct-entry clicks can repair a missing Xskin watcher without restarting an already connected Codex. Matching displayed versions also receive changed runtime payloads. See the [reliability review](https://github.com/timmyc07/Xskin/blob/v1.8.4/docs/macos-reliability.md) for exact automated coverage and pending physical acceptance.

@@ -20,7 +20,8 @@ COMMON
 cat > "$SOURCE/scripts/install-dream-skin-macos.sh" <<'INSTALL'
 #!/bin/bash
 set -euo pipefail
-[ "$*" = '--no-launchers --no-launch' ]
+case "$*" in '--no-launchers --no-launch'|'--no-launchers --no-launch --prepare-only') ;; *) exit 1 ;; esac
+printf '%s\n' "$*" > "$FIXTURE_INSTALL_ARGS"
 printf 'install\n' >> "$FIXTURE_EVENTS"
 [ ! -f "$FIXTURE_FAIL" ] || exit 1
 SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -44,7 +45,7 @@ printf '/* css */\n' > "$SOURCE/assets/dream-skin.css"
 printf 'helper\n' > "$SOURCE/bin/CodexLauncher"
 mkdir -p "$INSTALLED"
 cp -R "$SOURCE/" "$INSTALLED/"
-export FIXTURE_INSTALLED="$INSTALLED" FIXTURE_NODE="$TEMPORARY/node" FIXTURE_EVENTS="$TEMPORARY/events" FIXTURE_FAIL="$TEMPORARY/fail"
+export FIXTURE_INSTALLED="$INSTALLED" FIXTURE_NODE="$TEMPORARY/node" FIXTURE_EVENTS="$TEMPORARY/events" FIXTURE_FAIL="$TEMPORARY/fail" FIXTURE_INSTALL_ARGS="$TEMPORARY/install-args"
 run() { /bin/bash "$SOURCE/scripts/studio-command-macos.sh" status; }
 assert_no_install() {
   rm -f "$FIXTURE_EVENTS"
@@ -85,6 +86,12 @@ assert_no_install
 rm "$FIXTURE_EVENTS"
 /bin/bash "$INSTALLED/scripts/studio-command-macos.sh" status
 ! /usr/bin/grep -q '^install$' "$FIXTURE_EVENTS"
+printf 'embedded update\n' >> "$SOURCE/assets/token-overlay.js"
+rm "$FIXTURE_EVENTS"
+/bin/bash "$SOURCE/scripts/studio-command-macos.sh" --embedded status
+[ "$(cat "$FIXTURE_INSTALL_ARGS")" = '--no-launchers --no-launch --prepare-only' ]
+/usr/bin/grep -Fxq "backend:$INSTALLED/scripts/background-studio.mjs --embedded status" "$FIXTURE_EVENTS"
+assert_no_install
 mkdir -p "$INSTALLED/theme"
 touch "$INSTALLED/theme/.studio-transaction.json"
 for code in 0 75 1; do

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0 — candidate, desktop acceptance pending
+
+- Add an official MCP App global Xskin entrypoint and a four-language in-app background panel. Reuse native imports, previews, pending selection, atomic apply, mask, startup preferences and saved background Pause/Resume.
+- Keep embedded Apply/mask/rollback/Resume on an existing verified connection. Never launch or quit Codex from these operations; prepare first imports without silently enabling automatic startup or rewriting official appearance preferences.
+- Keep private state outside model-visible content. Serve approved media only through random loopback preview URLs with bounded MP4 ranges and exact-origin CSP; release previews and cancel owned file pickers on connection close.
+- Bundle locked SDKs and their licenses in self-contained release files. Native Xskin remains an explicit fallback; Windows stays on its separate 1.8.4 release. See [evidence and host acceptance limits](../docs/in-app-studio.md).
+
 ## 1.8.5 — 2026-10-23
 
 - Retain the latest valid plan reported in the same session when later usage events omit it or provide `null`. Identify it as conversation history, not live account status; show “not provided” when the session never supplied a plan.

@@ -17,6 +17,8 @@ Import, preview, and apply from native macOS and Flutter Windows apps.
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
+> **macOS 1.9.0 開發版：App 內背景面板。** 更新本機插件後，可從左側導覽的 **Xskin** 入口（宿主可能收在「更多」）匯入、預覽、套用背景，調整遮罩與暫停／恢復，不必開獨立面板。沿用既有設定；實際宿主入口驗收仍待完成，公開穩定版下載維持下列 1.8.5。[安裝、連線限制及驗證範圍](docs/in-app-studio.md)；Windows 維持 1.8.4。
+
 > **macOS 1.8.5 / Windows 1.8.4** retain the latest plan reported in each conversation and distinguish unconfirmed cache writes from measured counts. Hidden pages suspend usage instead of reporting a false disconnection. No account access or credentials are added. [Usage fields, source evidence and validation](docs/usage-fields.md).
 
 [Windows guide](windows/README.md) · [macOS guide](docs/background-panel.md) · [Windows performance measurements](windows/references/performance.md)

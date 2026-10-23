@@ -1,5 +1,7 @@
 # Xskin user guide
 
+The **macOS 1.9.0 candidate** also provides an in-app panel through the official MCP App global sidebar entry. Use **Xskin** in the left navigation (possibly under **More**, as placed by the host) to choose, preview and apply media, mask settings, and Pause/Resume. It shares the native app's existing data. [Install/update, connection requirements and actual validation](in-app-studio.md). Host entry acceptance is pending; the standalone stable release described below remains 1.8.5.
+
 Xskin is a standalone native macOS app. Import local images or MP4s, inspect a native preview, and apply them as Codex backgrounds from one focused window.
 
 ## Install and open

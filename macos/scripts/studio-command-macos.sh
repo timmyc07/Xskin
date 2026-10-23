@@ -2,6 +2,8 @@
 
 set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd -P)/common-macos.sh"
+EMBEDDED="false"
+if [ "${1:-}" = --embedded ]; then EMBEDDED="true"; shift; fi
 discover_codex_app
 require_macos_runtime
 ensure_state_root
@@ -21,7 +23,9 @@ runtime_matches() {
   done
 }
 if [ "$PROJECT_ROOT" != "$INSTALL_ROOT" ] && ! runtime_matches; then
-  "$SCRIPT_DIR/install-dream-skin-macos.sh" --no-launchers --no-launch >&2
+  install_args=(--no-launchers --no-launch)
+  [ "$EMBEDDED" != "true" ] || install_args+=(--prepare-only)
+  "$SCRIPT_DIR/install-dream-skin-macos.sh" "${install_args[@]}" >&2
 fi
 if [ "${1:-}" = status ] && { [ -e "$THEME_DIR/.studio-transaction.json" ] || [ -L "$THEME_DIR/.studio-transaction.json" ]; }; then
   if recovery_output="$("$NODE" "$INSTALL_ROOT/scripts/background-studio.mjs" recover)"; then :
@@ -29,5 +33,8 @@ if [ "${1:-}" = status ] && { [ -e "$THEME_DIR/.studio-transaction.json" ] || [ 
     recovery_code=$?
     if [ "$recovery_code" -ne 75 ]; then printf '%s\n' "$recovery_output"; exit "$recovery_code"; fi
   fi
+fi
+if [ "$EMBEDDED" = "true" ]; then
+  exec "$NODE" "$INSTALL_ROOT/scripts/background-studio.mjs" --embedded "$@"
 fi
 exec "$NODE" "$INSTALL_ROOT/scripts/background-studio.mjs" "$@"

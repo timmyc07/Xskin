@@ -1,5 +1,7 @@
 # Runtime notes
 
+- 1.9.0 candidate adds `mcp.json` → verified bundled Node → self-contained MCP server and HTML UI. The global `xskin_open {}` entrypoint carries official `openai/ui` metadata; setting tools are app-only. Strict inputs never accept commands or paths. Private state stays in `_meta`, and media uses approved random loopback preview URLs with exact CSP. The existing native backend still owns atomic operations and data; embedded operations require an existing connection and first import does not enable automatic startup or rewrite official appearance preferences. Actual host entry acceptance and background CDP/CSS authorization remain separate pending items. See the repository in-app studio guide.
+
 - 1.8.5 retains the latest valid plan from the same session when subsequent events omit it or report null. Its tooltip marks it as conversation history, not live account status; a never-provided plan stays explicitly unavailable. Cache-write zero is unconfirmed because the public upstream parser can default missing data to zero; the tooltip retains the source value. Missing write fields are never fabricated as zero, and reads/writes remain distinct. See https://github.com/timmyc07/Xskin/blob/v1.8.5/docs/usage-fields.md for pinned public-source evidence and validation limits.
 
 - Reliability update: elapsed-time heartbeats survive clock rollback; repeated renderer probe/push failures reconnect only the Xskin socket. Failed reads and unacknowledged deliveries remain retryable. Thread guards, file limits and lifecycle fan behavior are retained.
