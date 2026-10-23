@@ -15,3 +15,4 @@ macos/native/*.app/
 build/
 macos/bin/
 plugin/node_modules/
+/Saved/Logs/
