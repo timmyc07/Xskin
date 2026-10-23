@@ -37,6 +37,6 @@ await fs.mkdir(output, { recursive: true });
 await Promise.all([
   fs.writeFile(path.join(output, "server.mjs"), server.outputFiles[0].contents),
   fs.writeFile(path.join(output, "studio.html"), html),
-  fs.writeFile(path.join(output, "THIRD_PARTY_NOTICES.txt"), notices.join("\n\n")),
+  fs.writeFile(path.join(output, "THIRD_PARTY_NOTICES.txt"), notices.join("\n\n").replace(/[\t ]+$/gm, "")),
 ]);
 console.log("Built Xskin's self-contained MCP server and in-app studio.");
