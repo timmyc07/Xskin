@@ -17,7 +17,7 @@ Import, preview, and apply from native macOS and Flutter Windows apps.
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
-> **macOS 1.8.5 / Windows 1.8.4** retain the latest plan reported in each conversation and distinguish unconfirmed cache writes from measured counts. No account access or credentials are added. [Usage fields, source evidence and validation](docs/usage-fields.md).
+> **macOS 1.8.5 / Windows 1.8.4** retain the latest plan reported in each conversation and distinguish unconfirmed cache writes from measured counts. Hidden pages suspend usage instead of reporting a false disconnection. No account access or credentials are added. [Usage fields, source evidence and validation](docs/usage-fields.md).
 
 [Windows guide](windows/README.md) · [macOS guide](docs/background-panel.md) · [Windows performance measurements](windows/references/performance.md)
 

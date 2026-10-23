@@ -903,7 +903,8 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
-    lastResult.usageHealthy = !lastResult.usageOverlay?.mounted || (
+    lastResult.usageDeferred = Boolean(lastResult.usageOverlay?.mounted && lastResult.startupFrames?.documentHidden === true);
+    lastResult.usageHealthy = lastResult.usageDeferred || !lastResult.usageOverlay?.mounted || (
       Number.isFinite(lastResult.usageOverlay.lastReceivedAt) && lastResult.usageOverlay.availability !== "reconnecting"
     );
     lastResult.pass &&= lastResult.usageHealthy;

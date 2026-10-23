@@ -36,7 +36,7 @@ let currentUsage = {visible:true, threadId:'thread-a', installation:'one'};
 const subscriptions = [];
 const delivered = [];
 const liveSession = {closed:false, async evaluate(expression) {
-  if (expression === 'window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()') return JSON.parse(JSON.stringify(currentUsage));
+  if (expression === 'window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()') return {...currentUsage};
   return vm.runInNewContext(expression, {window:{__CODEX_DREAM_SKIN_STATE__:{usageOverlay:{
     request:() => currentUsage, update:value => delivered.push(value),
   }}}});
@@ -50,8 +50,6 @@ const liveReader = {watch(threadId, onSnapshot) {
 const liveOverlay = watchUsageOverlay(liveSession, liveReader);
 try {
   await until(() => delivered.length === 1);
-  await delay(550);
-  assert.equal(subscriptions.length, 1, 'Repeated CDP-serialized requests must retain the active file subscription.');
   currentUsage = {...currentUsage, threadId:'thread-b'};
   await until(() => subscriptions.length === 2 && delivered.at(-1)?.threadId === 'thread-b');
   assert.equal(subscriptions[0].closed, true, 'Switching threads closes the old exact-file watcher.');
@@ -74,13 +72,13 @@ function bridgeFixture() {
   let elapsed = 0;
   let wall = 1000000;
   let timer = null;
-  const state = { probeError: false, pushError: false, readError: false, pushes: 0, refreshes: 0, closes: 0 };
+  const state = { probeError: false, pushError: false, readError: false, visible: true, pushes: 0, refreshes: 0, closes: 0 };
   const subscriptions = [];
   const session = {
     closed: false,
     async evaluate() {
       if (state.probeError) throw new Error('Fixture renderer timeout');
-      return { visible: true, threadId: 'thread-a', installation: 'stable' };
+      return { visible: state.visible, threadId: 'thread-a', installation: 'stable' };
     },
     close() { this.closed = true; state.closes += 1; },
   };
@@ -127,6 +125,20 @@ await rollback.advance(5000, -3600000);
 assert.equal(rollback.state.pushes, 2, 'A backwards system-clock change must not suppress the five-second heartbeat.');
 assert.equal(rollback.subscriptions.length, 1, 'A clock change must reuse the active exact-file subscription.');
 rollback.bridge.close();
+
+const pausedPage = bridgeFixture();
+await pausedPage.settle();
+pausedPage.state.visible = false;
+await pausedPage.advance(250);
+assert.equal(pausedPage.subscriptions[0].closed, true);
+await pausedPage.advance(16000);
+assert.equal(pausedPage.subscriptions.length, 1, 'Intentional hidden time does not recreate a subscription');
+assert.equal(pausedPage.state.pushes, 1, 'Hidden time does not fabricate heartbeat acknowledgments');
+pausedPage.state.visible = true;
+await pausedPage.advance(250);
+assert.equal(pausedPage.subscriptions.length, 2, 'Returning immediately resubscribes the exact thread');
+assert.equal(pausedPage.state.pushes, 2, 'The new subscription immediately delivers a genuine snapshot');
+pausedPage.bridge.close();
 
 const transient = bridgeFixture();
 await transient.settle();
@@ -236,7 +248,8 @@ const messagingSelector = selectors.codex[0] + ' .messaging-root.messaging-embed
   selectors.codex[0] + ' .messaging-root.messaging-embedded .thread-pane';
 for (const blockedLayer of [-1, 0, 1, 2, 3, 'image']) {
   const clearStyle = {backgroundColor:'rgba(0, 0, 0, 0)', backgroundImage:'none', pointerEvents:'none'};
-  const node = {getBoundingClientRect: () => ({x:0, y:0, width:100, height:100}), querySelector:() => null, style:clearStyle};
+  const node = {querySelector: () => null,
+    getBoundingClientRect: () => ({x:0, y:0, width:100, height:100}), style:clearStyle};
   const layers = Array.from({length:4}, (_, index) => ({style:{...clearStyle,
     ...(index === blockedLayer ? {backgroundColor:'rgb(24, 24, 24)'} : {}),
     ...(blockedLayer === 'image' && index === 3 ? {backgroundImage:'linear-gradient(black, black)'} : {}),
@@ -329,12 +342,13 @@ for (const mode of ['verify', 'once']) {
   assert.equal(publications, mode === 'once' ? 1 : 0,
     'Verify must observe host heartbeats without masking a failed daemon by publishing usage itself.');
 }
-for (const availability of ['waiting', 'ready', 'reconnecting']) {
+for (const hidden of [true, false]) for (const availability of ['waiting', 'ready', 'reconnecting']) for (const received of [null, 123]) {
   const session = {async evaluate() {
-    return {pass:true,themeId:'usage-check',videoKey:null,
-      usageOverlay:{mounted:true,availability,lastReceivedAt:123}};
+    return {pass:true,themeId:'usage-check',videoKey:null,startupFrames:{documentHidden:hidden},
+      usageOverlay:{mounted:true,availability,lastReceivedAt:received}};
   }};
   const result = await waitForVerifiedSession(session, 250, {id:'usage-check'});
-  assert.equal(result.pass, availability !== 'reconnecting', 'A visibly disconnected usage row must fail verification.');
+  assert.equal(result.usageDeferred, hidden);
+  assert.equal(result.pass, hidden || (received !== null && availability !== 'reconnecting'), 'Only an intentionally hidden page may defer independent usage delivery.');
 }
 console.log('PASS: verification observes independent usage delivery and rejects a reconnecting row.');

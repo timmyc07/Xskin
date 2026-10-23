@@ -24,11 +24,15 @@ The official [prompt-caching documentation](https://developers.openai.com/api/do
 
 Documentation was checked on 2026-10-23. Context7 resolved `/openai/codex` and returned current `main` material, without an index matching the supplied commit; the field behavior above was therefore verified against the pinned public source. Xskin has no OpenAI SDK dependency in its manifest. Neither the index date nor that source commit proves the schema version of the installed official app. No official app bundle was inspected or reverse engineered for this fix.
 
+## Hidden-page suspension
+
+The host intentionally stops usage subscriptions while a renderer is hidden. The overlay now cancels its heartbeat timeout and clears old measurements on hiding, rather than calling that intentional pause a disconnection. Returning waits for a real host snapshot. Verify reports `usageDeferred` only for an explicitly hidden mounted overlay; a visible overlay still requires independent host delivery and fails on a real timeout. Deferred verification is not a foreground heartbeat pass.
+
 ## Validation
 
 The full macOS suite and arm64 native build passed. Targeted parser and overlay regressions passed for both platform copies, alongside the portable Windows renderer and bridge tests on this Mac. They cover retained same-session plans, absent/malformed plans, positive/zero/missing writes and the explanatory rendering. A 3,180,556-byte dense fixture read 3,180,686 bytes in bounded chunks; unchanged heartbeats perform no history reads. A cold read may search the whole file once for an earlier plan; later reads use only new bytes.
 
-The installed macOS 1.8.5 engine passed passive current-page self-checks for Codex, Work and Dot; the Codex usage connection was ready. The selected conversation's earlier valid plan was recovered without reading credentials. Config/media/selection bytes, Xskin language, pause state and the official Codex PID were preserved during the update. These checks inspect Xskin's own feature state and do not establish official-page visual acceptance.
+The installed macOS 1.8.5 engine passed passive current-page self-checks for Codex, Work and Dot; the Codex usage connection was ready. The selected conversation's earlier valid plan was recovered without reading credentials. Config/media/selection bytes, Xskin language, pause state and the official Codex PID were preserved during the update. After closing Xskin, the current hidden Codex renderer was explicitly deferred and its usage state remained waiting; Work and Dot passed their checks. Foreground heartbeat recovery after hidden time is covered by deterministic overlay/bridge tests, not a physical page switch. These checks inspect Xskin's own feature state and do not establish official-page visual acceptance.
 
 Windows runner, Flutter analysis/tests and package integrity must pass before publication. Final run links and archive checks are recorded on the [macOS release](https://github.com/timmyc07/Xskin/releases/tag/v1.8.5) and [Windows release](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.4) pages; portable Mac tests alone do not establish Windows runtime behavior.
 

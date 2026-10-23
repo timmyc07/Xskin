@@ -212,7 +212,7 @@
     clearData();
     row?.remove();
     row = text = cacheBar = cacheFill = cacheText = null;
-    document.removeEventListener("visibilitychange", request);
+    document.removeEventListener("visibilitychange", visibilityChange);
     motion.removeEventListener("change", paintMotion);
   };
   state.usageOverlay = {
@@ -221,7 +221,12 @@
       availability: row?.dataset.usageState ?? "hidden",
       spinning: row?.dataset.spinning === "true", sampledAt: snapshot?.sampledAt ?? null, lastReceivedAt }),
   };
-  document.addEventListener("visibilitychange", request);
+  // Hidden pages unsubscribe; returning waits for a real host heartbeat.
+  const visibilityChange = () => {
+    if (document.hidden) { clearData(); render(); }
+    request();
+  };
+  document.addEventListener("visibilitychange", visibilityChange);
   motion.addEventListener("change", paintMotion);
   request();
   return true;

@@ -5,6 +5,8 @@
 - Share the same-session plan recovery and explicit “not provided” state with macOS. The displayed plan is the conversation's latest valid report, not live account information.
 - Mark source-reported zero cache writes as “unconfirmed” with a tooltip preserving the source value; unavailable fields do not become zero, and positive values retain their reported counts.
 - Targeted parser and overlay regression tests passed. Full-suite, package and CI results will be recorded in [usage-field validation](../docs/usage-fields.md). Flutter metadata is 1.8.4+16; Windows physical cold-start/login/Store checks and CDP/CSS authorization remain pending.
+- Treat intentionally hidden usage as suspended, clear stale data on hide, and wait for real delivery on return. Verify explicitly defers hidden usage while retaining visible-page heartbeat failures.
+
 - Keep Codex (Xskin) shortcut startup with no automatic close or reopen. Preserve media, preferences and the running official app.
 
 ## 1.8.3 — 2026-10-23
