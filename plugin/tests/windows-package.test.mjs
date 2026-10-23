@@ -14,7 +14,7 @@ const repository = fileURLToPath(new URL("../..", import.meta.url));
 test("the Windows plugin archive retains marketplace discovery, contained launcher, docs and bundled runtime", {
   skip: process.platform !== "win32", timeout: 60000,
 }, async t => {
-  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "xskin-package-"));
+  const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "xskin-package-")));
   t.after(() => fs.rm(temporary, { recursive: true, force: true }));
   const fixture = path.join(temporary, "套件 中文 🌙 with spaces");
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== "psmodulepath"));

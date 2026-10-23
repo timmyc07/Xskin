@@ -2,11 +2,11 @@
 
 Windows now mirrors the completed macOS 1.9.4 embedded studio, retained original-media previews, recovery, six presets and official-launch background option. It reuses the Windows Flutter/PowerShell engine. [Parity and validation](../docs/windows-parity.md) · [繁體中文](README.md)
 
-1.9.4 is the source/local-build version. The previous public [Windows 1.8.5 release](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5) lacks the embedded studio.
+**Download Windows 1.9.4: [standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/Xskin-1.9.4-windows-x64.zip) · [Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/xskin-plugin-v1.9.4-windows-x64.zip) · [Release and SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4#release-assets).** Verify each ZIP against its matching `.zip.sha256` before running it. To install both with a local coding assistant, copy the [AI installation prompt](https://github.com/timmyc07/Xskin#install-with-your-ai).
 
 ## Embedded studio
 
-Build and extract the complete `xskin-plugin-v1.9.4-windows-x64.zip`. It includes its Windows MCP manifest, launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
+Download and extract the complete `xskin-plugin-v1.9.4-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
 
 ```powershell
 codex plugin marketplace add "D:\path with spaces\Xskin-plugin"

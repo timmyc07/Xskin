@@ -1,7 +1,8 @@
 # Windows Changelog
 
-## 1.9.4 — 2026-10-23
+## 1.9.4 — 2026-10-24
 
+- Publish Windows standalone and Codex plugin packages under `windows-v1.9.4`, each with a SHA-256 checksum. Refresh download links and add copyable AI installation prompts. Canonicalize temporary fixture paths and defer Windows-only test setup on other platforms so release checks also run on GitHub-hosted runners.
 - Fix the embedded Choose image or video button appearing unresponsive when its native Windows dialog opens behind Codex. Give the picker a temporary transparent topmost owner, dispose both windows after selection/cancellation, and test real hidden-process selection with Unicode image/video paths.
 - Fix import, Apply and Resume remaining on Working after their work succeeds. Start persistent watchers with an explicit Windows handle allowlist so they retain only NUL input and diagnostic logs, and cannot hold the MCP response pipes open. Cover a real runtime replacement completing while its watcher stays alive.
 - Restore the token overlay in Windows Codex's Slate sidebar. Identify the unique visible composer through its committed renderer owner and nearest exact local host/conversation pair, without requiring sidebar rows or separate above-composer markers. Cover hidden, missing and stale portals, attachment inputs, and remote/unknown/ambiguous identities.

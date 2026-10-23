@@ -17,7 +17,7 @@ const source = fileURLToPath(new URL("..", import.meta.url));
 test("the Windows manifest starts a contained compiled studio with private read-only status and clean EOF", {
   skip: process.platform !== "win32", timeout: 30000,
 }, async t => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "xskin-windows-launcher-"));
+  const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "xskin-windows-launcher-")));
   const packageRoot = path.join(directory, "套件 中文 🌙 with spaces");
   const plugin = path.join(packageRoot, "plugin");
   const runtime = path.join(packageRoot, "windows");

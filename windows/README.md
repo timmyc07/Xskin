@@ -2,11 +2,11 @@
 
 本版本將 macOS 1.9.4 已完成的內嵌工作室、原始媒體預覽、套用後保留預覽、中斷復原、六組預設與官方啟動自動套用移植到 Windows。沿用 Flutter 面板、PowerShell 引擎與 Store 套件啟動；沒有增加額外產品功能。[對齊範圍與驗證](../docs/windows-parity.md) · [English](README.en.md)
 
-1.9.4 為目前原始碼／本地建置版本。先前公開版本仍是 [Windows 1.8.5](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5)，不包含內嵌工作室；請勿將舊下載當成新版本。
+**下載 Windows 1.9.4：[獨立版](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/Xskin-1.9.4-windows-x64.zip) · [Codex 內建外掛](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/xskin-plugin-v1.9.4-windows-x64.zip) · [Release 與 SHA-256](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4#release-assets)。** 每個 ZIP 都有同名 `.zip.sha256` 校驗檔，請在執行前驗證。也可以將[安裝提示詞](https://github.com/timmyc07/Xskin/blob/main/windows/CLIENT_DEPLOY_PROMPT.md)交給能執行本機指令的 AI，安裝獨立版及內建外掛。
 
 ## Codex 內嵌工作室
 
-建置後使用完整的 `xskin-plugin-v1.9.4-windows-x64.zip`，解壓並保留整個資料夾。套件包括 Windows 專用 `mcp.json`、PowerShell 啟動器、Node 與編譯後工作室，不需要安裝 npm 或 Flutter。
+下載並解壓完整的 `xskin-plugin-v1.9.4-windows-x64.zip`，保留整個資料夾於固定位置。以下路徑必須指向同時含有 `plugin.json`、`mcp.json` 及 `.agents/plugins/marketplace.json` 的解壓根目錄。套件包括 Windows 專用啟動器、Node 與編譯後工作室，不需要安裝 npm 或 Flutter。
 
 ```powershell
 codex plugin marketplace add "D:\完整路徑\Xskin-plugin"
