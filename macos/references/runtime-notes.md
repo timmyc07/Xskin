@@ -1,5 +1,8 @@
 # Runtime notes
 
+- Reliability update: elapsed-time heartbeats survive clock rollback; repeated renderer probe/push failures reconnect only the Xskin socket. Failed reads and unacknowledged deliveries remain retryable. Thread guards, file limits and lifecycle fan behavior are retained.
+- Direct entries initialize the runtime before reading state and repair a missing watcher on a verified connection. Runtime updates compare executable content as well as version; image media is excluded. Native transactions recover interrupted applies/mask changes, and legacy image loading validates before publishing under the operation lock. See the repository macOS reliability review for physical acceptance limits.
+
 - Final release review removes duplicate parsed-tail reads while retaining first-line overlap and bounded buffers. Expected CSS revision matching runs inside the verification deadline, so a transient old stylesheet cannot finish verification early.
 
 

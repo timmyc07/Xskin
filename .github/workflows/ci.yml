@@ -124,6 +124,13 @@ jobs:
           node-version: "22"
       - name: Run native studio regression suite
         run: node --test macos/tests/background-studio.test.mjs
+      - name: Run macOS launcher and runtime fixtures
+        shell: bash
+        run: |
+          export NODE="$(command -v node)"
+          for suite in autostart install-upgrade native-code studio-runtime image-loader; do
+            /bin/bash "macos/tests/$suite.test.sh"
+          done
 
   windows-tests:
     name: Windows (${{ matrix.name }})

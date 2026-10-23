@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.4 — 2026-10-23
+
+- Recover stalled usage connections by reconnecting only Xskin's socket after repeated renderer failures. Use monotonic heartbeat timing and retain safe timestamp bounds across clock corrections and sleep; retry undelivered unchanged snapshots and queued reads after transient errors.
+- Repair a missing injector from the direct entry without restarting Codex. Initialize the runtime before reading pause/port state and reuse only the recorded PID/start/path identity; repeated clicks keep one watcher.
+- Detect changed executable payloads even when their displayed version matches. Keep media out of this comparison and preserve settings, pause and the official app during upgrades.
+- Preserve literal Unicode, emoji, spaces and shell metacharacters in generated launchers; reject foreign files and symlinks at managed launcher paths.
+- Add interruption recovery and validate legacy image preparation before replacing the active theme. Retain the previous configuration when applying or changing mask fails.
+- Record the scenario matrix and remaining physical/authorization limits in [macOS reliability review](../docs/macos-reliability.md). Official-entry custom backgrounds still require one authorized graceful reopen; a supported persistent no-reopen image/overlay interface has not been established.
+
 ## 1.8.3 — 2026-10-23
 
 - Final review: avoid rereading the parsed history tail (24.8% less I/O in the dense 3.18 MB fixture); keep 1 MiB per-read limits and partial-line recovery. Wait for the expected stylesheet revision inside the existing verification deadline rather than rejecting a transient update immediately.

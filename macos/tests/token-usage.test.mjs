@@ -315,6 +315,32 @@ try {
   assert.equal(serial.maxReads, 1, "Multiple renderer subscriptions must never parse one file concurrently");
   assert.ok(parallel.every(value => value.totalTokens === 2600));
 
+  class RecoveringReader extends TokenUsageReader {
+    attempts = 0;
+    async readSession(id) {
+      this.attempts += 1;
+      await delay(5);
+      if (this.attempts === 1) throw new Error("temporary read failure");
+      return super.readSession(id);
+    }
+  }
+  const recovering = new RecoveringReader({ codexHome: root, now: () => now });
+  const retried = await Promise.allSettled([recovering.read(threadId), recovering.read(threadId)]);
+  assert.equal(retried[0].status, "rejected");
+  assert.equal(retried[1].status, "fulfilled", "A queued read must recover independently after a failed read");
+  assert.equal(retried[1].value.totalTokens, 2600);
+
+  let deliveries = 0;
+  const retryDelivery = reader.watch(threadId, () => {
+    deliveries += 1;
+    if (deliveries === 1) throw new Error("temporary delivery failure");
+  });
+  try {
+    await assert.rejects(retryDelivery.refresh(), /temporary delivery failure/);
+    await retryDelivery.refresh();
+    assert.equal(deliveries, 2, "A failed delivery must not mark the unchanged snapshot as delivered");
+  } finally { retryDelivery.close(); }
+
   console.log("PASS: Token overlay reads bounded, incremental usage for the exact local thread.");
 } finally {
   assert.ok(!path.relative(build, root).startsWith("..") && !path.isAbsolute(path.relative(build, root)));

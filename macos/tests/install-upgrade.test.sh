@@ -3,6 +3,35 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 TEMPORARY="$(/usr/bin/mktemp -d /tmp/xskin-upgrade-tests.XXXXXX)"
 trap '/bin/rm -rf "$TEMPORARY"' EXIT
+/usr/bin/sed -n '/^shell_quote()/,/^}/p' "$ROOT/scripts/install-dream-skin-macos.sh" > "$TEMPORARY/quote.sh"
+/usr/bin/sed -n '/^owned_desktop_launcher()/,/^}/p' "$ROOT/scripts/common-macos.sh" >> "$TEMPORARY/quote.sh"
+/usr/bin/sed -n '/^write_launcher()/,/^}/p' "$ROOT/scripts/install-dream-skin-macos.sh" >> "$TEMPORARY/quote.sh"
+. "$TEMPORARY/quote.sh"
+fail() { printf '%s\n' "$*" >&2; exit 1; }
+quoted_directory="$TEMPORARY/中文 🌙 \$HOME \`printf altered\` \"引號\" '單引號'"
+INSTALL_ROOT="$quoted_directory/runtime"
+mkdir -p "$INSTALL_ROOT/scripts"
+cat > "$INSTALL_ROOT/scripts/direct-launch-macos.sh" <<'LAUNCH'
+#!/bin/bash
+printf '%s' "$(dirname "$0")"
+LAUNCH
+chmod +x "$INSTALL_ROOT/scripts/direct-launch-macos.sh"
+launcher_command="exec $(shell_quote "$INSTALL_ROOT/scripts/direct-launch-macos.sh")"
+write_launcher "$TEMPORARY/desktop.command" "$launcher_command"
+[ "$(/bin/bash "$TEMPORARY/desktop.command")" = "$INSTALL_ROOT/scripts" ]
+owned_desktop_launcher "$TEMPORARY/desktop.command"
+write_launcher "$TEMPORARY/desktop.command" "$launcher_command"
+printf '# CodexDreamSkinStudio launcher\nexec /foreign/start.sh\n' > "$TEMPORARY/foreign.command"
+ln -s "$TEMPORARY/desktop.command" "$TEMPORARY/symlink.command"
+ln -s "$TEMPORARY/missing" "$TEMPORARY/dangling.command"
+mkdir "$TEMPORARY/directory.command"
+for foreign in foreign symlink dangling directory; do
+  if (write_launcher "$TEMPORARY/$foreign.command" "$launcher_command" >/dev/null 2>&1); then exit 1; fi
+  [ -e "$TEMPORARY/$foreign.command" ] || [ -L "$TEMPORARY/$foreign.command" ]
+done
+[ "$(cat "$TEMPORARY/foreign.command")" = $'# CodexDreamSkinStudio launcher\nexec /foreign/start.sh' ]
+[ "$(/bin/bash "$TEMPORARY/desktop.command")" = "$INSTALL_ROOT/scripts" ]
+printf 'PASS: Desktop launchers preserve literal Unicode/quoted paths and share install/uninstall ownership checks that reject foreign files and symlinks.\n'
 /usr/bin/sed -n '/^deploy_project()/,/^}/p' "$ROOT/scripts/install-dream-skin-macos.sh" > "$TEMPORARY/deploy.sh"
 cat > "$TEMPORARY/fixture.sh" <<'FIXTURE'
 #!/bin/bash

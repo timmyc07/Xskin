@@ -39,6 +39,13 @@ case "$PORT" in ''|*[!0-9]*) fail "Invalid port: $PORT" ;; esac
 discover_codex_app
 require_macos_runtime
 ensure_state_root
+if [ -e "$THEME_DIR/.studio-transaction.json" ] || [ -L "$THEME_DIR/.studio-transaction.json" ]; then
+  if "$NODE" "$SCRIPT_DIR/background-studio.mjs" recover >/dev/null; then :
+  else
+    recovery_code=$?
+    [ "$recovery_code" -eq 75 ] || fail "An interrupted background operation could not be recovered; saved settings were preserved."
+  fi
+fi
 
 if [ "$PORT_EXPLICIT" = "false" ] && [ -f "$STATE_PATH" ]; then
   saved_port="$(state_field port)" || fail "Could not read the existing state port."

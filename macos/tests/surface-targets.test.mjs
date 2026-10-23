@@ -68,6 +68,101 @@ try {
 } finally { liveOverlay.close(); }
 assert.equal(subscriptions.at(-1).closed, true, 'Disposing the host bridge closes its file watcher.');
 
+function bridgeFixture() {
+  let elapsed = 0;
+  let wall = 1000000;
+  let timer = null;
+  const state = { probeError: false, pushError: false, readError: false, pushes: 0, refreshes: 0, closes: 0 };
+  const subscriptions = [];
+  const session = {
+    closed: false,
+    async evaluate() {
+      if (state.probeError) throw new Error('Fixture renderer timeout');
+      return { visible: true, threadId: 'thread-a', installation: 'stable' };
+    },
+    close() { this.closed = true; state.closes += 1; },
+  };
+  const reader = { watch(threadId, onSnapshot) {
+    const active = { closed: false,
+      async refresh(force) {
+        assert.equal(force, true);
+        state.refreshes += 1;
+        if (state.readError) throw new Error('Fixture file unavailable');
+        await onSnapshot({ threadId, totalTokens: 42 });
+      },
+      close() { this.closed = true; },
+    };
+    subscriptions.push(active);
+    return active;
+  } };
+  const start = vm.runInNewContext(`(${watchUsageOverlay.toString()})`, {
+    Date: { now: () => wall }, performance: { now: () => elapsed },
+    setTimeout(callback, delay) { assert.equal(delay, 250); timer = callback; return 1; },
+    clearTimeout() { timer = null; },
+    async sendUsageSnapshot() {
+      if (state.pushError) throw new Error('Fixture delivery timeout');
+      state.pushes += 1;
+    },
+  });
+  const bridge = start(session, reader);
+  return { state, session, subscriptions, bridge,
+    async settle() { await new Promise(setImmediate); },
+    async advance(milliseconds, wallChange = milliseconds) {
+      elapsed += milliseconds;
+      wall += wallChange;
+      assert.ok(timer, 'The bridge must retain one scheduled probe while connected.');
+      const tick = timer;
+      timer = null;
+      await tick();
+    },
+  };
+}
+
+const rollback = bridgeFixture();
+await rollback.settle();
+assert.equal(rollback.state.pushes, 1);
+await rollback.advance(5000, -3600000);
+assert.equal(rollback.state.pushes, 2, 'A backwards system-clock change must not suppress the five-second heartbeat.');
+assert.equal(rollback.subscriptions.length, 1, 'A clock change must reuse the active exact-file subscription.');
+rollback.bridge.close();
+
+const transient = bridgeFixture();
+await transient.settle();
+transient.state.probeError = true;
+await transient.advance(250);
+transient.state.probeError = false;
+await transient.advance(250);
+transient.state.probeError = true;
+await transient.advance(250);
+await transient.advance(250);
+assert.equal(transient.session.closed, false, 'Successful probes reset the consecutive failure count.');
+transient.state.probeError = false;
+transient.state.pushError = true;
+await transient.advance(5000);
+transient.state.pushError = false;
+await transient.advance(5000);
+assert.equal(transient.state.pushes, 2, 'A failed delivery must retry the unchanged snapshot at the next heartbeat.');
+assert.equal(transient.subscriptions.length, 1, 'A transient delivery failure retains the active subscription.');
+transient.state.readError = true;
+for (let i = 0; i < 3; i += 1) await transient.advance(5000);
+assert.equal(transient.session.closed, false, 'A file-read failure must not restart the CDP connection.');
+transient.bridge.close();
+
+for (const failure of ['probeError', 'pushError']) {
+  const failed = bridgeFixture();
+  await failed.settle();
+  failed.state[failure] = true;
+  for (let i = 0; i < 3; i += 1) await failed.advance(failure === 'probeError' ? 250 : 5000);
+  assert.equal(failed.session.closed, true, 'Repeated renderer failures must release the stale CDP socket for reconnection.');
+  assert.equal(failed.state.closes, 1, 'Recovery closes only the bridge socket once.');
+  assert.equal(failed.subscriptions[0].closed, true, 'Reconnect recovery must dispose the old file watcher.');
+  const recovered = bridgeFixture();
+  await recovered.settle();
+  assert.equal(recovered.state.pushes, 1, 'A rebuilt bridge must hydrate the existing conversation without another token event.');
+  recovered.bridge.close();
+}
+console.log('PASS: Usage heartbeats survive clock changes and transient failures; repeated renderer failures reconnect the CDP socket.');
+
 const selectors = {
   codex: ['main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)', 'aside.app-shell-left-panel'],
   work: ['main#main #thread', '#prompt-textarea'],
@@ -215,3 +310,30 @@ for (const catchesUp of [true, false]) {
   assert.equal(result.styleMatches, catchesUp);
   if (catchesUp) assert.equal(probes, 2, 'A healthy previous stylesheet cannot end verification before the new CSS arrives.');
 }
+
+const injectorSource = await fs.readFile(new URL('../scripts/injector.mjs', import.meta.url), 'utf8');
+const oneShotStart = injectorSource.indexOf('async function runOneShot(');
+const oneShotFunction = injectorSource.slice(oneShotStart, injectorSource.indexOf('\n}\n', oneShotStart) + 2);
+for (const mode of ['verify', 'once']) {
+  let publications = 0;
+  const oneShot = vm.runInNewContext(`(${oneShotFunction})`, {
+    TokenUsageReader: class {}, SKIN_VERSION:'fixture',
+    connectCodexTargets:async () => [{target:{id:'fixture'},session:{close() {}},probe:{surface:'codex'}}],
+    loadPayload:async () => ({theme:{}}), applyToSession:async () => {},
+    updateUsageOverlay:async () => {publications += 1;},
+    waitForVerifiedSession:async () => ({pass:true}),
+    setTimeout:callback => {callback();}, console:{log() {}}, process:{},
+  });
+  await oneShot({mode});
+  assert.equal(publications, mode === 'once' ? 1 : 0,
+    'Verify must observe host heartbeats without masking a failed daemon by publishing usage itself.');
+}
+for (const availability of ['waiting', 'ready', 'reconnecting']) {
+  const session = {async evaluate() {
+    return {pass:true,themeId:'usage-check',videoKey:null,
+      usageOverlay:{mounted:true,availability,lastReceivedAt:123}};
+  }};
+  const result = await waitForVerifiedSession(session, 250, {id:'usage-check'});
+  assert.equal(result.pass, availability !== 'reconnecting', 'A visibly disconnected usage row must fail verification.');
+}
+console.log('PASS: verification observes independent usage delivery and rejects a reconnecting row.');

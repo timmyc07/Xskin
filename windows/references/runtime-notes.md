@@ -1,5 +1,7 @@
 # Runtime notes
 
+- Reliability update: elapsed-time heartbeats survive clock rollback; repeated renderer probe/push failures reconnect only the Xskin socket. Failed reads and unacknowledged deliveries remain retryable. Thread guards, file limits and lifecycle fan behavior are retained.
+
 - Final release review removes duplicate parsed-tail reads while retaining first-line overlap and bounded buffers. Expected CSS revision matching runs inside the verification deadline, so a transient old stylesheet cannot finish verification early.
 
 

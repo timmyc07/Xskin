@@ -11,7 +11,7 @@ import { setTimeout as delay } from "node:timers/promises";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.8.3";
+const SKIN_VERSION = "1.8.4";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
@@ -303,9 +303,10 @@ function videoStamp(stat) {
   return [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
 }
 
-export async function loadTheme(themeDir) {
+export async function loadTheme(themeDir, configName = "theme.json") {
+  if (path.basename(configName) !== configName) throw new Error("Theme config must be a filename inside its theme directory");
   const requestedRoot = themeDir ?? path.join(root, "assets");
-  const configPath = path.join(requestedRoot, "theme.json");
+  const configPath = path.join(requestedRoot, configName);
   let assetsRoot;
   let canonicalConfigPath;
   try {
@@ -604,10 +605,19 @@ export function watchUsageOverlay(session, reader) {
   let threadId;
   let installation;
   let lastHeartbeatAt = 0;
+  let probeFailures = 0;
+  let pushFailures = 0;
   const tick = async () => {
     try {
       if (session.closed) { close(); return; }
-      const request = await session.evaluate('window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()');
+      let request;
+      try {
+        request = await session.evaluate('window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()');
+        probeFailures = 0;
+      } catch (error) {
+        if (++probeFailures >= 3) { session.close(); close(); }
+        throw error;
+      }
       if (closed) return;
       const current = request?.visible ? request.threadId : undefined;
       if (current !== threadId || request?.installation !== installation) {
@@ -615,16 +625,24 @@ export function watchUsageOverlay(session, reader) {
         subscription = null;
         threadId = current;
         installation = request?.installation;
-        lastHeartbeatAt = Date.now();
+        lastHeartbeatAt = performance.now();
+        pushFailures = 0;
         if (threadId) {
-          const active = reader.watch(threadId, snapshot => {
-            if (!closed && subscription === active) return sendUsageSnapshot(session, threadId, snapshot);
+          const active = reader.watch(threadId, async snapshot => {
+            if (closed || subscription !== active) return;
+            try {
+              await sendUsageSnapshot(session, threadId, snapshot);
+              if (subscription === active) pushFailures = 0;
+            } catch (error) {
+              if (!closed && subscription === active && ++pushFailures >= 3) { session.close(); close(); }
+              throw error;
+            }
           });
           subscription = active;
           await active.refresh(true);
         } else if (request?.visible) await sendUsageSnapshot(session, threadId, null);
-      } else if (subscription && Date.now() - lastHeartbeatAt >= 5000) {
-        lastHeartbeatAt = Date.now();
+      } else if (subscription && performance.now() - lastHeartbeatAt >= 5000) {
+        lastHeartbeatAt = performance.now();
         await subscription.refresh(true);
       }
     } catch {}
@@ -835,6 +853,10 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;
+    lastResult.usageHealthy = !lastResult.usageOverlay?.mounted || (
+      Number.isFinite(lastResult.usageOverlay.lastReceivedAt) && lastResult.usageOverlay.availability !== "reconnecting"
+    );
+    lastResult.pass &&= lastResult.usageHealthy;
     if (expectedStyleRevision !== undefined) {
       lastResult.styleMatches = lastResult.styleRevision === expectedStyleRevision;
       lastResult.pass &&= lastResult.styleMatches;
@@ -917,7 +939,7 @@ async function runOneShot(options) {
         if (options.mode !== "remove") await applyToSession(session, loaded);
       }
 
-      if (options.mode !== "remove") await updateUsageOverlay(session, usageReader);
+      if (options.mode === "once") await updateUsageOverlay(session, usageReader);
       const result = options.mode === "remove"
         ? await verifyRemovedSession(session)
         : await waitForVerifiedSession(session, options.timeoutMs, loaded.theme, options.prepareFirstFrame, loaded.styleRevision);

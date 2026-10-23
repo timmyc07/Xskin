@@ -36,9 +36,10 @@ case "$SAFE_AREA" in auto|left|right|center|none) ;; *) fail "Invalid safe area:
 case "$TASK_MODE" in auto|ambient|banner|off) ;; *) fail "Invalid task mode: $TASK_MODE" ;; esac
 
 ensure_state_root
+ensure_node_runtime
 IMAGES_DIR="$STATE_ROOT/images"
 THEMES_ROOT="$STATE_ROOT/themes"
-/bin/mkdir -p "$IMAGES_DIR" "$THEMES_ROOT" "$THEME_DIR"
+/bin/mkdir -p "$IMAGES_DIR" "$THEMES_ROOT"
 
 if [ -n "$FROM_LIBRARY" ]; then
   [ "$(/usr/bin/basename "$FROM_LIBRARY")" = "$FROM_LIBRARY" ] \
@@ -75,14 +76,11 @@ progress() {
 
 progress "Loading image..."
 
-# Fast Node for write-theme (avoid full codesign when possible)
-ensure_node_runtime
-
-image_name="background.jpg"
-temporary="$THEME_DIR/.background.$$.tmp.jpg"
-prepared="$THEME_DIR/$image_name"
-cleanup_temporary() { /bin/rm -f "$temporary"; }
-trap cleanup_temporary EXIT
+stage="$(/usr/bin/mktemp -d "$STATE_ROOT/.image-import.XXXXXX")"
+image_name="background-$theme_id.jpg"
+temporary="$stage/$image_name"
+cleanup_stage() { /bin/rm -rf "$stage"; }
+trap cleanup_stage EXIT
 
 # Prefer copying already-JPEG; sips only when needed (large PNG conversion is the slow part)
 ext="$(printf '%s' "$IMAGE" | /usr/bin/tr '[:upper:]' '[:lower:]')"
@@ -100,11 +98,10 @@ esac
 PREPARED_BYTES="$(/usr/bin/stat -f '%z' "$temporary")"
 [ "$PREPARED_BYTES" -le 16777216 ] || fail "Prepared image larger than 16 MB."
 /bin/chmod 600 "$temporary"
-/bin/mv -f "$temporary" "$prepared"
 
 theme_args=(
   custom
-  --output-dir "$THEME_DIR"
+  --output-dir "$stage"
   --image "$image_name"
   --name "$THEME_NAME"
   --tagline "Make something wonderful."
@@ -116,13 +113,10 @@ theme_args=(
 [ -n "$FOCUS_X" ] && theme_args+=(--focus-x "$FOCUS_X")
 [ -n "$FOCUS_Y" ] && theme_args+=(--focus-y "$FOCUS_Y")
 "$NODE" "$SCRIPT_DIR/write-theme.mjs" "${theme_args[@]}" >/dev/null
-/usr/bin/find "$THEME_DIR" -maxdepth 1 -type f -name 'background.*' ! -name "$image_name" -delete
-trap - EXIT
-
+"$NODE" "$INJECTOR" --check-payload --theme-dir "$stage" >/dev/null
 lib_dir="$THEMES_ROOT/$theme_id"
-/bin/mkdir -p "$lib_dir"
-/bin/cp -f "$THEME_DIR/$image_name" "$THEME_DIR/theme.json" "$lib_dir/"
-/bin/chmod 600 "$lib_dir/"* 2>/dev/null || true
+/bin/mv "$stage" "$lib_dir"
+trap - EXIT
 
 dest_lib_img="$IMAGES_DIR/$(/usr/bin/basename "$IMAGE")"
 src_dir="$(cd "$(dirname "$IMAGE")" && pwd -P)"
@@ -131,28 +125,6 @@ if [ "$src_dir/$(/usr/bin/basename "$IMAGE")" != "$img_dir/$(/usr/bin/basename "
   /bin/cp -f "$IMAGE" "$dest_lib_img" 2>/dev/null || true
 fi
 
-if [ "$APPLY_NOW" != "true" ]; then
-  progress "Ready: ${THEME_NAME} (not applied)"
-  exit 0
-fi
-
-PORT=9341
-if [ -f "$STATE_PATH" ]; then
-  saved="$(state_field port 2>/dev/null || true)"
-  [ -n "${saved:-}" ] && PORT="$saved"
-fi
-
-progress "Hot reapply..."
-if hot_reapply_theme "$PORT" 8000; then
-  progress "Done: ${THEME_NAME}"
-  exit 0
-fi
-
-progress "CDP not ready, full start..."
-if "$SCRIPT_DIR/start-dream-skin-macos.sh" --port "$PORT"; then
-  progress "Done: ${THEME_NAME}"
-  exit 0
-fi
-
-alert_user "Image saved but inject failed. Click Apply Skin."
-exit 1
+switch_args=(--id "$theme_id")
+[ "$APPLY_NOW" = "true" ] || switch_args+=(--no-apply)
+exec "$SCRIPT_DIR/switch-theme-macos.sh" "${switch_args[@]}"

@@ -65,8 +65,7 @@ if [ "$UNINSTALL" = "true" ]; then
   "$PROJECT_ROOT/bin/CodexLauncher" --uninstall
   for file in "$HOME/Desktop/Codex Dream Skin.command" "$HOME/Desktop/Codex Dream Skin - Customize.command" \
     "$HOME/Desktop/Codex Dream Skin - Verify.command" "$HOME/Desktop/Codex Dream Skin - Restore.command"; do
-    if [ -f "$file" ] && [ ! -L "$file" ] && /usr/bin/grep -Fqx '# CodexDreamSkinStudio launcher' "$file" &&
-      /usr/bin/grep -Fq "$INSTALL_ROOT/scripts/" "$file"; then /bin/rm -f "$file"; fi
+    if owned_desktop_launcher "$file"; then /bin/rm -f "$file"; fi
   done
 fi
 

@@ -28,7 +28,7 @@ INJECTOR_JOB_LABEL="com.openai.codex-dream-skin-studio.injector"
 AUTOSTART_JOB_LABEL="com.openai.codex-dream-skin-studio.autostart"
 AUTOSTART_AGENT_PATH="$HOME/Library/LaunchAgents/$AUTOSTART_JOB_LABEL.plist"
 EXPECTED_CODEX_TEAM_ID="${CODEX_EXPECTED_TEAM_ID:-2DC432GLL2}"
-SKIN_VERSION="1.8.3"
+SKIN_VERSION="1.8.4"
 
 fail() {
   local message="$*"
@@ -61,6 +61,15 @@ APPLESCRIPT
 ensure_state_root() {
   /bin/mkdir -p "$STATE_ROOT"
   /bin/chmod 700 "$STATE_ROOT"
+}
+
+owned_desktop_launcher() {
+  [ -f "$1" ] && [ ! -L "$1" ] && LC_ALL=C /usr/bin/grep -Fqx '# CodexDreamSkinStudio launcher' "$1" || return 1
+  local escaped
+  escaped="$(LC_ALL=C printf '%q' "$INSTALL_ROOT/scripts/")"
+  # %q may wrap the whole path in an ANSI-C string; compare its open prefix.
+  escaped="${escaped%\'}"
+  LC_ALL=C /usr/bin/grep -Fq "$INSTALL_ROOT/scripts/" "$1" || LC_ALL=C /usr/bin/grep -Fq "$escaped" "$1"
 }
 
 # Seed bundled preset packs into the user's themes/ library so a fresh install
@@ -594,13 +603,22 @@ ensure_node_runtime() {
   require_macos_runtime
 }
 
+current_injector_is_running() {
+  local port="$1"
+  [ "$(state_field injectorProtocol 2>/dev/null || true)" = 2 ] &&
+    [ "$(state_field port 2>/dev/null || true)" = "$port" ] &&
+    [ "$(state_field nodePath 2>/dev/null || true)" = "$NODE" ] &&
+    [ "$(state_field injectorPath 2>/dev/null || true)" = "$INJECTOR" ] &&
+    recorded_injector_process_matches "$(state_field injectorPid 2>/dev/null || true)" \
+      "$(state_field injectorStartedAt 2>/dev/null || true)" "$NODE" "$INJECTOR" "$port"
+}
+
 # Fast path when CDP is already open: restart injector + one-shot inject.
 # Returns 0 on success, 1 if CDP is not ready (caller should full-start).
 hot_reapply_theme() {
   local port="${1:-9341}"
   local timeout_ms="${2:-8000}"
   local inj_pid=""
-  local injector_protocol=""
   local started_at=""
   local codex_pid=""
 
@@ -609,11 +627,9 @@ hot_reapply_theme() {
   verified_cdp_endpoint "$port" || return 1
   ensure_node_runtime || return 1
 
-  injector_protocol="$(state_field injectorProtocol 2>/dev/null || true)"
-  if [ "$injector_protocol" = "2" ]; then
-    inj_pid="$(/bin/ps -axo pid=,command= | /usr/bin/awk -v inj="$INJECTOR" -v port="$port" '
-      index($0, inj) && index($0, "--watch") && index($0, "--port " port " --theme-dir ") { print $1; exit }
-    ')"
+  if current_injector_is_running "$port"; then
+    inj_pid="$(state_field injectorPid 2>/dev/null || true)"
+    started_at="$(state_field injectorStartedAt 2>/dev/null || true)"
   fi
   if ! "$NODE" "$INJECTOR" --once --port "$port" --theme-dir "$THEME_DIR" \
     --timeout-ms "$timeout_ms" >/dev/null 2>&1; then
@@ -621,7 +637,7 @@ hot_reapply_theme() {
   fi
 
   # A current watcher reloads theme files itself. Start one only when absent.
-  if [ -n "$inj_pid" ] && /bin/kill -0 "$inj_pid" 2>/dev/null; then
+  if [ -n "$inj_pid" ] && recorded_injector_process_matches "$inj_pid" "$started_at" "$NODE" "$INJECTOR" "$port"; then
     return 0
   fi
   stop_recorded_injector 2>/dev/null || return 1

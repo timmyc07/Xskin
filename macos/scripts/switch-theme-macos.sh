@@ -5,6 +5,27 @@
 set -euo pipefail
 . "$(cd "$(dirname "$0")" && pwd -P)/common-macos.sh"
 
+LOCK_PATH="$STATE_ROOT/studio/operation.lock"
+ensure_state_root
+ensure_node_runtime
+/bin/mkdir -p "$STATE_ROOT/studio"
+[ ! -L "$STATE_ROOT/studio" ] && [ ! -L "$LOCK_PATH" ] && {
+  [ ! -e "$LOCK_PATH" ] || [ -f "$LOCK_PATH" ];
+} || fail "Theme switching requires an ordinary operation lock."
+if [ "${1:-}" = --locked ]; then
+  parent_command="$(/bin/ps -p "$PPID" -o command=)"
+  case "$parent_command" in
+    "/usr/bin/lockf -ks -t 0 $LOCK_PATH /bin/bash $0 --locked "*) ;;
+    *) fail "Theme switching must acquire the operation lock." ;;
+  esac
+  shift
+  [ ! -e "$THEME_DIR/.studio-transaction.json" ] && [ ! -L "$THEME_DIR/.studio-transaction.json" ] || fail "A previous background operation needs recovery. Reopen Xskin before switching themes."
+else
+  "$NODE" "$SCRIPT_DIR/background-studio.mjs" recover >/dev/null \
+    || fail "Could not recover the previous background operation. The current background was preserved."
+  exec /usr/bin/lockf -ks -t 0 "$LOCK_PATH" /bin/bash "$0" --locked "$@"
+fi
+
 THEME_ID=""
 APPLY_NOW="true"
 while [ "$#" -gt 0 ]; do
@@ -21,12 +42,10 @@ case "$THEME_ID" in
 esac
 [ "${#THEME_ID}" -le 80 ] || fail "Theme id is too long."
 
-ensure_state_root
 THEMES_ROOT="$STATE_ROOT/themes"
 SRC="$THEMES_ROOT/$THEME_ID"
 [ -d "$SRC" ] || fail "Theme not found: $THEME_ID"
 [ -f "$SRC/theme.json" ] || fail "theme.json missing in $THEME_ID"
-ensure_node_runtime
 themes_root_real="$(cd "$THEMES_ROOT" && pwd -P)"
 src_real="$(cd "$SRC" && pwd -P)"
 case "$src_real/" in "$themes_root_real/"*) ;; *) fail "Theme directory escapes the saved theme library." ;; esac

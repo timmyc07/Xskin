@@ -16,6 +16,7 @@ const themeRoot = path.join(stateRoot, "theme");
 const studioRoot = path.join(stateRoot, "studio");
 const selectionPath = path.join(studioRoot, "selection.json");
 const lockPath = path.join(studioRoot, "operation.lock");
+const transactionPath = path.join(themeRoot, ".studio-transaction.json");
 const run = promisify(execFile);
 const imageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff"]);
 const DEFAULT_MASK_OPACITY = 0.62;
@@ -48,7 +49,7 @@ const errors = Object.freeze({
   apply_failed_unrestored: "The background was not applied, and previous settings could not be restored. Reopen Xskin to check its status.",
   mask_failed_restored: "The mask was not applied. Previous background settings were restored. Try again.",
   mask_failed_unrestored: "The mask was not applied, and previous settings could not be restored. Reopen Xskin to check its status.",
-  invalid_command: "Use status, import, apply, autostart, or mask.",
+  invalid_command: "Use status, import, apply, autostart, mask, or recover.",
   invalid_autostart: "The automatic apply setting is invalid.",
   invalid_mask: "Mask depth must be between 0 and 1, with at most two decimal places.",
   invalid_worker: "Internal background operations must be started by Xskin.",
@@ -65,6 +66,45 @@ async function atomicJson(file, value) {
     await fs.writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode: 0o600 });
     await fs.rename(temporary, file);
   } finally { await fs.rm(temporary, { force: true }); }
+}
+
+async function beginTransaction(previous, next) {
+  if (Object.hasOwn(previous, "xskinTransaction")) throw fail("invalid_background");
+  const transaction = { ...previous, xskinTransaction: { schemaVersion: 1, next } };
+  if (Buffer.byteLength(JSON.stringify(transaction, null, 2)) + 1 > 1024 * 1024) throw fail("invalid_background");
+  await atomicJson(transactionPath, transaction);
+}
+
+async function recoverTransaction() {
+  let handle;
+  try { handle = await fs.open(transactionPath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
+  catch (error) { if (error.code === "ENOENT") return false; throw fail("invalid_background"); }
+  let saved;
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size < 1 || stat.size > 1024 * 1024) throw fail("invalid_background");
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (bytes.length > 1024 * 1024 || stat.size !== after.size || stat.mtimeMs !== after.mtimeMs || stat.ctimeMs !== after.ctimeMs) throw fail("invalid_background");
+    saved = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch { throw fail("invalid_background");
+  } finally { await handle.close(); }
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) throw fail("invalid_background");
+  const transaction = saved.xskinTransaction;
+  if (!transaction || typeof transaction !== "object" || Array.isArray(transaction)
+    || Object.keys(transaction).sort().join(",") !== "next,schemaVersion" || transaction.schemaVersion !== 1
+    || !transaction.next || typeof transaction.next !== "object" || Array.isArray(transaction.next)
+    || transaction.next.schemaVersion !== 1 || !validName(transaction.next.image)
+    || (transaction.next.video !== undefined && !validName(transaction.next.video))
+    || Object.hasOwn(transaction.next, "xskinTransaction")) throw fail("invalid_background");
+  const loaded = await loadTheme(themeRoot, path.basename(transactionPath));
+  if (JSON.stringify(loaded.raw) !== JSON.stringify(saved)) throw fail("invalid_background");
+  const { xskinTransaction, ...previous } = saved;
+  const current = await readJson(path.join(themeRoot, "theme.json"));
+  if (![previous, transaction.next].some((config) => JSON.stringify(config) === JSON.stringify(current))) throw fail("invalid_background");
+  await atomicJson(path.join(themeRoot, "theme.json"), previous);
+  await fs.unlink(transactionPath);
+  return true;
 }
 
 async function regularFile(file) {
@@ -100,12 +140,13 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.8.3",
+    version: "1.8.4",
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,
     autostart: /^enabled=true$/m.test(startup.stdout),
     autostartLoaded: /^loaded=true$/m.test(startup.stdout),
+    pendingRecovery: await fs.lstat(transactionPath).then(() => true, (error) => { if (error.code === "ENOENT") return false; throw error; }),
   };
 }
 
@@ -212,11 +253,14 @@ async function applySelection(id) {
   const previous = (await loadTheme(themeRoot)).raw;
   const configPath = path.join(themeRoot, "theme.json");
   let published = false;
+  let journaled = false;
   try {
+    await beginTransaction(previous, { ...selected.config, maskOpacity: previous.maskOpacity ?? DEFAULT_MASK_OPACITY });
+    journaled = true;
     for (const file of [selected.config.image, selected.config.video].filter(Boolean)) {
       const temporary = path.join(themeRoot, `${file}.${randomUUID()}.tmp`);
       try {
-        await fs.copyFile(path.join(selected.directory, file), temporary, constants.COPYFILE_EXCL);
+        await fs.copyFile(path.join(selected.directory, file), temporary, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE);
         await fs.chmod(temporary, 0o600);
         await fs.rename(temporary, path.join(themeRoot, file));
       } finally { await fs.rm(temporary, { force: true }); }
@@ -224,6 +268,8 @@ async function applySelection(id) {
     await atomicJson(configPath, { ...selected.config, maskOpacity: previous.maskOpacity ?? DEFAULT_MASK_OPACITY });
     published = true;
     await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 });
+    await fs.unlink(transactionPath);
+    journaled = false;
   } catch {
     let restored = !published;
     if (published) {
@@ -234,6 +280,7 @@ async function applySelection(id) {
       } catch {}
     }
     if (restored) {
+      if (journaled) await fs.unlink(transactionPath).catch(() => {});
       for (const file of [selected.config.image, selected.config.video].filter(Boolean)) {
         if (![previous.image, previous.video].includes(file)) await fs.unlink(path.join(themeRoot, file)).catch(() => {});
       }
@@ -252,10 +299,15 @@ async function applyMask(maskOpacity) {
   const previous = (await loadTheme(themeRoot)).raw;
   const configPath = path.join(themeRoot, "theme.json");
   let published = false;
+  let journaled = false;
   try {
+    await beginTransaction(previous, { ...previous, maskOpacity });
+    journaled = true;
     await atomicJson(configPath, { ...previous, maskOpacity });
     published = true;
     await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 });
+    await fs.unlink(transactionPath);
+    journaled = false;
   } catch {
     let restored = !published;
     if (published) {
@@ -265,6 +317,7 @@ async function applyMask(maskOpacity) {
         await run("/bin/bash", [path.join(scripts, "start-dream-skin-macos.sh")], { timeout: 180000, maxBuffer: 1024 * 1024 }).catch(() => {});
       } catch {}
     }
+    if (restored && journaled) await fs.unlink(transactionPath).catch(() => {});
     throw fail(restored ? "mask_failed_restored" : "mask_failed_unrestored");
   }
   return "mask_updated";
@@ -275,7 +328,7 @@ try {
   const worker = args[0] === "--locked-worker";
   if (worker) args.shift();
   const [command, value, ...extra] = args;
-  if (extra.length || !["status", "import", "apply", "autostart", "mask"].includes(command) || (command === "status" && value !== undefined)) throw fail("invalid_command");
+  if (extra.length || !["status", "import", "apply", "autostart", "mask", "recover"].includes(command) || (["status", "recover"].includes(command) && value !== undefined)) throw fail("invalid_command");
   if ((command === "import" && (!value || !path.isAbsolute(value))) || (command === "apply" && !validId(value))) throw fail(command === "import" ? "invalid_local_file" : "select_media");
   if (command === "autostart" && !["true", "false"].includes(value)) throw fail("invalid_autostart");
   if (command === "mask" && !/^(?:0(?:\.\d{1,2})?|1(?:\.0{1,2})?)$/.test(value ?? "")) throw fail("invalid_mask");
@@ -286,6 +339,11 @@ try {
   if (command === "status") console.log(JSON.stringify(await status()));
   else if (!worker) console.log(JSON.stringify(await withLock(args)));
   else {
+    const recovered = await recoverTransaction();
+    if (command === "recover") {
+      console.log(JSON.stringify({ recovered }));
+      process.exit(0);
+    }
     let messageCode;
     if (command === "import") messageCode = await importMedia(value);
     else if (command === "apply") messageCode = await applySelection(value);
@@ -299,5 +357,5 @@ try {
 } catch (error) {
   const errorCode = Object.hasOwn(errors, error.errorCode) ? error.errorCode : "operation_failed";
   console.log(JSON.stringify({ error: errors[errorCode], errorCode }));
-  process.exitCode = 1;
+  process.exitCode = process.argv[2] === "recover" && errorCode === "operation_busy" ? 75 : 1;
 }

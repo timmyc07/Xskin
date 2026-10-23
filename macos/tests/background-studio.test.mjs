@@ -7,15 +7,17 @@ import { once } from "node:events";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { readImageMetadata } from "../scripts/image-metadata.mjs";
+import { loadTheme } from "../scripts/injector.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "dream-skin-studio-test-"));
-const home = path.join(temporary, "home");
+const home = path.join(temporary, "家目錄 中文 🌙 with spaces");
 const engine = path.join(temporary, "engine");
 const state = path.join(home, "Library/Application Support/CodexDreamSkinStudio");
 const theme = path.join(state, "theme");
 const studio = path.join(state, "studio");
 const configPath = path.join(theme, "theme.json");
+const transactionPath = path.join(theme, ".studio-transaction.json");
 const entry = path.join(engine, "scripts/background-studio.mjs");
 const environment = { ...process.env, HOME: home };
 const execute = promisify(execFile);
@@ -101,8 +103,9 @@ esac
   const initial = { schemaVersion: 1, id: "studio-fixture", name: "原本背景", image: "initial.png" };
   await fs.writeFile(path.join(theme, initial.image), image);
   await fs.writeFile(configPath, JSON.stringify(initial));
+  await assert.rejects(loadTheme(theme, "../escape.json"), /Theme config must be a filename/u);
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.8.3");
+  assert.equal(initialStatus.version, "1.8.4");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);
@@ -117,6 +120,8 @@ esac
   await rejects(["apply", "missing"], "select_media");
   await rejects(["autostart", "yes"], "invalid_autostart");
   await rejects(["status", "extra"], "invalid_command");
+  await rejects(["recover", "extra"], "invalid_command");
+  assert.equal((await success("recover")).recovered, false);
   await rejects(["--locked-worker", "autostart", "true"], "invalid_worker");
   for (const value of [undefined, "", "-0.1", "1.01", "0.001", "NaN", "Infinity", "-Infinity", "1e-2", "0x1", " 0.5", ".5"]) {
     await rejects(["mask", ...(value === undefined ? [] : [value])], "invalid_mask");
@@ -238,7 +243,11 @@ esac
   await rejects(["apply", replacement.selection.id], "operation_busy");
   await rejects(["autostart", "true"], "operation_busy");
   await rejects(["mask", "0.5"], "operation_busy");
+  const currentConfig = await fs.readFile(configPath);
+  assert.equal((await call("recover")).code, 75, "Recovery never rolls back another live operation holding the lock");
   assert.equal((await success("status")).selection.id, replacement.selection.id, "Status remains readable while another process owns the mutation lock");
+  assert.equal((await success("status")).pendingRecovery, true);
+  assert.deepEqual(await fs.readFile(configPath), currentConfig, "Status never mutates a pending transaction");
   await fs.unlink(path.join(home, "block-apply"));
   assert.deepEqual(await blockedExit, [0, null]);
   assert.equal(JSON.parse(output).selection, null);
@@ -246,6 +255,8 @@ esac
   assert.equal((await fs.stat(path.join(studio, "operation.lock"))).isFile(), true, "The kernel lock inode is retained for concurrent callers");
   await fs.writeFile(path.join(studio, "operation.lock"), "");
   assert.equal((await success("autostart", "true")).autostartLoaded, true, "An old empty file is not an active kernel lock");
+  const beforeInterrupted = await readJson(configPath);
+  const beforeInterruptedMedia = await fs.readFile(path.join(theme, beforeInterrupted.video));
   const interrupted = await success("import", source);
   await fs.unlink(path.join(home, "apply-started"));
   await fs.writeFile(path.join(home, "block-apply"), "");
@@ -262,6 +273,53 @@ esac
   await fs.unlink(path.join(home, "block-apply"));
   assert.deepEqual(await interruptedExit, [1, null]);
   blocked = null;
+  const journal = await fs.readFile(transactionPath);
+  const interruptedConfig = await fs.readFile(configPath);
+  assert.notDeepEqual(JSON.parse(interruptedConfig), beforeInterrupted, "The fixture kills the worker after its unverified publication");
+  await fs.writeFile(transactionPath, "{broken");
+  await rejects(["recover"], "invalid_background");
+  assert.deepEqual(await fs.readFile(configPath), interruptedConfig);
+  assert.equal(await fs.readFile(transactionPath, "utf8"), "{broken", "Invalid journals are retained for inspection");
+  await fs.unlink(transactionPath);
+  const unrelated = path.join(temporary, "unrelated.json");
+  await fs.writeFile(unrelated, "保留 🌙");
+  await fs.symlink(unrelated, transactionPath);
+  await rejects(["recover"], "invalid_background");
+  assert.equal((await fs.lstat(transactionPath)).isSymbolicLink(), true);
+  assert.equal(await fs.readFile(unrelated, "utf8"), "保留 🌙", "Recovery never follows or removes a foreign journal symlink");
+  await fs.unlink(transactionPath);
+  await fs.writeFile(transactionPath, journal);
+  const foreignConfig = { ...JSON.parse(interruptedConfig), name: "外部更改 保留 🌙" };
+  await fs.writeFile(configPath, JSON.stringify(foreignConfig));
+  await rejects(["recover"], "invalid_background");
+  assert.deepEqual(await readJson(configPath), foreignConfig, "Recovery never overwrites unrelated theme changes");
+  await fs.writeFile(configPath, interruptedConfig);
+  assert.equal((await success("recover")).recovered, true);
+  assert.deepEqual(await readJson(configPath), beforeInterrupted, "A killed apply restores the exact previous settings");
+  assert.deepEqual(await fs.readFile(path.join(theme, beforeInterrupted.video)), beforeInterruptedMedia);
+  assert.deepEqual((await success("status")).selection, interrupted.selection, "Crash recovery preserves the pending import for retry");
+  assert.equal((await success("recover")).recovered, false, "A completed recovery is idempotent");
+  assert.equal((await success("apply", interrupted.selection.id)).selection, null);
+  const committed = await fs.readFile(configPath);
+  assert.equal((await success("recover")).recovered, false);
+  assert.deepEqual(await fs.readFile(configPath), committed, "Verified commits cannot be rolled back by a later recovery");
+  await fs.unlink(path.join(home, "apply-started"));
+  await fs.writeFile(path.join(home, "block-apply"), "");
+  blocked = spawn(process.execPath, [entry, "mask", "0.81"], { env: environment, stdio: ["ignore", "ignore", "ignore"] });
+  const maskInterruptedExit = once(blocked, "exit");
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (await fs.access(path.join(home, "apply-started")).then(() => true, () => false)) break;
+    if (attempt === 99) throw Error("The interrupted mask stub did not start");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const maskWorkerPid = Number(await fs.readFile(path.join(home, "apply-worker"), "utf8"));
+  process.kill(maskWorkerPid, "SIGKILL");
+  await fs.unlink(path.join(home, "block-apply"));
+  assert.deepEqual(await maskInterruptedExit, [1, null]);
+  blocked = null;
+  assert.equal((await readJson(configPath)).maskOpacity, 0.81);
+  assert.equal((await success("recover")).recovered, true);
+  assert.deepEqual(await fs.readFile(configPath), committed, "A killed mask restores the exact previous theme and preferences");
   assert.equal((await success("autostart", "true")).autostartLoaded, true, "Killing an operation releases its kernel lock without stale-PID recovery");
   assert.equal((await success("autostart", "false")).autostart, false);
   await fs.writeFile(path.join(home, "fail-autostart"), "");
@@ -271,7 +329,7 @@ esac
   await rejects(["status"], "invalid_selection");
   const repaired = await success("import", source);
   assert.equal(repaired.selection.kind, "image", "A fresh import repairs corrupt pending selection metadata");
-  console.log("PASS: isolated native import, local preview paths, explicit apply, original MP4 bytes, mask validation/persistence/rollback, pending persistence, lock exclusion/recovery, autostart status, and structured English localization codes without child output leaks.");
+  console.log("PASS: isolated native import, local preview paths, explicit apply, original MP4 bytes, mask validation/persistence/rollback, pending persistence, killed apply/mask recovery, foreign-journal protection, lock exclusion, autostart status, and structured English localization codes without child output leaks.");
 } finally {
   if (blocked && blocked.exitCode === null) {
     await fs.rm(path.join(home, "block-apply"), { force: true });

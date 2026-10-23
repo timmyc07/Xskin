@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 TEMPORARY="$(/usr/bin/mktemp -d /tmp/xskin-native-tests.XXXXXX)"
-trap 'if [ -f "$TEMPORARY/scripts/daemon-pids" ]; then while read -r daemon; do /bin/kill -TERM "$daemon" 2>/dev/null || true; done < "$TEMPORARY/scripts/daemon-pids"; fi; /bin/rm -rf "$TEMPORARY"' EXIT
+trap 'for pidfile in "$TEMPORARY/scripts/daemon-pids" "$TEMPORARY/recovery/daemon-pids"; do if [ -f "$pidfile" ]; then while read -r daemon; do /bin/kill -TERM "$daemon" 2>/dev/null || true; done < "$pidfile"; fi; done; /bin/rm -rf "$TEMPORARY"' EXIT
 /usr/bin/xcrun swiftc -parse-as-library -swift-version 5 -D LOCALIZATION_SELF_CHECK "$ROOT/native/Localization.swift" -o "$TEMPORARY/localization-check"
 "$TEMPORARY/localization-check"
 /usr/bin/xcrun swiftc -parse-as-library -swift-version 5 -framework AppKit "$ROOT/native/DirectLauncher.swift" "$ROOT/native/Localization.swift" -o "$TEMPORARY/launcher-check"
@@ -24,9 +24,8 @@ APP_ERROR_LOG="$STATE_ROOT/app-error.log"
 INJECTOR=/fixture/injector.mjs
 THEME_DIR=/fixture/theme
 SKIN_VERSION=fixture
-NODE="${FIXTURE_NODE:-$SCRIPT_DIR/node}"
 discover_codex_app() { :; }
-require_macos_runtime() { :; }
+require_macos_runtime() { NODE="${FIXTURE_NODE:-$SCRIPT_DIR/node}"; }
 ensure_state_root() { :; }
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 state_field() { case "$1" in port) printf 19341 ;; session) if [ -f "$SCRIPT_DIR/paused" ]; then printf paused; else printf active; fi ;; esac; }
@@ -42,6 +41,8 @@ process_started_at() { printf FixtureStart; }
 codex_main_pids() { printf '%s' "$PPID"; }
 write_state() { printf '{}' > "$STATE_PATH"; }
 stop_recorded_injector() { printf 'stop-injector\n' >> "$SCRIPT_DIR/events"; }
+hot_reapply_theme() { [ ! -f "$SCRIPT_DIR/fail-repair" ] || return 1; printf 'reapply\n' >> "$SCRIPT_DIR/events"; }
+current_injector_is_running() { [ ! -f "$SCRIPT_DIR/fail-repair" ]; }
 release_codex_launchd_job() { :; }
 stop_codex() { printf 'Unexpected official quit\n' >&2; exit 99; }
 new_codex_launch_matches() { [ "$1" = 321 ] && [ "$2" = FixtureStart ] && [ ! -f "$SCRIPT_DIR/stale-launch" ]; }
@@ -77,9 +78,15 @@ for attempt in 1 2 3; do
   bash "$launch"
   [ "$(cat "$TEMPORARY/scripts/events")" = $'launch\ninject\nactivate' ]
 done
+# Failed repairs preserve the current official app and do not launch another injector.
+touch "$TEMPORARY/scripts/fail-repair"
+rm "$TEMPORARY/scripts/events"
+if bash "$launch" >/dev/null 2>&1; then exit 1; fi
+[ ! -e "$TEMPORARY/scripts/events" ] && [ -f "$TEMPORARY/scripts/running" ]
+rm "$TEMPORARY/scripts/fail-repair"
 # Ordinary existing windows and failed cold starts are never closed or reopened.
 touch "$TEMPORARY/scripts/no-cdp"
-rm "$TEMPORARY/scripts/events"
+rm -f "$TEMPORARY/scripts/events"
 if bash "$launch" >/dev/null 2>&1; then exit 1; fi
 [ ! -e "$TEMPORARY/scripts/events" ]
 rm "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/state/state.json"
@@ -113,5 +120,81 @@ FIXTURE_NODE="${NODE:-/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/
   if (state.session !== "paused" || state.injectorPid !== 0 || state.otherSetting !== "保留 🌙") process.exit(1);
 ' "$TEMPORARY/scripts/state/state.json"
 [ -f "$TEMPORARY/scripts/state/agent.plist" ] && [ -f "$TEMPORARY/scripts/state/shortcut-enabled" ]
+
+# Exercise real state parsing, process identity and detached Node recovery; only
+# the official-app boundary is replaced, so this never opens or closes Codex.
+mkdir -p "$TEMPORARY/recovery/scripts"
+cp "$ROOT/scripts/direct-launch-macos.sh" "$TEMPORARY/recovery/scripts/"
+cat > "$TEMPORARY/recovery/scripts/common-macos.sh" <<'RECOVERY'
+. "$FIXTURE_COMMON"
+SCRIPT_DIR="$FIXTURE_ROOT/scripts"
+PROJECT_ROOT="$FIXTURE_ROOT"
+STATE_ROOT="$FIXTURE_ROOT"
+STATE_PATH="$STATE_ROOT/state.json"
+THEME_DIR="$STATE_ROOT"
+INJECTOR="$STATE_ROOT/用量 🌙 injector.mjs"
+INJECTOR_LOG="$STATE_ROOT/injector.log"
+INJECTOR_ERROR_LOG="$STATE_ROOT/injector-error.log"
+INJECTOR_JOB_LABEL="com.xskin.recovery-fixture.$PPID"
+CODEX_BUNDLE=/fixture/Official.app
+CODEX_EXE=/fixture/Official
+unset NODE
+discover_codex_app() { :; }
+require_macos_runtime() { NODE="$FIXTURE_NODE"; }
+codex_is_running() { return 0; }
+verified_cdp_endpoint() { [ "$1" = 19341 ]; }
+codex_main_pids() { printf 0; }
+launch_codex_normally() { printf 'normal\n' >> "$STATE_ROOT/events"; }
+activate_codex() { printf 'activate\n' >> "$STATE_ROOT/events"; }
+RECOVERY
+cat > "$TEMPORARY/recovery/用量 🌙 injector.mjs" <<'INJECTOR'
+import fs from 'node:fs';
+import path from 'node:path';
+const root = path.dirname(new URL(import.meta.url).pathname);
+const directory = decodeURIComponent(root);
+if (process.argv.includes('--watch')) {
+  fs.appendFileSync(path.join(directory, 'daemon-pids'), `${process.pid}\n`);
+  setInterval(() => {}, 1000);
+} else fs.appendFileSync(path.join(directory, 'events'), 'once\n');
+INJECTOR
+touch "$TEMPORARY/recovery/shortcut-enabled"
+printf '{"session":"paused","port":19341}' > "$TEMPORARY/recovery/state.json"
+recovery_launch() {
+  /usr/bin/env -u NODE FIXTURE_COMMON="$ROOT/scripts/common-macos.sh" FIXTURE_ROOT="$TEMPORARY/recovery" \
+    FIXTURE_NODE="${NODE:-/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node}" \
+    /bin/bash "$TEMPORARY/recovery/scripts/direct-launch-macos.sh"
+}
+recovery_launch
+[ "$(cat "$TEMPORARY/recovery/events")" = activate ]
+printf '{"port":19341,"injectorPid":0}' > "$TEMPORARY/recovery/state.json"
+rm "$TEMPORARY/recovery/events"
+recovery_launch
+recovery_launch
+[ "$(cat "$TEMPORARY/recovery/events")" = $'once\nactivate\nactivate' ]
+[ "$(wc -l < "$TEMPORARY/recovery/daemon-pids" | tr -d ' ')" = 1 ]
+recovery_pid="$(tail -n 1 "$TEMPORARY/recovery/daemon-pids")"
+/bin/kill -TERM "$recovery_pid"
+for attempt in {1..100}; do
+  state="$(/bin/ps -p "$recovery_pid" -o stat= 2>/dev/null || true)"
+  case "$state" in ''|*Z*) break ;; esac
+  /bin/sleep 0.02
+done
+recovery_launch
+[ "$(wc -l < "$TEMPORARY/recovery/daemon-pids" | tr -d ' ')" = 2 ]
+[ "$(tail -n 1 "$TEMPORARY/recovery/daemon-pids")" != "$recovery_pid" ]
+"${NODE:-/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node}" -e '
+  const fs = require("node:fs");
+  const file = process.argv[1];
+  const state = JSON.parse(fs.readFileSync(file, "utf8"));
+  state.injectorPid = Number(process.argv[2]);
+  state.injectorStartedAt = "foreign-process";
+  fs.writeFileSync(file, JSON.stringify(state));
+' "$TEMPORARY/recovery/state.json" "$$"
+rm "$TEMPORARY/recovery/events"
+if recovery_launch >/dev/null 2>&1; then exit 1; fi
+[ "$(cat "$TEMPORARY/recovery/events")" = once ]
+[ "$(wc -l < "$TEMPORARY/recovery/daemon-pids" | tr -d ' ')" = 2 ]
+/bin/kill -0 "$$"
+printf 'PASS: real state reads initialize Node; paused entries stay paused; healthy watchers are reused, dead watchers recover, and foreign PIDs are preserved.\n'
 printf 'PASS: three cold-start fixtures launch once each; repeated, paused, disabled and failed launches never close/reopen official Codex.\n'
 printf 'PASS: native handoffs request one graceful quit/relaunch each; paused, stale, invalid-payload and declined-quit cases leave the official app alone.\n'

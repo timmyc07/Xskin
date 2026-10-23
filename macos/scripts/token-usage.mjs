@@ -169,7 +169,7 @@ export class TokenUsageReader {
   async read(threadId) {
     if (typeof threadId !== "string" || !THREAD_ID.test(threadId)) return null;
     threadId = threadId.toLowerCase();
-    const pending = (this.reads.get(threadId) ?? Promise.resolve()).then(() => this.readSession(threadId));
+    const pending = (this.reads.get(threadId) ?? Promise.resolve()).catch(() => {}).then(() => this.readSession(threadId));
     this.reads.set(threadId, pending);
     try { return await pending; }
     finally { if (this.reads.get(threadId) === pending) this.reads.delete(threadId); }
@@ -229,8 +229,8 @@ export class TokenUsageReader {
           if (closed) break;
           const serialized = JSON.stringify(next);
           if (forceSend || serialized !== previous) {
-            previous = serialized;
             await onSnapshot(next);
+            previous = serialized;
           }
         }
       })().finally(() => { running = null; });

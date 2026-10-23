@@ -7,17 +7,17 @@
 Bring your favorite images and original 4K videos into Codex.<br>
 Import, preview, and apply from native macOS and Flutter Windows apps.
 
-[![macOS](https://img.shields.io/badge/macOS-1.8.3-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.8.3)
-[![Windows](https://img.shields.io/badge/Windows-1.8.2-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.2)
+[![macOS](https://img.shields.io/badge/macOS-1.8.4-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.8.4)
+[![Windows](https://img.shields.io/badge/Windows-1.8.3-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.3)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.2/Xskin-1.8.2-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/download/v1.8.3/Xskin-v1.8.3-macos-arm64.zip)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+**[Download for Windows x64](https://github.com/timmyc07/Xskin/releases/download/windows-v1.8.3/Xskin-1.8.3-windows-x64.zip)** · **[Download for macOS arm64](https://github.com/timmyc07/Xskin/releases/download/v1.8.4/Xskin-v1.8.4-macos-arm64.zip)** · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
-> **macOS 1.8.3 / Windows 1.8.2** recover long-history usage, show waiting/reconnecting states, and extend translucent page/menu/settings materials. Native header decoration is covered and stale stylesheet checks wait for the updated payload. [Review, measured I/O improvement and limits](docs/release-1.8.3-review.md) · [Surface validation](docs/surface-materials.md). Complete official-page visual and physical cold-start checks remain pending.
+> **macOS 1.8.4 / Windows 1.8.3** recover stalled usage connections without restarting Codex. macOS also repairs direct-entry watchers, detects same-version runtime updates and preserves settings across interrupted applies. [Scenario coverage, actual results and remaining limits](docs/macos-reliability.md).
 
 [Windows guide](windows/README.md) · [macOS guide](docs/background-panel.md) · [Windows performance measurements](windows/references/performance.md)
 
@@ -66,9 +66,9 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 ### Pick up where you left off
 
-macOS 1.8.3 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen.
+macOS 1.8.4 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen.
 
-Windows 1.8.2 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
+Windows 1.8.3 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatically closes/reopens Codex. Fully exit ordinary Codex before using the shortcut. Installation leaves existing sessions running on both platforms, and paused sessions remain paused. See [migration, validation and authorization status](docs/direct-launch-shortcut.md).
 
 ### Leave room around the input
 
@@ -123,7 +123,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Installation | Extract the complete Windows ZIP, or move Xskin.app to Applications on macOS |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- Releases are platform-specific: **windows-v1.8.2** for Windows x64 and **v1.8.2** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
+- Releases are platform-specific: **windows-v1.8.3** for Windows x64 and **v1.8.4** for macOS arm64. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
 - Windows uses Codex (Xskin) without automatic reopen. macOS supports the official entry with one graceful reopen per fresh launch, or the optional direct entry.
 - Automated macOS tests and Windows runner/Flutter checks passed. Three physical cold starts, login/Store-update checks and complete official-app Home/task visual inspection remain pending; see the [validation report](docs/platforms.md#2026-10-23-overlay-layout-validation). CDP/CSS authorization remains unconfirmed.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
@@ -157,7 +157,7 @@ cd macos
 npm test
 ```
 
-Windows 1.8.2 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.8.3 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
+Windows 1.8.3 requires fully exiting ordinary Codex before opening Codex (Xskin). macOS 1.8.4 supports official-app launches through its enabled service with one graceful reopen; existing/paused sessions are skipped. CDP/CSS injection authorization remains unconfirmed; unchanged official files do not establish permission. Include system, Codex and Xskin versions in reports, without private chats, media or credentials.
 
 </details>
 
@@ -169,4 +169,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.2) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.8.3)
+**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.3) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.8.4)

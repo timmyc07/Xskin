@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## 1.8.3 — 2026-10-23
+
+- Share usage-connection recovery with macOS: monotonic heartbeats, bounded reconnection of Xskin sockets, clock-correction-safe timestamp checks and retries after failed reads/deliveries. Retain exact-thread isolation, bounded history reads and lifecycle fan behavior.
+- Keep startup shortcut-only; never close or reopen Codex automatically. Flutter package metadata is 1.8.3+15. Physical cold starts, login and Store-update acceptance remain pending.
+
 ## 1.8.2 — 2026-10-23
 
 - Final review: avoid rereading the parsed history tail (24.8% less I/O in the dense 3.18 MB fixture); keep 1 MiB per-read limits and partial-line recovery. Wait for the expected stylesheet revision inside the existing verification deadline rather than rejecting a transient update immediately.

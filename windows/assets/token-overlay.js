@@ -37,6 +37,7 @@
   let rate = 0;
   let staleTimer = null;
   let disconnected = false;
+  let clockOffset = Date.now() - performance.now();
 
   const clearData = () => {
     clearTimeout(staleTimer);
@@ -45,6 +46,12 @@
     lastReceivedAt = null;
     rate = 0;
     disconnected = false;
+  };
+  const receiveHeartbeat = () => {
+    disconnected = false;
+    lastReceivedAt = Date.now();
+    clearTimeout(staleTimer);
+    staleTimer = setTimeout(() => { clearData(); disconnected = true; render(); }, 15000);
   };
   const paintMotion = () => {
     if (!row) return;
@@ -173,13 +180,17 @@
   const update = next => {
     request();
     if (disposed || !row) return false;
+    const elapsed = performance.now();
+    clockOffset = Math.max(clockOffset, Date.now() - elapsed);
     if (next === null) {
       clearData();
+      receiveHeartbeat();
       render();
       return true;
     }
     if (!next || next.threadId !== threadId || !Number.isFinite(next.sampledAt) ||
-      next.sampledAt > Date.now() + 5000 || (Number.isFinite(snapshot?.totalTokens) && next.sampledAt < snapshot.sampledAt)) return false;
+      next.sampledAt > clockOffset + elapsed + 5000 ||
+      (Number.isFinite(snapshot?.totalTokens) && next.sampledAt < snapshot.sampledAt)) return false;
     if (snapshot?.running && next.running && next.sampledAt > snapshot.sampledAt &&
       Number.isFinite(next.totalTokens) && Number.isFinite(snapshot.totalTokens) &&
       next.totalTokens > snapshot.totalTokens) {
@@ -188,10 +199,7 @@
       rate = 0;
     }
     snapshot = next;
-    disconnected = false;
-    lastReceivedAt = Date.now();
-    clearTimeout(staleTimer);
-    staleTimer = setTimeout(() => { clearData(); disconnected = true; render(); }, 15000);
+    receiveHeartbeat();
     render();
     return true;
   };

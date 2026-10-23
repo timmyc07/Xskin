@@ -9,6 +9,7 @@ const OTHER = "01a161f4-8a44-7f02-9cee-9c9f8b750414";
 
 function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   let now = 1000000;
+  let elapsed = 0;
   let nextTimer = 0;
   let installations = 0;
   const timers = new Map();
@@ -111,15 +112,17 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
     window: { __CODEX_DREAM_SKIN_STATE__: state, matchMedia: () => motion,
       crypto: { randomUUID: () => `overlay-${++installations}` } },
     Date: { now: () => now },
+    performance: { timeOrigin: 1000000, now: () => elapsed },
     Intl,
-    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, due: now + delay }); return id; },
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, due: elapsed + delay }); return id; },
     clearTimeout(id) { timers.delete(id); },
   });
   const install = () => vm.runInContext(`(${source})()`, context);
-  const advance = milliseconds => {
-    now += milliseconds;
+  const advance = (milliseconds, wallChange = milliseconds) => {
+    elapsed += milliseconds;
+    now += wallChange;
     for (const [id, timer] of [...timers]) {
-      if (timer.due <= now && timers.has(id)) {
+      if (timer.due <= elapsed && timers.has(id)) {
         timers.delete(id);
         timer.callback();
       }
@@ -294,6 +297,26 @@ history.overlay.update(historical);
 assert.equal(history.overlay.update(null), true);
 assert.equal(history.overlay.status().stale, true, "An unavailable host result clears current data immediately");
 assert.equal(history.text, "等待本機用量記錄");
+assert.notEqual(history.overlay.status().lastReceivedAt, null, "An empty usage result still acknowledges a healthy host");
+history.advance(15000);
+assert.equal(history.overlay.status().availability, "reconnecting", "Missing records must not hide a later host disconnect");
+history.overlay.update(null);
+assert.equal(history.overlay.status().availability, "waiting");
+const clock = fixture();
+const beforeRollback = clock.sample();
+assert.equal(clock.overlay.update(beforeRollback), true);
+clock.advance(15000, -3600000);
+assert.equal(clock.overlay.status().availability, "reconnecting");
+assert.equal(clock.overlay.update(beforeRollback), true, "A clock rollback must not reject a genuine historical heartbeat after timeout");
+assert.equal(clock.overlay.status().availability, "ready");
+assert.equal(clock.overlay.update({ ...beforeRollback, sampledAt: 1100000 }), false,
+  "Clock correction must still reject samples ahead of both clocks");
+clock.advance(0, 7200000);
+assert.equal(clock.overlay.update(clock.sample()), true, "Resume after sleep can advance wall time without advancing the monotonic clock");
+const beforeCorrection = clock.sample();
+clock.advance(15000, -3600000);
+assert.equal(clock.overlay.update(beforeCorrection), true, "A forward adjustment followed by rollback must preserve validated historical heartbeats");
+clock.overlay.dispose();
 const starting = fixture();
 assert.equal(starting.overlay.update({ threadId: THREAD, sampledAt: 1000000, running: true }), true);
 assert.equal(starting.overlay.status().spinning, true, "The first turn can animate before any token count exists");

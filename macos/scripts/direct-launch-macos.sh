@@ -8,6 +8,14 @@ if [ "$#" -eq 0 ]; then
 fi
 [ "$#" -eq 1 ] && [ "$1" = --locked ] || fail "Unknown direct-launch argument."
 discover_codex_app
+require_macos_runtime
+if [ -e "$THEME_DIR/.studio-transaction.json" ] || [ -L "$THEME_DIR/.studio-transaction.json" ]; then
+  if "$NODE" "$SCRIPT_DIR/background-studio.mjs" recover >/dev/null; then :
+  else
+    recovery_code=$?
+    [ "$recovery_code" -eq 75 ] || fail "An interrupted background operation could not be recovered; saved settings were preserved."
+  fi
+fi
 if [ ! -f "$STATE_ROOT/shortcut-enabled" ] || { [ -f "$STATE_PATH" ] && [ "$(state_field session)" = paused ]; }; then
   if codex_is_running; then activate_codex; else launch_codex_normally; fi
   exit 0
@@ -15,6 +23,9 @@ fi
 if codex_is_running; then
   port="$(state_field port)" || fail "The saved Xskin connection is unavailable. Fully quit Codex and retry Codex (Xskin)."
   verified_cdp_endpoint "$port" || fail "Fully quit Codex, then open Codex (Xskin). Your app was left running."
+  if ! current_injector_is_running "$port"; then
+    hot_reapply_theme "$port" || fail "The Xskin connection could not be repaired. Your app was left running."
+  fi
   activate_codex
   exit 0
 fi

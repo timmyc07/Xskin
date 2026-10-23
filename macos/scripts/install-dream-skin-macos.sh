@@ -111,13 +111,13 @@ fi
 "$NODE" "$SCRIPT_DIR/theme-config.mjs" install "$CONFIG_PATH" "$THEME_BACKUP_PATH"
 
 shell_quote() {
-  "$NODE" -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$1"
+  LC_ALL=C printf '%q' "$1"
 }
 
 write_launcher() {
   local target="$1"
   local command="$2"
-  if [ -e "$target" ] && ! /usr/bin/grep -q '^# CodexDreamSkinStudio launcher$' "$target" 2>/dev/null; then
+  if { [ -e "$target" ] || [ -L "$target" ]; } && ! owned_desktop_launcher "$target"; then
     fail "Refusing to overwrite an unrelated Desktop file: $target"
   fi
   /usr/bin/printf '%s\n' \
