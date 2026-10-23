@@ -1227,7 +1227,7 @@ html.codex-dream-skin .dream-skin-usage {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  margin: 0 0 8px;
+  margin: 0 0 2px;
   padding: 6px 10px;
   border: 1px solid rgb(var(--ds-muted-rgb) / .18);
   border-radius: 12px;

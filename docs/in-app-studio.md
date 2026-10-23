@@ -15,7 +15,17 @@ codex plugin add codex-background-studio@codex-background-studio-local
 
 The existing CLI supports these commands (`codex-cli 0.163.0-alpha.11.1` was checked locally). Reload/restart the desktop app if its plugin tools or global navigation have not refreshed. In the Plugins directory, verify that the local Xskin plugin is enabled. Asking to “Open Xskin” invokes the same MCP App. Installing the plugin and opening its panel do not apply settings.
 
+The companion Windows 1.8.5 candidate only tightens the usage strip/composer spacing; its startup remains shortcut-only and it has no in-app studio.
+
 This MCP server requires macOS and local execution. Windows keeps its separate 1.8.4 package and shortcut-only startup. Do not install this macOS launcher as a Windows MCP server.
+
+### Installed plugin, but no Xskin navigation entry
+
+The first 1.9.0 candidate could appear in Plugins with its skill while its MCP server was skipped: its portable `command` used the absolute `/bin/bash` path. Agent Plugins 1.0.0 requires a bare executable or a contained `./` command, and a packaged executable must use the latter. The corrected declaration launches `./plugin/launch-macos.sh` directly, using its existing shebang and executable permission. No extra `apps` mapping or native-menu changes are needed.
+
+The regression now executes the actual `mcp.json` declaration in a Unicode/emoji/spaces package path, rather than bypassing it with a separately constructed shell command. The local Codex 0.163.0-alpha.11.1 `plugin/read` diagnostic recognizes `mcpServers: ["xskin"]` after the correction. Reinstall the updated local candidate and reload the plugin host before checking the actual More entry again. The actual CLI `mcpServerStatus/list` discovery also connected the server and returned nine tools, one UI resource and the global entrypoint metadata. A recognized server still does not prove the visual entry or complete in-app interaction.
+
+Sources: [Agent Plugins 1.0.0 command rules](https://github.com/agentplugins/agent-plugins-spec/blob/ff8ab5e392cc87bd88d87c060815a87490e51003/spec/1.0.0.md#721-discovery-and-configuration), [Codex 0.163.0 parser](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/codex-mcp/src/agent_plugin_config.rs#L165-L175).
 
 ## Applying without interrupting the current app
 
@@ -54,3 +64,7 @@ Protocol, backend, preview and UI tests are isolated from customer data. A read-
 Use the official plugin installer to reinstall the previous plugin package; retain the previous native app and the existing data directory. Removing the plugin removes its panel, not the saved engine/media. Pause or disable automatic startup through Xskin before restoring an older engine, then use the retained native app if needed. Never delete the data directory to troubleshoot a panel connection.
 
 If an engine upgrade fails and restores a version older than 1.9.0, its launcher cannot enforce the new existing-connection-only flag. Xskin preserves the restored runtime and reports that its watcher could not safely resume; use explicit Apply to reconnect. It does not risk opening Codex automatically to hide that failure.
+
+## Composer spacing follow-up
+
+The usage strip previously added an 8 CSS-pixel bottom margin (about 16 physical pixels at 2× scale). The macOS 1.9.0 / Windows 1.8.5 candidates reduce only that margin to 2 CSS pixels. Native composer shape, controls, normal flow, Home hiding and narrow wrapping remain intact. This spacing change does not add or reposition native navigation.

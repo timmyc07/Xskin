@@ -1,5 +1,7 @@
 # Xskin for Windows 1.8.4
 
+**1.8.5 candidate (not yet published)** reduces the overlay/composer gap from 8 to 2 CSS pixels while preserving the native input and controls. Stable downloads below remain 1.8.4; startup remains shortcut-only with no automatic reopen.
+
 1.8.4 retains the latest valid plan reported in the same conversation and identifies it as history, not live account status. Zero cache writes are “unconfirmed” with a source-value tooltip; missing fields never become zero. [Field meanings, sources and validation](https://github.com/timmyc07/Xskin/blob/windows-v1.8.4/docs/usage-fields.md). Windows physical acceptance remains pending.
 
 **1.8.2** recovers long-history usage, adds waiting/reconnecting status and native translucent materials. Final review removes duplicate tail reads and waits for the matching CSS during updates. [Review and validation limits](https://github.com/timmyc07/Xskin/blob/windows-v1.8.3/docs/release-1.8.3-review.md). Official-page visuals and physical cold starts remain unverified.

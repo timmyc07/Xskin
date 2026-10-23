@@ -3,8 +3,8 @@
   "mcpServers": {
     "xskin": {
       "type": "stdio",
-      "command": "/bin/bash",
-      "args": ["${PLUGIN_ROOT}/plugin/launch-macos.sh"],
+      "command": "./plugin/launch-macos.sh",
+      "args": [],
       "cwd": "${PLUGIN_ROOT}"
     }
   }

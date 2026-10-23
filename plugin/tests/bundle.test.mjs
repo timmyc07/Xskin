@@ -17,6 +17,8 @@ after(() => fs.rm(temporary, { recursive: true, force: true }));
 const packageRoot = path.join(temporary, "套件 中文 🌙 with spaces");
 const plugin = path.join(packageRoot, "plugin");
 const runtime = path.join(packageRoot, "macos");
+await fs.mkdir(packageRoot, { recursive: true });
+await fs.copyFile(new URL("../../mcp.json", import.meta.url), path.join(packageRoot, "mcp.json"));
 await fs.cp(source, plugin, {
   recursive: true,
   filter: file => !["node_modules", "dist", "tests"].some(part => path.relative(source, file).split(path.sep).includes(part)),
@@ -59,9 +61,18 @@ test("a freshly compiled bundle runs independently of its source and node_module
   assert.match(notices, /Permission is hereby granted, free of charge/);
 });
 
-test("the launcher preserves Unicode, emoji and spaces in both fixed runtime arguments", {
+test("the portable manifest launches its contained executable and preserves Unicode, emoji and spaces", {
   skip: process.platform === "win32",
 }, async () => {
+  const configuration = JSON.parse(await fs.readFile(path.join(packageRoot, "mcp.json"), "utf8")).mcpServers.xskin;
+  const expandRoot = value => value.replaceAll("${PLUGIN_ROOT}", packageRoot);
+  assert.equal(configuration.type, "stdio");
+  assert.match(configuration.command, /^\.\//, "Agent Plugins 1.0 requires a plugin-relative ./ command");
+  assert.ok(!configuration.command.split("/").includes(".."), "The command cannot traverse outside the plugin");
+  const launcher = await fs.realpath(path.resolve(packageRoot, configuration.command));
+  const relative = path.relative(await fs.realpath(packageRoot), launcher);
+  assert.ok(relative && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative), "The executable must stay inside the installed plugin");
+  assert.equal((await fs.stat(launcher)).mode & 0o777, 0o755, "The declared command must be executable without a shell wrapper");
   const executable = path.join(temporary, "fixture node 中文 🌙");
   const argumentsFile = path.join(temporary, "launcher-arguments");
   const eventsFile = path.join(temporary, "launcher-events");
@@ -71,8 +82,8 @@ test("the launcher preserves Unicode, emoji and spaces in both fixed runtime arg
     'require_macos_runtime() { printf "runtime\\n" >> "$FIXTURE_EVENTS"; NODE="$FIXTURE_NODE"; }',
     "",
   ].join("\n"));
-  const { stdout, stderr } = await run("/bin/bash", [path.join(plugin, "launch-macos.sh")], {
-    cwd: temporary,
+  const { stdout, stderr } = await run(launcher, (configuration.args ?? []).map(expandRoot), {
+    cwd: path.resolve(packageRoot, expandRoot(configuration.cwd ?? ".")),
     env: { ...process.env, FIXTURE_NODE: executable, FIXTURE_ARGS: argumentsFile, FIXTURE_EVENTS: eventsFile },
     timeout: 5000,
   });

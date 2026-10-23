@@ -1,5 +1,9 @@
 # Windows Changelog
 
+## 1.8.5 — candidate, not yet published
+
+- Reduce the usage strip's composer spacing from 8 to 2 CSS pixels while preserving native input geometry, normal flow and narrow-window wrapping. Startup remains shortcut-only with no automatic close/reopen. Flutter package metadata is 1.8.5+17.
+
 ## 1.8.4 — 2026-10-23
 
 - Share the same-session plan recovery and explicit “not provided” state with macOS. The displayed plan is the conversation's latest valid report, not live account information.
