@@ -105,7 +105,7 @@ document.getElementById("empty").onclick = async () => { state.active = state.se
 document.getElementById("teardown").onclick = async () => { await bridge.teardownResource({}); report.textContent = "Own fixture teardown completed."; };
 document.getElementById("run").onclick = async () => {
   const lines = [];
-  const receipt = { fixture: "Cross-origin MCP App, sample media only", officialAppTested: false, cases: [] };
+  const receipt = { fixture: "Cross-origin MCP App over an opaque canvas, sample media only", officialAppTested: false, cases: [] };
   document.getElementById("run").disabled = true;
   try {
     await ready;
@@ -114,18 +114,34 @@ document.getElementById("run").onclick = async () => {
     for (const width of [320, 600, 1280]) for (const canvas of ["light", "dark"]) for (const theme of ["dark", "light"]) for (const language of ["en", "zh-Hant", "zh-Hans", "ja"]) {
       for (const [id, value] of Object.entries({ width, canvas, theme, language })) document.getElementById(id).value = String(value);
       await changeHost();
-      let view = await wait(view => view.lang === language && view.theme === theme && view.image.loaded, "image, language and theme");
+      let view = await wait(view => view.lang === language && view.theme === theme && view.image.loaded && view.background.imageLoaded, "image, applied background, language and theme");
       check(view.origin !== location.origin, "app iframe must use a separate origin");
       check(view.image.src.startsWith("blob:"), "media must load from SDK chunks and a Blob, never HTTP");
-      check(view.bodyBackground === "rgba(0, 0, 0, 0)" && view.rootBackground === "rgba(0, 0, 0, 0)", "app document must be transparent");
+      check(view.bodyBackground === "rgba(0, 0, 0, 0)", "app body must retain its background layer");
+      check(view.rootBackground === "rgb(24, 24, 24)", "fixture must simulate an opaque host canvas");
+      check(view.background.visible && view.background.imageLoaded && view.background.src.startsWith("blob:"), "applied image must render inside the app above the opaque canvas");
+      check(view.background.bounds.height === view.height, "background must fill the iframe, independently of the scrollport");
       check(view.canvasSchemes === "light dark", "canvas must follow the embedder instead of forcing the UI theme");
       check(view.settingsBackground.includes("0.72"), "settings must retain a translucent host surface");
       check(view.primaryBackground === (theme === "dark" ? "rgb(255, 255, 255)" : "rgb(23, 23, 23)"), "host primary button token");
       check(view.overflow <= 1, `horizontal overflow ${width}/${theme}/${language}`);
-      check(view.checkedLanguage === language, "language radio must match saved preference");
-      for (const id of ["choose", "apply", `language-${language}`, "refresh", "mask", "autostart", "pause"]) {
+      check(view.checkedLanguage === language, "language select must match saved preference");
+      check(view.languageScheme === theme, "native select must use the host control theme");
+      check(view.languageOptionBackground === (theme === "dark" ? "rgb(35, 35, 35)" : "rgb(247, 247, 247)"), "options must inherit explicit host surface colors");
+      for (const id of ["choose", "apply", "language", "refresh", "mask", "autostart", "pause"]) {
         view = await qa("focus", { id });
         check(view.controls[id].focused, `keyboard focus ${id}`);
+      }
+      const positions = [];
+      for (const fraction of [0, .25, .5, .75, 1]) {
+        view = await qa("fraction", { fraction });
+        check(view.scrollport.bottom <= view.height - composerHeight + 1, "entire scrollport must stay above composer at every scroll position");
+        check(view.reservedHits.length === 0, "interactive content must never paint or receive hits inside the composer reservation");
+        for (const [id, control] of Object.entries(view.controls)) {
+          if (!control.hidden && control.box.width > 0 && control.box.top >= view.scrollport.top && control.box.bottom <= view.scrollport.bottom)
+            check(control.hit, `visible control ${id} must stay clickable`);
+        }
+        positions.push({ fraction, scrollTop: view.scrollport.scrollTop, viewportBottom: view.scrollport.bottom, reservedHits: view.reservedHits.length });
       }
       view = await qa("scroll", { id: "pause" });
       check(view.controls.pause.box.bottom <= view.height - composerHeight, "last setting must scroll above host composer");
@@ -137,15 +153,15 @@ document.getElementById("run").onclick = async () => {
       state.active.applied = true;
       await qa("click", { id: "refresh" });
       await wait(view => !view.errorVisible && !view.controls.pause.disabled, "refresh");
-      receipt.cases.push({ width, canvas, theme, language, safeAreaBottom: composerHeight, pauseBottom: view.controls.pause.box.bottom, viewportHeight: view.height, overflow: view.overflow });
-      lines.push(`PASS ${width}px canvas=${canvas} UI=${theme} ${language}: Blob preview, transparency, focus, safe area, recovery`);
+      receipt.cases.push({ width, canvas, theme, language, safeAreaBottom: composerHeight, pauseBottom: view.controls.pause.box.bottom, viewportHeight: view.height, overflow: view.overflow, positions });
+      lines.push(`PASS ${width}px canvas=${canvas} UI=${theme} ${language}: Blob preview, applied background, contained scrollport, focus, recovery`);
     }
     bridge.setHostContext({ theme: "light" });
     let view = await qa();
     check(parseFloat(view.insetBottom) === composerHeight, "partial context must preserve insets");
     bridge.setHostContext({ safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 } });
     view = await wait(view => parseFloat(view.insetBottom) === 0, "zero inset reset");
-    check(view.paddingBottom >= 96, "zero inset must keep footer scroll room");
+    check(view.reservedBottom === 96 && view.scrollport.bottom <= view.height - 96 + 1, "zero inset must reserve an entire 96px viewport region");
     await changeHost();
     const maskCalls = calls.length;
     await qa("focus", { id: "mask" });
@@ -157,7 +173,8 @@ document.getElementById("run").onclick = async () => {
     await qa("click", { id: "apply" });
     await wait(view => state.selection === null && !view.controls.pause.disabled, "apply");
     await qa("click", { id: "pause" });
-    await wait(view => !state.active.applied && !view.controls.resume.disabled, "pause");
+    view = await wait(view => !state.active.applied && !view.controls.resume.disabled, "pause");
+    check(!view.background.visible, "pause must hide the local background layer");
     await qa("click", { id: "resume" });
     await wait(view => state.active.applied && !view.controls.pause.disabled, "resume");
     failNext = true;

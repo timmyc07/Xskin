@@ -1,6 +1,6 @@
 # Xskin
 
-> **macOS 1.9.1 candidate: in-app background studio fixes.** The user confirmed **More → Xskin** opens. The updated panel uses private, chunked MCP media transfer and local Blob previews without an HTTP preview port, preserves original filenames, and provides Refresh, interrupted-change recovery and four-language controls. The complete image/video preview and Apply workflow still awaits actual host acceptance. Stable downloads remain macOS 1.8.5 and Windows 1.8.4. The macOS 1.9.1 / Windows 1.8.5 candidates also include the usage strip in composer layout height while retaining its connected corners. See [installation, connection requirements and validation](docs/in-app-studio.md).
+> **macOS 1.9.2 candidate: in-app background and settings layout fixes.** The user confirmed **More → Xskin**, video preview and Apply work in 1.9.1. The new candidate renders the applied background inside its own iframe and confines scrolling above the host composer. Language uses a compact settings-row selector. Pending media stays separate; original media, including the checked 4K60 file, is not transcoded. New host visuals still await acceptance. A 5.48-second local sample measured about 59.1 FPS with no additional dropped frames; sustained playback remains unverified. Private MCP chunks and local Blobs open no HTTP preview port. Stable downloads remain macOS 1.8.5 and Windows 1.8.4; Windows 1.8.5 remains a separate candidate. See [installation, connection requirements and validation](docs/in-app-studio.md).
 
 English is now the primary documentation language.
 

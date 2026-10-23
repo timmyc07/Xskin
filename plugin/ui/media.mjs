@@ -24,12 +24,47 @@ export async function loadPreview(app, media, { signal, onProgress = () => {} } 
     if (binary.length !== Math.min(CHUNK_BYTES, media.bytes - offset)) throw new Error("invalid_preview");
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    parts.push(bytes);
+    parts.push(new Blob([bytes]));
     offset += bytes.length;
     onProgress(Math.round(offset / media.bytes * 100));
   }
   signal?.throwIfAborted();
   return URL.createObjectURL(new Blob(parts, { type: media.previewMimeType }));
+}
+
+export function createMediaPreviews(app) {
+  const entries = new Map();
+  return {
+    acquire(media, onProgress = () => {}) {
+      const identity = mediaIdentity(media);
+      if (!identity) throw new Error("invalid_preview");
+      let entry = entries.get(identity);
+      if (!entry) {
+        entry = { controller: new AbortController(), users: 0, listeners: new Set(), url: null };
+        entries.set(identity, entry);
+        entry.promise = loadPreview(app, media, { signal: entry.controller.signal,
+          onProgress: progress => { for (const listener of entry.listeners) listener(progress); } }).then(url => {
+          if (!entry.users) { URL.revokeObjectURL(url); throw new Error("cancelled_preview"); }
+          entry.url = url;
+          return url;
+        });
+      }
+      entry.users += 1;
+      entry.listeners.add(onProgress);
+      let released = false;
+      return { promise: entry.promise, release() {
+        if (released) return;
+        released = true;
+        entry.listeners.delete(onProgress);
+        entry.users -= 1;
+        if (!entry.users) {
+          entry.controller.abort();
+          if (entry.url) URL.revokeObjectURL(entry.url);
+          if (entries.get(identity) === entry) entries.delete(identity);
+        }
+      } };
+    },
+  };
 }
 
 export function releaseVideo(video) {

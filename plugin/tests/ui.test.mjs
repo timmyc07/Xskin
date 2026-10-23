@@ -206,8 +206,9 @@ test("all four languages cover UI controls and announcements", async () => {
   assert.match(html, /<label[^>]+for="mask"/);
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /id="autostart" type="checkbox" role="switch"/);
-  assert.doesNotMatch(html, /<select/);
-  assert.equal([...html.matchAll(/type="radio" name="language"/g)].length, 4);
+  assert.match(html, /<label[^>]+for="language"/);
+  assert.match(html, /<select id="language"/);
+  assert.equal([...html.matchAll(/<option value="(?:en|zh-Hant|zh-Hans|ja)"/g)].length, 4);
   assert.match(html, /<video[^>]+controls[^>]+muted/);
   assert.doesNotMatch(html, /\bautoplay\b/);
 });
@@ -240,6 +241,7 @@ async function uiFixture(initialState, initialHostContext = { theme: "dark", sty
       this.style = { setProperty(key, value) { this[key] = value; } };
       this.textContent = "";
       this.mediaEvents = [];
+      this.paused = true;
     }
     set src(value) { this.setAttribute("src", value); }
     get src() { return this.getAttribute("src"); }
@@ -250,11 +252,16 @@ async function uiFixture(initialState, initialHostContext = { theme: "dark", sty
     addEventListener(name, callback) { this.listeners.set(name, callback); }
     removeEventListener(name) { this.listeners.delete(name); }
     async emit(name) { return this.listeners.get(name)?.(); }
-    matches(selector) { return selector === ":disabled" ? Boolean(this.disabled) || (this.attributes.get("name") === "language" && elements.language.disabled) : ["choose", "apply", "refresh", "mask", "autostart", "pause", "resume", "recover", "retry"].includes(this.id) || this.id?.startsWith("language-"); }
+    matches(selector) { return selector === ":disabled" ? Boolean(this.disabled) : ["choose", "apply", "refresh", "mask", "autostart", "pause", "resume", "recover", "retry", "language"].includes(this.id); }
     focus() { document.activeElement = this; }
-    pause() { this.mediaEvents.push("pause"); }
+    pause() { this.paused = true; this.mediaEvents.push("pause"); }
     load() { this.mediaEvents.push("load"); }
-    play() { throw new Error("Preview must never autoplay"); }
+    play() {
+      if (this.id !== "background-video") throw new Error("Preview must never autoplay");
+      this.paused = false;
+      this.mediaEvents.push("play");
+      return Promise.resolve();
+    }
   }
   const html = await fs.readFile(new URL("../ui/studio.html", import.meta.url), "utf8");
   const nodes = [...html.matchAll(/<[a-z][\w-]*\s([^>]+)>/g)].map(match => new Node(match[1]));
@@ -264,8 +271,7 @@ async function uiFixture(initialState, initialHostContext = { theme: "dark", sty
   document.body = new Node("");
   document.activeElement = document.body;
   document.hasFocus = () => true;
-  document.querySelectorAll = selector => nodes.filter(node => selector === "[id]" ? node.id
-    : selector === 'input[name="language"]' ? node.attributes.get("name") === "language" : node.dataset.text);
+  document.querySelectorAll = selector => nodes.filter(node => selector === "[id]" ? node.id : node.dataset.text);
   document.hidden = false;
   const calls = [];
   const mediaCalls = [];
@@ -321,10 +327,13 @@ async function uiFixture(initialState, initialHostContext = { theme: "dark", sty
   });
   const window = new Node("");
   window.location = { reload() {} };
+  const motionQuery = new Node("");
+  motionQuery.matches = false;
+  window.matchMedia = () => motionQuery;
   vm.runInNewContext(bundle.outputFiles[0].text, { document, window, MockApp, URL: FixtureURL, Intl, console,
     Blob, atob, AbortController });
   await new Promise(resolve => setImmediate(resolve));
-  return { elements, document, calls, mediaCalls, revoked, blobs, app,
+  return { elements, document, calls, mediaCalls, revoked, blobs, app, motionQuery,
     setResponse(next) { response = next; }, setMediaResponse(next) { mediaResponse = next; } };
 }
 
@@ -346,14 +355,15 @@ test("initial and changing host safe areas preserve partial updates and allow ze
   assert.equal(styles["--studio-safe-left"], "0px");
 });
 
-test("language radios save the selected value, prevent busy changes and restore a failed choice", async () => {
-  const ui = await uiFixture(state({ language: "zh-Hant" }));
-  assert.equal(ui.elements["language-zh-Hant"].checked, true);
-  assert.equal(ui.elements["language-en"].checked, false);
+test("language select stays available during first setup, prevents busy changes and restores a failed choice", async () => {
+  const ui = await uiFixture(state({ language: "zh-Hant", needsSetup: true, active: null }));
+  assert.equal(ui.elements.language.value, "zh-Hant");
+  assert.equal(ui.elements.language.disabled, false);
+  assert.equal(ui.elements.settings.disabled, true);
   let finish;
   ui.setResponse(() => new Promise(resolve => { finish = resolve; }));
-  ui.elements["language-ja"].checked = true;
-  const changing = ui.elements["language-ja"].emit("change");
+  ui.elements.language.value = "ja";
+  const changing = ui.elements.language.emit("change");
   assert.equal(ui.elements.language.disabled, true);
   await ui.elements.choose.emit("click");
   assert.deepEqual(ui.calls.map(call => JSON.parse(JSON.stringify(call))), [{ name: "xskin_set_language", arguments: { language: "ja" } }]);
@@ -361,8 +371,7 @@ test("language radios save the selected value, prevent busy changes and restore 
   await changing;
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(ui.elements.language.disabled, false);
-  assert.equal(ui.elements["language-zh-Hant"].checked, true);
-  assert.equal(ui.elements["language-ja"].checked, false);
+  assert.equal(ui.elements.language.value, "zh-Hant");
 });
 
 test("interrupted changes require explicit recovery, retry safely, and never resend Apply", async () => {
@@ -538,4 +547,69 @@ test("resume restores the saved background without applying or losing a differen
   assert.equal(ui.elements.pause.hidden, false);
   assert.equal(ui.elements["media-name"].textContent, initial.selection.name);
   assert.equal(ui.elements.status.textContent, translate("resumed"));
+});
+
+test("active background shares one original preview, preserves it across pending changes and releases only its last owner", async () => {
+  const active = { ...state().selection, applied: true };
+  const initial = state({ active, selection: null });
+  const ui = await uiFixture(initial);
+  await new Promise(resolve => setImmediate(resolve));
+  const background = ui.elements["background-video"];
+  const originalUrl = background.src;
+  assert.equal(ui.elements.video.src, originalUrl);
+  assert.equal(ui.mediaCalls.length, 1);
+  assert.equal(ui.blobs.length, 1);
+  assert.equal(background.paused, false);
+  assert.equal(ui.elements.video.paused, true, "The explicit preview never autoplays");
+  assert.equal(ui.elements["background-mask"].style.opacity, "0.62");
+  ui.motionQuery.matches = true;
+  await ui.motionQuery.emit("change");
+  assert.equal(background.paused, true);
+  ui.motionQuery.matches = false;
+  await ui.motionQuery.emit("change");
+  assert.equal(background.paused, false);
+  const pending = { ...state().selection, previewId: "2".repeat(64) };
+  ui.setResponse(async () => result({ ...initial, selection: pending }));
+  await ui.elements.choose.emit("click");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(background.src, originalUrl, "Choosing another file retains the active background");
+  assert.notEqual(ui.elements.video.src, originalUrl);
+  assert.equal(ui.mediaCalls.filter(call => call.arguments.mediaId === active.previewId).length, 1);
+  assert.equal(ui.revoked.includes(originalUrl), false);
+  const pendingUrl = ui.elements.video.src;
+  ui.setResponse(async () => result(initial));
+  await ui.elements.refresh.emit("click");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ui.elements.video.src, originalUrl, "Removing pending media reuses the saved Blob");
+  assert.equal(background.src, originalUrl);
+  assert.ok(ui.revoked.includes(pendingUrl));
+  assert.equal(ui.mediaCalls.length, 2);
+  await ui.app.onteardown();
+  assert.equal(ui.revoked.filter(url => url === originalUrl).length, 1);
+  assert.equal(background.hasAttribute("src"), false);
+  assert.equal(background.paused, true);
+});
+
+test("background decoding failures are visible, Refresh retries, and pause removes only the active background", async () => {
+  const active = { ...state().selection, applied: true, previewId: "3".repeat(64) };
+  const initial = state({ active });
+  const ui = await uiFixture(initial);
+  await new Promise(resolve => setImmediate(resolve));
+  await ui.elements["background-video"].emit("error");
+  assert.equal(ui.elements["background-error"].hidden, false);
+  assert.equal(ui.elements.apply.disabled, false);
+  const oldBackground = ui.elements["background-video"].src;
+  await ui.elements.refresh.emit("click");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ui.elements["background-error"].hidden, true);
+  assert.ok(ui.revoked.includes(oldBackground));
+  assert.notEqual(ui.elements["background-video"].src, oldBackground);
+  const pendingUrl = ui.elements.video.src;
+  ui.setResponse(async () => result({ ...initial, active: { ...active, applied: false } }));
+  await ui.elements.pause.emit("click");
+  assert.equal(ui.elements["studio-background"].hidden, true);
+  assert.equal(ui.elements["background-video"].hasAttribute("src"), false);
+  assert.equal(ui.elements.video.src, pendingUrl);
+  assert.equal(ui.revoked.includes(pendingUrl), false);
+  await ui.app.onteardown();
 });

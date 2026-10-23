@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.2 — candidate, new host visuals pending
+
+- Confine the entire panel scrollport above the host composer at every scroll position, reserving the reported bottom safe area or a 96px fallback. Keep the official input present and unchanged.
+- Render the applied original background inside Xskin's own iframe, including over an opaque host canvas. Keep pending imports isolated to Preview; matching active/preview media share a Blob, with at most two media Blobs. Stop decorative video while hidden, paused or under Reduce Motion.
+- Replace header-wide language radios with a compact native select in a separate settings row. Retain four languages, keyboard access, first-setup availability, explicit recovery and cancellation.
+- Preserve original media without transcoding, including the checked 4K60 file. Add own-video frame/drop diagnostics using the existing Verify interval. A 5.48-second local sample measured approximately 59.1 presented FPS with zero additional dropped frames at 3840×2160; sustained playback remains unverified.
+- The user confirmed 1.9.1 video preview and Apply work. An isolated opaque-canvas Chrome fixture passes 48 layout/theme/language cases and 240 scroll positions; this does not establish 1.9.2 host visual acceptance. New-head CI remains pending; the earlier 1.9.1 workflow at `4c7cdd7` is separate. Stable downloads remain macOS 1.8.5 / Windows 1.8.4.
+
 ## 1.9.1 — candidate, desktop acceptance pending
 
 - Replace HTTP preview serving with the app-only media tool, private per-session capabilities and bounded 512 KiB chunks assembled into local Blob previews. Recheck file identity per read, revoke stale capabilities and release previews on hide/close; no local HTTP preview port is opened.

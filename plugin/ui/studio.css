@@ -30,18 +30,21 @@
   --studio-on-primary: #171717;
 }
 * { box-sizing: border-box; }
-html { background: transparent; scroll-padding: calc(var(--studio-space) + var(--studio-safe-top)) calc(var(--studio-space) + var(--studio-safe-right)) calc(var(--studio-space) + max(96px, var(--studio-safe-bottom))) calc(var(--studio-space) + var(--studio-safe-left)); }
-body { margin: 0; background: transparent; color: var(--color-text-primary, var(--studio-text)); }
+html { height: 100%; overflow: hidden; background: transparent; }
+body { height: 100dvh; margin: 0; display: flex; flex-direction: column; overflow: hidden; padding: var(--studio-safe-top) var(--studio-safe-right) max(96px, var(--studio-safe-bottom)) var(--studio-safe-left); background: transparent; color: var(--color-text-primary, var(--studio-text)); }
 :root[data-theme="dark"] body { color-scheme: dark; }
 :root[data-theme="light"] body { color-scheme: light; }
-/* Leave scroll room for the host composer even when the host reports no inset. */
-main { max-width: 900px; margin: 0 auto; padding: calc(var(--studio-space) + var(--studio-safe-top)) calc(var(--studio-space) + var(--studio-safe-right)) calc(var(--studio-space) + max(96px, var(--studio-safe-bottom))) calc(var(--studio-space) + var(--studio-safe-left)); }
-button, input { font: inherit; }
-button { min-height: 40px; border: 1px solid var(--color-border-primary, var(--studio-border)); border-radius: var(--border-radius-md, 10px); color: inherit; background: var(--studio-panel); padding: 8px 12px; }
+/* Clip every scroll position above the host composer, not just the final row. */
+main { position: relative; z-index: 1; flex: 1; min-height: 0; width: 100%; max-width: 900px; margin: 0 auto; overflow: auto; overscroll-behavior: contain; scroll-padding: var(--studio-space); padding: var(--studio-space); }
+#studio-background { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+#background-image, #background-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#background-mask { position: absolute; inset: 0; background: #000; }
+button, select, input { font: inherit; }
+button, select { min-height: 40px; border: 1px solid var(--color-border-primary, var(--studio-border)); border-radius: var(--border-radius-md, 10px); color: inherit; background: var(--studio-panel); padding: 8px 12px; }
 button { cursor: pointer; }
 button:hover:enabled { filter: brightness(1.08); }
-button:disabled { opacity: .52; cursor: default; }
-button:focus-visible, input:focus-visible, .language-options input:focus-visible + span { outline: 3px solid var(--color-ring-info, var(--studio-accent)); outline-offset: 3px; }
+button:disabled, select:disabled { opacity: .52; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--color-ring-info, var(--studio-accent)); outline-offset: 3px; }
 button.primary { background: var(--color-background-inverse, var(--studio-primary)); color: var(--color-text-inverse, var(--studio-on-primary)); border-color: transparent; font-weight: var(--font-weight-semibold, 600); }
 .toolbar, .toolbar-actions, .brand, .actions, .media-info, .range-label { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .toolbar { justify-content: space-between; margin-bottom: 22px; }
@@ -49,14 +52,9 @@ button.primary { background: var(--color-background-inverse, var(--studio-primar
 h1 { font-size: var(--font-heading-md-size, 24px); margin: 0; font-weight: var(--font-weight-semibold, 600); }
 h2 { font-size: var(--font-heading-xs-size, 15px); margin: 0 0 12px; font-weight: var(--font-weight-semibold, 600); }
 #version { font-size: var(--font-text-xs-size, 12px); color: var(--color-text-secondary, var(--studio-muted)); }
-.language-group { min-width: 0; border: 0; padding: 0; margin: 0; }
-.language-group legend { padding: 0; margin-bottom: 4px; font-size: var(--font-text-xs-size, 12px); color: var(--color-text-secondary, var(--studio-muted)); }
-.language-options { display: flex; flex-wrap: wrap; gap: 4px; }
-.language-options label { position: relative; min-width: 0; cursor: pointer; }
-.language-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.language-options span { display: block; padding: 6px 9px; min-height: 34px; border: 1px solid transparent; border-radius: var(--border-radius-md, 10px); color: var(--color-text-secondary, var(--studio-muted)); }
-.language-options input:checked + span { border-color: var(--color-border-primary, var(--studio-border)); color: var(--color-text-primary, var(--studio-text)); background: var(--studio-panel); }
-.language-options input:disabled + span { opacity: .52; cursor: default; }
+.preference-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 18px 20px; margin-top: 16px; border: 1px solid var(--color-border-primary, var(--studio-border)); border-radius: var(--border-radius-lg, 16px); background: var(--studio-panel); }
+#language { max-width: 100%; }
+#language option { color: var(--color-text-primary, var(--studio-text)); background: var(--color-background-secondary, var(--studio-surface)); }
 .preview-stage { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; max-height: min(420px, 48svh); overflow: hidden; border: 1px solid var(--color-border-primary, var(--studio-border)); border-radius: var(--border-radius-lg, 16px); background: var(--studio-panel); }
 .preview-stage img, .preview-stage video { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; }
 #preview-mask { position: absolute; inset: 0; background: #000; pointer-events: none; }
@@ -85,9 +83,8 @@ h2 { font-size: var(--font-heading-xs-size, 15px); margin: 0 0 12px; font-weight
 .error p { margin-top: 0; }
 [hidden] { display: none !important; }
 @media (max-width: 480px) {
-  .toolbar-actions { width: 100%; justify-content: space-between; }
-  .language-group { flex: 1 1 100%; }
   .actions > button { flex: 1 1 180px; }
   #settings { padding: 0 14px; }
+  .preference-row { padding: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }

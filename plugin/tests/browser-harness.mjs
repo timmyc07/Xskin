@@ -14,7 +14,7 @@ const [app, host, qa, css, template] = await Promise.all([
   bundle("ui/index.mjs"), bundle("tests/browser-host.mjs"), bundle("tests/browser-frame.mjs"),
   fs.readFile(path.join(root, "ui/studio.css"), "utf8"), fs.readFile(path.join(root, "ui/studio.html"), "utf8"),
 ]);
-const html = template.replace("<!-- XSKIN_STYLE -->", () => `<style>${css}</style>`)
+const html = template.replace("<!-- XSKIN_STYLE -->", () => `<style>${css}\nhtml{background:#181818!important}</style>`)
   .replace("<!-- XSKIN_SCRIPT -->", () => `<script>${app.outputFiles[0].text.replace(/<\/script/gi, "<\\/script")}</script><script>${qa.outputFiles[0].text}</script>`);
 const crc32 = bytes => {
   let crc = 0xffffffff;

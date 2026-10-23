@@ -144,6 +144,52 @@ try {
   let time = 0;
   const playing = await waitForVerifiedSession({ evaluate: async () => ({ ...fixtureIdentity, pass: true, video: { ready: true, currentTime: time++ } }) }, 1200, fixtureVideoTheme);
   assert.equal(playing.pass, true);
+  const videoQuality = (sampledAtMs, totalFrames, droppedFrames) => ({ sampledAtMs, totalFrames, droppedFrames });
+  const qualitySnapshot = (quality, overrides = {}) => ({ ...fixtureIdentity, pass: true,
+    videoBox: { visible: true }, startupFrames: { documentHidden: false },
+    video: { ready: true, paused: false, suspended: false, currentTime: 1, quality }, ...overrides });
+  const measureQuality = async samples => {
+    let index = 0;
+    let elapsed = 0;
+    return vm.runInNewContext(`(${waitForVerifiedSession.toString()})(null, 1500, expectedTheme)`, {
+      expectedTheme: fixtureVideoTheme,
+      verifySession: async () => {
+        const snapshot = structuredClone(samples[Math.min(index, samples.length - 1)]);
+        snapshot.video.currentTime += index++;
+        return snapshot;
+      },
+      Date: { now: () => elapsed },
+      setTimeout(callback, ms) { elapsed += ms; callback(); },
+    });
+  };
+  const firstQuality = videoQuality(1000, 100, 2);
+  const nextQuality = videoQuality(1500, 130, 4);
+  const measured = await measureQuality([qualitySnapshot(firstQuality), qualitySnapshot(nextQuality)]);
+  assert.equal(measured.pass, true, "Playback quality diagnostics must retain the existing pass decision.");
+  assert.deepEqual(JSON.parse(JSON.stringify(measured.video.playbackSample)),
+    { sampleMs: 500, presentedFps: 56, dropRatio: 2 / 30 }, "Presented FPS excludes source-reported dropped frames over the actual sample interval.");
+  for (const second of [
+    qualitySnapshot(null), qualitySnapshot({}),
+    qualitySnapshot(videoQuality(1000, 130, 4)),
+    qualitySnapshot(videoQuality(900, 130, 4)),
+    qualitySnapshot(videoQuality(1500, 99, 2)),
+    qualitySnapshot(videoQuality(1500, 130, 1)),
+    qualitySnapshot(videoQuality(1500, 101, 4)),
+    qualitySnapshot(videoQuality(1500, 100, 2)),
+    qualitySnapshot(nextQuality, { videoBox: { visible: false } }),
+    qualitySnapshot(nextQuality, { startupFrames: { documentHidden: true } }),
+    qualitySnapshot(nextQuality, { video: { ready: true, paused: true, suspended: false, currentTime: 1, quality: nextQuality } }),
+    qualitySnapshot(nextQuality, { video: { ready: true, paused: true, suspended: true, currentTime: 1, quality: nextQuality } }),
+    qualitySnapshot(nextQuality, { videoKey: "another-video" }),
+  ]) {
+    const unavailable = await measureQuality([qualitySnapshot(firstQuality), second]);
+    assert.equal(unavailable.video.playbackSample, null,
+      "Missing/reset/hidden/paused/replaced samples cannot establish a frame rate.");
+  }
+  const resumed = await measureQuality([
+    qualitySnapshot(firstQuality, { videoBox: { visible: false } }), qualitySnapshot(nextQuality),
+  ]);
+  assert.equal(resumed.video.playbackSample, null, "An interval crossing a hidden sample must not include those frames.");
   const node = { getBoundingClientRect: () => ({ x: 0, y: 0, width: 1000, height: 700 }) };
   const videoNode = { ...node };
   let videoVisible = false;

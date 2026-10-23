@@ -11,7 +11,7 @@ import { setTimeout as delay } from "node:timers/promises";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.1";
+const SKIN_VERSION = "1.9.2";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
@@ -846,6 +846,7 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
   const deadline = Date.now() + timeoutMs;
   let lastResult;
   let previousVideoTime = null;
+  let previousVideoQuality = null;
   while (Date.now() < deadline) {
     lastResult = await verifySession(session);
     // A previous, healthy background can remain visible while the next injector starts.
@@ -879,6 +880,26 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
         card.opacity !== null && Math.abs(card.opacity - (expectedTheme.maskOpacity ?? 0.62)) < 0.005);
       lastResult.pass &&= lastResult.maskMatches;
     }
+    const quality = lastResult.video?.quality;
+    const measurable = lastResult.themeMatches && typeof lastResult.videoKey === "string" &&
+      lastResult.video?.ready === true && lastResult.video.paused === false && lastResult.video.suspended === false &&
+      lastResult.videoBox?.visible === true && lastResult.startupFrames?.documentHidden === false &&
+      quality && Number.isFinite(quality.sampledAtMs) && quality.sampledAtMs >= 0 &&
+      Number.isSafeInteger(quality.totalFrames) && quality.totalFrames >= 0 &&
+      Number.isSafeInteger(quality.droppedFrames) && quality.droppedFrames >= 0 && quality.droppedFrames <= quality.totalFrames;
+    if (lastResult.video) {
+      lastResult.video.playbackSample = null;
+      if (measurable && previousVideoQuality?.videoKey === lastResult.videoKey) {
+        const sampleMs = quality.sampledAtMs - previousVideoQuality.sampledAtMs;
+        const total = quality.totalFrames - previousVideoQuality.totalFrames;
+        const dropped = quality.droppedFrames - previousVideoQuality.droppedFrames;
+        if (sampleMs > 0 && total > 0 && dropped >= 0 && dropped <= total) {
+          lastResult.video.playbackSample = { sampleMs, presentedFps: (total - dropped) * 1000 / sampleMs,
+            dropRatio: dropped / total };
+        }
+      }
+    }
+    previousVideoQuality = measurable ? { ...quality, videoKey: lastResult.videoKey } : null;
     if (lastResult.video && !lastResult.video.suspended) {
       lastResult.video.progressing = previousVideoTime !== null
         && Math.abs(lastResult.video.currentTime - previousVideoTime) > 0.001;

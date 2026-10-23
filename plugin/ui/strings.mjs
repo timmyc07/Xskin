@@ -5,6 +5,7 @@ export const translations = {
   noMedia: ["Choose an image or MP4 to preview your background.", "選擇圖片或 MP4，預覽你的背景。", "选择图片或 MP4，预览你的背景。", "画像または MP4 を選んで背景を確認してください。"],
   previewAlt: ["Selected background preview", "已選背景預覽", "已选背景预览", "選択した背景のプレビュー"],
   loadingPreview: ["Loading preview", "正在載入預覽", "正在加载预览", "プレビューを読み込み中"],
+  backgroundError: ["Unable to show the applied background in this panel. Refresh to retry.", "無法在面板顯示已套用背景，請重新整理以重試。", "无法在面板显示已应用背景，请刷新重试。", "適用済みの背景をこの画面に表示できません。更新して再試行してください。"],
   previewError: ["Preview is unavailable. Refresh or choose the file again.", "無法載入預覽，請重新整理或重新選擇檔案。", "无法加载预览，请刷新或重新选择文件。", "プレビューを読み込めません。更新するか、ファイルを選び直してください。"],
   videoHint: ["Video starts paused. Use the player controls to preview it.", "影片預設暫停，使用播放控制項預覽。", "视频默认暂停，使用播放控件预览。", "動画は停止状態で開きます。再生ボタンで確認できます。"],
   choose: ["Choose image or video", "選擇圖片或影片", "选择图片或视频", "画像・動画を選択"],
