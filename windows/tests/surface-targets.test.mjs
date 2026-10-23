@@ -312,7 +312,7 @@ for (const catchesUp of [true, false]) {
   if (catchesUp) assert.equal(probes, 2, 'A healthy previous stylesheet cannot end verification before the new CSS arrives.');
 }
 
-const injectorSource = await fs.readFile(new URL('../scripts/injector.mjs', import.meta.url), 'utf8');
+const injectorSource = (await fs.readFile(new URL('../scripts/injector.mjs', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
 const oneShotStart = injectorSource.indexOf('async function runOneShot(');
 const oneShotFunction = injectorSource.slice(oneShotStart, injectorSource.indexOf('\n}\n', oneShotStart) + 2);
 for (const mode of ['verify', 'once']) {
