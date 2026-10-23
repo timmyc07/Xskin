@@ -67,12 +67,16 @@ try {
   if ((Get-DreamSkinAutostartTask) -or (Get-DreamSkinAutostartProcess -StateRoot $stateRoot)) { throw 'Disable retained its owned observer or task.' }
   if (-not (Test-DreamSkinPaused -StateRoot $stateRoot)) { throw 'Disable cleared the paused state.' }
 } catch {
+  Write-Host $_.Exception.Message
+  Write-Host $_.ScriptStackTrace
   $task = Get-DreamSkinAutostartTask
   if ($task) {
     Write-Host ($task.Xml)
     $actionPath = $task.Definition.Actions.Item(1).Path
     Write-Host "Executable exists: $([IO.File]::Exists($actionPath))"
     Get-ChildItem -LiteralPath (Join-Path $stateRoot 'engine\scripts') -Filter '*quiet*' | ForEach-Object { Write-Host $_.FullName }
+    $diagnostic = Join-Path $stateRoot 'engine\scripts\quiet-launcher-error.log'
+    if (Test-Path -LiteralPath $diagnostic) { Write-Host (Get-Content -LiteralPath $diagnostic -Raw) }
   }
   throw
 } finally {

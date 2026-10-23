@@ -93,6 +93,13 @@ if (Test-Path -LiteralPath (Join-Path $StateRoot 'fail')) { throw 'fixture failu
   if ($stopped -ne 1) { throw 'Exited session retained its recorded injector.' }
 
   $fake | Add-Member -MemberType NoteProperty -Name HasExited -Value $false
+  $script:exitDuringMonitorWait = $false
+  $fake | Add-Member -Force -MemberType ScriptMethod -Name WaitForExit -Value {
+    param($Timeout)
+    if ($Timeout -ne 250) { throw 'Monitor identity inspection must use a bounded exit wait.' }
+    if ($script:exitDuringMonitorWait) { $this.HasExited = $true }
+    return $this.HasExited
+  }
   function Get-Process { return $fake }
   Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State @{
     processId = $fake.Id; startedAt = $startedAt
@@ -101,7 +108,17 @@ if (Test-Path -LiteralPath (Join-Path $StateRoot 'fail')) { throw 'fixture failu
   function Get-CimInstance { $fake.HasExited = $true; return $null }
   if (Get-DreamSkinAutostartProcess -StateRoot $stateRoot -Strict) { throw 'An exited monitor was returned as live.' }
   $fake.HasExited = $false
+  function Get-CimInstance {
+    $fake.HasExited = $true
+    return [pscustomobject]@{ SessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId; ExecutablePath = $null; CommandLine = $null }
+  }
+  if (Get-DreamSkinAutostartProcess -StateRoot $stateRoot -Strict) { throw 'Incomplete CIM data retained an exited monitor.' }
+  $fake.HasExited = $false
   function Get-CimInstance { return $null }
+  $script:exitDuringMonitorWait = $true
+  if (Get-DreamSkinAutostartProcess -StateRoot $stateRoot -Strict) { throw 'A monitor exiting just after inspection was retained.' }
+  $fake.HasExited = $false
+  $script:exitDuringMonitorWait = $false
   try { $null = Get-DreamSkinAutostartProcess -StateRoot $stateRoot -Strict; throw 'Uninspectable live monitor was accepted.' }
   catch { if ($_.Exception.Message -notmatch 'identity does not match') { throw } }
   if ((Get-FileHash -LiteralPath (Join-Path $stateRoot 'autostart.json')).Hash -cne $stateHash) { throw 'Monitor identity checks modified its saved state.' }

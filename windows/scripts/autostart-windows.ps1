@@ -85,13 +85,13 @@ function Get-DreamSkinAutostartProcess {
   if (-not $process -or $process.HasExited) { return $null }
   if (-not $state.startedAt -or [datetimeoffset]$process.StartTime.ToUniversalTime() -ne [datetimeoffset]$state.startedAt) { return $null }
   $info = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$state.processId)" -ErrorAction Stop
-  # Disabling the task can let its monitor exit between the two process queries.
-  if (-not $info -and $process.HasExited) { return $null }
   $expectedShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   if ($info -and $info.SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId -and
     (Test-DreamSkinPathEqual -Left (Get-DreamSkinProcessExecutablePath -ProcessInfo $info) -Right $expectedShell) -and
     (Test-DreamSkinCommandLineToken -CommandLine $info.CommandLine -Token (Join-Path $StateRoot 'engine\scripts\watch-codex-launches.ps1')) -and
     (Test-DreamSkinCommandLineToken -CommandLine $info.CommandLine -Token $StateRoot)) { return $process }
+  # CIM can lose identity fields just before the disabled monitor signals exit.
+  if ($process.HasExited -or $process.WaitForExit(250)) { return $null }
   if ($Strict) { throw 'The automatic-startup process identity does not match; state was preserved.' }
   return $null
 }
