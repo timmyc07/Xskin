@@ -937,6 +937,9 @@ try {
   $installerTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'installer.test.mjs'))
   if ($installerTest.ExitCode -ne 0) { throw ($installerTest.Output -join "`n") }
+  $watcherPipesTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'watcher-pipes.test.mjs'))
+  if ($watcherPipesTest.ExitCode -ne 0) { throw ($watcherPipesTest.Output -join "`n") }
   $startupRollbackTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'startup-rollback.test.mjs'))
   if ($startupRollbackTest.ExitCode -ne 0) { throw ($startupRollbackTest.Output -join "`n") }

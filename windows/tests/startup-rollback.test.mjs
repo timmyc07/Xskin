@@ -68,7 +68,12 @@ function Stop-DreamSkinRecordedInjector {
   if (Test-Path (Join-Path $script:fixtureState 'injector')) { Event 'stop-injector'; Remove-Item (Join-Path $script:fixtureState 'injector') }
   return $true
 }
-function Start-Process {
+function Start-DreamSkinWatcher {
+  param($NodePath, $Arguments, $WorkingDirectory, $StdoutPath, $StderrPath)
+  if ($NodePath -cne 'fixture-node.exe' -or $WorkingDirectory -cne $script:fixtureState -or
+    $Arguments[0] -cne (Join-Path $PSScriptRoot 'injector.mjs') -or
+    $StdoutPath -cne (Join-Path $script:fixtureState 'injector.log') -or
+    $StderrPath -cne (Join-Path $script:fixtureState 'injector-error.log')) { throw 'The watcher lost its runtime, state root or diagnostic paths.' }
   Event 'injector'
   [IO.File]::WriteAllText((Join-Path $script:fixtureState 'injector'), 'running')
   return @{ Id = 12345; HasExited = $false }

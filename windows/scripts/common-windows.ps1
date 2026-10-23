@@ -229,6 +229,7 @@ function Install-DreamSkinRuntimeEngine {
     'scripts\install-dream-skin.ps1',
     'scripts\restore-dream-skin.ps1',
     'scripts\start-dream-skin.ps1',
+    'scripts\start-watcher.cs',
     'scripts\theme-windows.ps1',
     'scripts\tray-dream-skin.ps1',
     'scripts\verify-dream-skin.ps1'
@@ -358,14 +359,13 @@ function Install-DreamSkinRuntimeEngine {
         $daemon = $null
         try {
           $resumeState.nodePath = (Get-DreamSkinNodeRuntime -RuntimePath (Join-Path $engine.Scripts 'node.exe')).Path
-          $arguments = ConvertTo-DreamSkinArgumentLine -Arguments @(
+          $arguments = @(
             $resumeState.injectorPath, '--watch', '--port', "$($resumeState.port)",
             '--browser-id', $resumeState.browserId, '--theme-dir', (Join-Path $fullStateRoot 'active-theme'),
             '--pause-file', (Join-Path $fullStateRoot 'paused'))
-          $daemon = Start-Process -FilePath $resumeState.nodePath -ArgumentList $arguments `
-            -WorkingDirectory $fullStateRoot -WindowStyle Hidden -PassThru `
-            -RedirectStandardOutput (Join-Path $fullStateRoot 'injector.log') `
-            -RedirectStandardError (Join-Path $fullStateRoot 'injector-error.log')
+          $daemon = Start-DreamSkinWatcher -NodePath $resumeState.nodePath -Arguments $arguments `
+            -WorkingDirectory $fullStateRoot -StdoutPath (Join-Path $fullStateRoot 'injector.log') `
+            -StderrPath (Join-Path $fullStateRoot 'injector-error.log')
           Start-Sleep -Milliseconds 500
           if ($daemon.HasExited) { throw 'The background watcher exited while resuming the runtime update.' }
           $resumeState.injectorPid = $daemon.Id
@@ -384,6 +384,19 @@ function Install-DreamSkinRuntimeEngine {
       }
     }
   }
+}
+
+function Start-DreamSkinWatcher {
+  param([string]$NodePath, [string[]]$Arguments, [string]$WorkingDirectory, [string]$StdoutPath, [string]$StderrPath)
+  foreach ($path in @($NodePath, $Arguments[0], $WorkingDirectory, $StdoutPath, $StderrPath)) {
+    if (-not [IO.Path]::IsPathRooted($path)) { throw 'Watcher paths must be absolute local paths.' }
+    Assert-DreamSkinNoReparseComponents -Path $path
+  }
+  if (-not (Test-DreamSkinPathWithin -Path $StdoutPath -Root $WorkingDirectory) -or
+    -not (Test-DreamSkinPathWithin -Path $StderrPath -Root $WorkingDirectory)) { throw 'Watcher diagnostics must stay inside the managed state root.' }
+  if (-not ('CodexDreamSkin.WatcherProcess' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'start-watcher.cs') }
+  $command = ConvertTo-DreamSkinArgumentLine -Arguments (@($NodePath) + $Arguments)
+  return [CodexDreamSkin.WatcherProcess]::Start($NodePath, $command, $WorkingDirectory, $StdoutPath, $StderrPath)
 }
 
 function Test-DreamSkinCommandLineToken {

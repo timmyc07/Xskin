@@ -72,9 +72,10 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
   inactiveComposer.checkVisibility = () => true;
   inactiveComposer.closest = selector => selector.includes("active-page") ? {} : null;
   composer.checkVisibility = () => data.composerVisible;
-  composer.closest = selector => selector === "[data-composer-layout]" ? anchor : null;
+  composer.closest = selector => selector === '[data-app-shell-active-page="false"]' && !data.activePage
+    ? {} : selector === "[data-composer-layout]" ? anchor : null;
   const conversation = new Element();
-  const data = { composerVisible: true, home: false, activePage: true,
+  const data = { composerVisible: true, activePage: true,
     composers: [inactiveComposer, composer], markers: [conversation] };
   const setIdentity = (id = THREAD, hostId = "local", depth = 19, ownerId = id) => {
     conversation.setAttribute("data-above-composer-conversation-id", id);
@@ -83,29 +84,15 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
     const owner = { memoizedProps: { conversationId: ownerId, hostId }, return: root };
     let fiber = owner;
     for (let index = 0; index < depth; index++) fiber = { memoizedProps: null, return: fiber };
-    conversation.__reactFiber$fixture = fiber;
+    composer.__reactFiber$fixture = fiber;
     return { owner, fiber, root };
   };
   setIdentity();
-  const page = {
-    querySelector(selector) {
-      if (selector === "[data-above-composer-conversation-id]") return data.markers[0] ?? null;
-      return data.home ? {} : null;
-    },
-    querySelectorAll(selector) {
-      if (selector === "[data-composer-body]") return data.composers;
-      assert.equal(selector, "[data-above-composer-conversation-id]");
-      return data.markers;
-    },
-  };
   const document = {
     hidden: false,
     documentElement: { lang },
     createElement: () => new Element(),
-    querySelector(selector) {
-      assert.equal(selector, '[data-app-shell-active-page="true"]');
-      return data.activePage ? page : null;
-    },
+    querySelector() { assert.fail("The input owner does not depend on a separate page or portal"); },
     querySelectorAll(selector) {
       assert.equal(selector, "[data-composer-body]", "Identity resolution never depends on sidebar rows");
       return data.composers;
@@ -222,14 +209,14 @@ f.advance(1000);
 assert.equal(f.overlay.update(f.sample({ threadId: OTHER, sampledAt: 1 })), false);
 assert.equal(f.overlay.update(f.sample({ threadId: OTHER, sampledAt: Date.now() + 100000 })), false);
 
-f.data.home = true;
-assert.equal(f.overlay.request().threadId, null, "Home ignores retained composer identity metadata");
-assert.equal(f.row, null, "Home has no empty usage strip covering its utility toolbar");
+delete f.composer.__reactFiber$fixture;
+assert.equal(f.overlay.request().threadId, null, "An input without owner metadata cannot inherit the retained portal's conversation");
+assert.equal(f.row, null, "An unidentified input has no empty usage strip covering its utility toolbar");
 assert.equal(f.timers.size, 0);
 assert.equal(f.overlay.update(f.sample({ threadId: null, totalTokens: null, inputTokens: null,
   cachedInputTokens: null, outputTokens: null, contextRemainingPercent: null, primary: null,
   secondary: null, planType: '<img src="private">' })), false);
-f.data.home = false;
+f.setIdentity(OTHER);
 f.overlay.request();
 assert.equal(f.overlay.update(f.sample({ threadId: OTHER, planType: '<img src="private">' })), true);
 assert.match(f.text, /方案 <img src="private">/, "Plan text is displayed literally, never interpreted as HTML");
@@ -245,7 +232,9 @@ for (const hostId of [undefined, null, "", "unknown", "LOCAL", 1]) {
 f.setIdentity(THREAD.toUpperCase(), "local", 19, THREAD.toUpperCase());
 assert.equal(f.overlay.request().threadId, THREAD, "Validated UUIDs are normalized independently of the sidebar");
 f.setIdentity(THREAD, "local", 19, OTHER);
-assert.equal(f.overlay.request().threadId, null, "A transitioning owner must match the active composer UUID");
+assert.equal(f.overlay.request().threadId, OTHER, "The input's owner takes priority over stale above-composer metadata");
+assert.equal(f.text, "等待本機用量記錄", "Changing input owners clears the previous conversation's usage");
+assert.equal(f.overlay.update(f.sample()), false, "A late response cannot cross the composer's owner change");
 for (const id of ["../../auth.json", `local:${THREAD}`, "", "not-a-uuid"]) {
   f.setIdentity(id);
   assert.equal(f.overlay.request().threadId, null, "Malformed composer identifiers never request a local file");
@@ -257,26 +246,40 @@ const hiddenMarker = identity.document.createElement("div");
 hiddenMarker.visible = false;
 hiddenMarker.setAttribute("data-above-composer-conversation-id", THREAD);
 identity.data.markers = [hiddenMarker, identity.conversation];
-assert.equal(identity.overlay.request().threadId, THREAD, "A hidden duplicate portal does not obscure the visible conversation identity");
+assert.equal(identity.overlay.request().threadId, THREAD, "A hidden portal does not obscure the input's own conversation identity");
 hiddenMarker.setAttribute("data-above-composer-conversation-id", OTHER);
-assert.equal(identity.overlay.request().threadId, THREAD, "An inactive portal for another conversation cannot override visible metadata");
+assert.equal(identity.overlay.request().threadId, THREAD, "An inactive portal for another conversation cannot override the input owner");
 hiddenMarker.visible = true;
-assert.equal(identity.overlay.request().threadId, null, "Two visible conversation portals are ambiguous even with different UUIDs");
+assert.equal(identity.overlay.request().threadId, THREAD, "Unrelated visible portals cannot override the input owner");
 identity.data.markers = [identity.conversation, identity.conversation];
-assert.equal(identity.overlay.request().threadId, null, "Duplicate composer metadata is ambiguous even when UUIDs match");
+assert.equal(identity.overlay.request().threadId, THREAD, "Duplicate above-composer portals do not identify the input");
+identity.conversation.visible = false;
+identity.data.markers = [identity.conversation];
+assert.equal(identity.overlay.request().threadId, THREAD, "The usage strip remains mounted when an empty above-composer portal is hidden");
 identity.data.markers = [];
-assert.equal(identity.overlay.request().threadId, null, "Missing composer metadata cannot use a remembered thread");
+assert.equal(identity.overlay.request().threadId, THREAD, "Missing above-composer portals do not hide an identifiable active input");
 identity.data.markers = [identity.conversation];
 identity.data.composers = [identity.composer, identity.composer];
 assert.equal(identity.overlay.request().threadId, null, "More than one visible composer never guesses which usage to show");
 identity.data.composers = [identity.composer];
 identity.data.activePage = false;
-assert.equal(identity.overlay.request().threadId, null, "Missing active pages cannot borrow retained identity metadata");
+assert.equal(identity.overlay.request().threadId, null, "An inactive input cannot borrow retained identity metadata");
 identity.data.activePage = true;
-identity.setIdentity(THREAD, "local", 49);
+const attached = identity.setIdentity(THREAD, "local", 47);
+let inputOwner = attached.fiber;
+for (let depth = 0; depth < 12; depth++) inputOwner = inputOwner.return;
+inputOwner.memoizedProps = { conversationId: THREAD };
+identity.composer.append(identity.document.createElement("img"), identity.document.createElement("p"));
+assert.equal(identity.overlay.request().threadId, THREAD, "An input with attachments resolves its matching host owner beyond its immediate conversation props");
+assert.equal(identity.row.nextElementSibling, identity.composer, "Attachments stay inside the input below its usage strip");
+inputOwner.memoizedProps.conversationId = OTHER;
+assert.equal(identity.overlay.request().threadId, null, "A nearer input identity cannot read a different ancestor conversation's local usage");
+inputOwner.memoizedProps.conversationId = "client-new-thread";
+assert.equal(identity.overlay.request().threadId, null, "Draft inputs cannot inherit a retained conversation's usage");
+identity.setIdentity(THREAD, "local", 99);
 assert.equal(identity.overlay.request().threadId, THREAD, "The last permitted owner depth remains usable");
-identity.setIdentity(THREAD, "local", 50);
-assert.equal(identity.overlay.request().threadId, null, "The owner walk is bounded to fifty nodes");
+identity.setIdentity(THREAD, "local", 100);
+assert.equal(identity.overlay.request().threadId, null, "The owner walk is bounded to one hundred nodes");
 const cyclic = identity.setIdentity();
 cyclic.fiber.return = cyclic.fiber;
 assert.equal(identity.overlay.request().threadId, null, "Cyclic owner chains terminate without revealing stale local metrics");
@@ -300,9 +303,15 @@ assert.equal(identity.overlay.request().threadId, null, "Host and UUID must come
 const nearestRemote = identity.setIdentity(THREAD, "remote");
 nearestRemote.owner.return = { memoizedProps: { conversationId: THREAD, hostId: "local" }, return: nearestRemote.root };
 assert.equal(identity.overlay.request().threadId, null, "A nearer remote owner cannot be overridden by a local ancestor");
+for (const hostId of [undefined, null, 1]) {
+  const nearestUnknown = identity.setIdentity(THREAD, hostId);
+  nearestUnknown.owner.memoizedProps.hostId = hostId;
+  nearestUnknown.owner.return = { memoizedProps: { conversationId: THREAD, hostId: "local" }, return: nearestUnknown.root };
+  assert.equal(identity.overlay.request().threadId, null, "A nearer malformed host cannot be overridden by a local ancestor");
+}
 identity.setIdentity();
-delete identity.conversation.__reactFiber$fixture;
-identity.conversation.__unknownFiber = { memoizedProps: { conversationId: THREAD, hostId: "local" } };
+delete identity.composer.__reactFiber$fixture;
+identity.composer.__unknownFiber = { memoizedProps: { conversationId: THREAD, hostId: "local" } };
 assert.equal(identity.overlay.request().threadId, null, "Unsupported renderer metadata fails closed");
 identity.overlay.dispose();
 
@@ -313,14 +322,14 @@ const remoteBranch = alternate.setIdentity(THREAD, "remote");
 oldBranch.root.stateNode = remoteBranch.root.stateNode;
 oldBranch.fiber.alternate = remoteBranch.fiber;
 remoteBranch.fiber.alternate = oldBranch.fiber;
-alternate.conversation.__reactFiber$fixture = oldBranch.fiber;
+alternate.composer.__reactFiber$fixture = oldBranch.fiber;
 assert.equal(alternate.overlay.request().threadId, null, "A stale local Fiber cannot override the current remote alternate");
 assert.equal(alternate.row, null);
 const localBranch = alternate.setIdentity(OTHER);
 oldBranch.root.stateNode = localBranch.root.stateNode;
 oldBranch.fiber.alternate = localBranch.fiber;
 localBranch.fiber.alternate = oldBranch.fiber;
-alternate.conversation.__reactFiber$fixture = oldBranch.fiber;
+alternate.composer.__reactFiber$fixture = oldBranch.fiber;
 assert.equal(alternate.overlay.request().threadId, OTHER, "A route change follows the committed alternate's identity");
 assert.equal(alternate.text, "等待本機用量記錄");
 assert.equal(alternate.overlay.update(alternate.sample()), false, "The previous route's asynchronous reply stays rejected after alternate resolution");
@@ -372,9 +381,9 @@ replacement.append(nested.composer);
 assert.equal(nested.overlay.request().installation, beforeMove, "Reparenting the same input does not rebuild the usage subscription");
 assert.equal(nested.row.parentElement, replacement);
 assert.equal(wrapper.children.length, 0, "The old wrapper retains no detached strip");
-nested.data.home = true;
+delete nested.composer.__reactFiber$fixture;
 nested.overlay.request();
-assert.equal(nested.row, null, "Home still removes a strip mounted within a nested composer layout");
+assert.equal(nested.row, null, "Losing input identity removes a strip mounted within a nested composer layout");
 nested.overlay.dispose();
 assert.doesNotMatch(source, /ResizeObserver|MutationObserver|scrollTo|scrollIntoView|setInterval/,
   "Reservation belongs to the native layout; the overlay adds no scroll commands or measurement observers");

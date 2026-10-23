@@ -124,7 +124,7 @@
     }
     return null;
   };
-  const conversationHost = (node, id) => {
+  const conversationIdentity = node => {
     // shortcut: host identity uses renderer metadata; recheck after Codex changes its composer owner props.
     const key = Object.keys(node).find(name => name.startsWith("__reactFiber$"));
     let fiber = node[key];
@@ -133,28 +133,25 @@
     if (!current) return null;
     if (root !== current) fiber = fiber?.alternate;
     if (fiberRoot(fiber) !== current) return null;
-    for (let depth = 0; fiber && depth < 50; depth++, fiber = fiber.return) {
+    let conversationId = null;
+    for (let depth = 0; fiber && depth < 100; depth++, fiber = fiber.return) {
       const props = fiber.memoizedProps;
-      if (typeof props?.conversationId === "string" && props.conversationId.toLowerCase() === id &&
-        typeof props.hostId === "string") return props.hostId;
+      if (typeof props?.conversationId === "string") {
+        if (!conversationPattern.test(props.conversationId)) return null;
+        const id = props.conversationId.toLowerCase();
+        conversationId ??= id;
+        if (Object.hasOwn(props, "hostId")) return props.hostId === "local" && id === conversationId ? id : null;
+      }
     }
     return null;
   };
   const request = () => {
     if (disposed) return { threadId: null, visible: false };
     let changed = false;
-    const page = document.querySelector('[data-app-shell-active-page="true"]');
-    const home = page?.querySelector('[data-testid="home-icon"], [data-feature="game-source"], [class~="group/home-suggestions"]');
-    const identities = [...(page?.querySelectorAll("[data-above-composer-conversation-id]") ?? [])].filter(node =>
-      node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
-    const identity = identities.length === 1 ? identities[0] : null;
-    const conversationId = identity?.getAttribute("data-above-composer-conversation-id");
-    const conversationThread = conversationPattern.test(conversationId ?? "") ? conversationId.toLowerCase() : null;
     const composers = [...document.querySelectorAll("[data-composer-body]")].filter(node =>
       !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
     const composer = composers.length === 1 ? composers[0] : null;
-    const current = !home && composer && conversationThread && conversationHost(identity, conversationThread) === "local"
-      ? conversationThread : null;
+    const current = composer ? conversationIdentity(composer) : null;
     if (current !== threadId) {
       threadId = current;
       clearData();

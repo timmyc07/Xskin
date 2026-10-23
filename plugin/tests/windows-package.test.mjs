@@ -33,6 +33,7 @@ test("the Windows plugin archive retains marketplace discovery, contained launch
     await fs.copyFile(path.join(repository, "windows", file), path.join(runtime, file));
   }
   await fs.copyFile(process.execPath, path.join(runtime, "scripts/node.exe"));
+  await fs.copyFile(path.join(repository, "windows/scripts/start-watcher.cs"), path.join(runtime, "scripts/start-watcher.cs"));
   await fs.writeFile(path.join(fixture, ".env"), "PACKAGING_FIXTURE_SECRET=never-ship\n");
   await fs.writeFile(path.join(fixture, "docs/.env"), "PACKAGING_FIXTURE_SECRET=never-ship\n");
   await fs.writeFile(path.join(fixture, "plugin/build.mjs"), `
@@ -56,7 +57,7 @@ test("the Windows plugin archive retains marketplace discovery, contained launch
   const packaged = path.join(extracted, entries[0]);
   for (const file of ["plugin.json", "mcp.json", ".agents/plugins/marketplace.json", "skills/background-studio/SKILL.md",
     "plugin/launch-windows.ps1", "plugin/dist/server.mjs", "plugin/dist/studio.html", "plugin/dist/THIRD_PARTY_NOTICES.txt",
-    "windows/scripts/node.exe", "windows/VERSION", "docs/in-app-studio.md", "docs/windows-parity.md", "docs/usage-fields.md"]) {
+    "windows/scripts/node.exe", "windows/scripts/start-watcher.cs", "windows/VERSION", "docs/in-app-studio.md", "docs/windows-parity.md", "docs/usage-fields.md"]) {
     assert.equal((await fs.stat(path.join(packaged, file))).isFile(), true, file);
   }
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(packaged, "mcp.json"), "utf8")),

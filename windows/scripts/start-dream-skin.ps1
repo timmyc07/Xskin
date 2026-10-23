@@ -191,13 +191,10 @@ try {
       $liveIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
       if (-not $liveIdentity -or $liveIdentity.BrowserId -cne $cdpIdentity.BrowserId) { throw 'The existing Xskin connection closed before apply.' }
     }
-    $injectorArgs = @((ConvertTo-DreamSkinProcessArgument -Value $Injector), '--watch', '--port', "$Port",
-      '--browser-id', $cdpIdentity.BrowserId, '--theme-dir',
-      (ConvertTo-DreamSkinProcessArgument -Value $themePaths.Active), '--pause-file',
-      (ConvertTo-DreamSkinProcessArgument -Value $themePaths.PauseFile))
-    $daemon = Start-Process -FilePath $node.Path -ArgumentList $injectorArgs -WindowStyle Hidden -PassThru `
-      -WorkingDirectory $StateRoot `
-      -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
+    $injectorArgs = @($Injector, '--watch', '--port', "$Port", '--browser-id', $cdpIdentity.BrowserId,
+      '--theme-dir', $themePaths.Active, '--pause-file', $themePaths.PauseFile)
+    $daemon = Start-DreamSkinWatcher -NodePath $node.Path -Arguments $injectorArgs `
+      -WorkingDirectory $StateRoot -StdoutPath $StdoutPath -StderrPath $StderrPath
     Start-Sleep -Milliseconds 500
     if ($daemon.HasExited) { throw "The injector exited during startup. See $StderrPath" }
 
