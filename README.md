@@ -17,15 +17,15 @@ Import, preview, and apply inside Codex on macOS or from the native macOS and Fl
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
-> **macOS / plugin 1.9.4 · Windows 1.8.5.** Open **More → Xskin** to manage backgrounds inside Codex on macOS. This update keeps previews and backgrounds working after Apply, fits settings above the input and uses a subtle scrollbar. The reported video workflow is confirmed on the user’s Mac. Windows keeps its managed shortcut without automatic reopen. See [test results and remaining limits](docs/in-app-studio.md).
-
-> **macOS 1.8.5 / Windows 1.8.4** retain the latest plan reported in each conversation and distinguish unconfirmed cache writes from measured counts. Hidden pages suspend usage instead of reporting a false disconnection. No account access or credentials are added. [Usage fields, source evidence and validation](docs/usage-fields.md).
+> **macOS / plugin 1.9.4 · Windows 1.8.5.** Manage backgrounds inside Codex on macOS through **More → Xskin**, or use the standalone app on either platform. The embedded panel is macOS-only; Windows uses **Codex (Xskin)** shortcuts without automatic reopen. See [installation and validation](docs/in-app-studio.md).
 
 [Windows guide](windows/README.md) · [macOS guide](docs/background-panel.md) · [Windows performance measurements](windows/references/performance.md)
 
 </div>
 
-![Xskin native macOS application](docs/images/xskin.png)
+![Codex Home on macOS with an applied full-window MP4 background and translucent input controls](docs/images/xskin-codex-video-home.png)
+
+*An applied video background on Codex Home. The screenshots in this README were provided by the maintainer and show macOS; they are interface examples, not bundled wallpapers.*
 
 ## Your media. Your atmosphere.
 
@@ -33,16 +33,33 @@ A quiet photograph. A moving landscape. A workspace that feels a little more lik
 
 | Choose your scene | See it before you apply | Feel at home | Keep your setup |
 | --- | --- | --- | --- |
-| Import local images and MP4s, including original 4K video. | Check the composition, resolution, and file size before applying. | Use system file selection, drag and drop, and playback controls on either platform. | Keep your background, mask depth, pending import, and language preference locally. |
+| Import local images and MP4s, including original 4K video. | Check the composition, filename, media type, and file size before applying. | Choose files and control video previews inside Codex on macOS; standalone apps also support drag and drop. | Keep your background, mask depth, pending import, and language preference locally. |
+
+## Preview and tune inside Codex
+
+Open **More → Xskin** on macOS to choose media, preview it, and manage the saved background in one panel.
+
+| Preview and apply | Background settings |
+| --- | --- |
+| ![Xskin 1.9.4 inside Codex showing an MP4 preview, filename, file size, and Apply background button](docs/images/xskin-plugin-preview.png) | ![Xskin background settings showing 62 percent mask depth, automatic apply, Pause background, and the language selector](docs/images/xskin-plugin-settings.png) |
+| Select **Choose image or video**, play the paused preview when needed, then select **Apply background**. | Adjust **Mask depth**, enable **Apply when official Codex opens**, pause the background, or choose your interface language. |
+
+The panel shares saved media and preferences with the standalone macOS app. Choosing a file only prepares a preview; it replaces the current background after a successful Apply. The applied background also stays visible behind the Xskin panel.
+
+![An alternate full-window background on Codex Home with the familiar project, files, and plugins controls](docs/images/xskin-codex-alternate-home.png)
+
+*A different background style with the same Codex workspace controls.*
 
 ## From media to workspace in three steps
 
-1. **Import** an image or MP4 with the file picker, or drag one into Xskin.
-2. **Preview** the composition and media details. Video starts paused; use the native controls to play it. Importing does not replace the current background.
+1. **Import** an image or MP4 with the file picker. The standalone macOS and Windows apps also accept drag and drop.
+2. **Preview** the composition, filename, media type, and file size. Video starts paused; use the player controls to play it. Importing does not replace the current background.
 3. **Apply** when you are ready. Xskin checks the result, restores the previous configuration if applying fails, and retains the import for retry.
 
 - **Windows:** extract the complete ZIP and open **xskin.exe**. Keep the accompanying DLLs, `data`, `scripts` and `assets` together. Flutter and Node.js are bundled.
 - **macOS:** install the [Codex plugin](docs/in-app-studio.md#install-or-update-locally), then open **More → Xskin** inside Codex. The standalone **Xskin.app** remains available; move it to Applications to use it. Packaged users need no separate Node.js, package manager or Xcode.
+
+If the macOS panel reports **No background connection is available**, enable **Apply when official Codex opens**, fully quit Codex, then reopen the official app. That fresh launch gracefully reopens once to establish the background connection. Return to Xskin and apply your pending selection. Opening the panel alone does not enable automatic startup. See [first-use connection requirements](docs/in-app-studio.md#applying-without-interrupting-the-current-app).
 
 > The macOS app uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Download from this project's Release page and review the [user guide](docs/background-panel.md).
 
@@ -74,28 +91,15 @@ Windows 1.8.5 uses **Codex (Xskin)** Desktop/Start shortcuts and never automatic
 
 ### Leave room around the input
 
-The conversation usage strip sits **above the input**, wraps in narrow windows and stays hidden on Home. The input and native project/files/plugins toolbar share translucent surfaces that reveal your background while keeping the controls clear. Usage remains tied to the current conversation, and the fan stops when its task finishes or is interrupted. The plan is the latest report in that conversation, not live account status. Missing plans show “not provided”; source-reported zero cache writes show “unconfirmed” with a source-value tooltip. [Field meanings and limits](docs/usage-fields.md).
+![Conversation usage strip above the translucent Codex input, showing tokens, cached tokens, context and quota remaining, plan, recent cache rate, and unconfirmed cache writes](docs/images/xskin-conversation-usage.png)
+
+The conversation usage strip sits **above the input**, wraps in narrow windows and stays hidden on Home. It shows total and cached tokens, context remaining, reported quota and plan, and the latest input's cache hit rate when available. The input and native project/files/plugins toolbar share translucent surfaces that reveal your background while keeping the controls clear. The fan stops when the task finishes or is interrupted.
+
+*The screenshot's numbers are examples from one conversation. The plan is the latest report in that conversation, not live account status. Missing plans show “not provided”; source-reported zero cache writes show “unconfirmed”. Missing measurements are never filled with zero.* See [field meanings, sources, and limits](docs/usage-fields.md).
 
 ### Keep streaming updates light
 
-The long-history reader now avoids rereading its already-parsed tail. In the 3,180,556-byte regression fixture, initial reads fell from 4,229,132 to 3,180,686 bytes (24.8% less I/O), while keeping each read at most 1 MiB. This measures reader I/O, not total CPU or GPU usage.
-
-Windows 1.5.2 avoids rescanning the whole page for ordinary message updates. In a controlled 100-update test, route scans fell from **104 to 1** while the original **3840×2160** video kept playing. This measures background-maintenance work, not a 99% reduction in total CPU or GPU use. See the [benchmark and limits](windows/references/performance.md).
-
-**Windows 1.5.3** streams full MP4 integrity checks through a 1 MiB buffer and reuses the video digest. The original video bytes, 4K resolution and frame rate are preserved. Three fresh-process runs of 30 theme loads produced these medians:
-
-| Theme-load measurement | Windows 1.5.2 | Windows 1.5.3 | Reduction |
-| --- | ---: | ---: | ---: |
-| Process CPU time | 1,344 ms | 843 ms | 37.3% |
-| Peak process memory (RSS) | 267.27 MiB | 146.73 MiB | 45.1% |
-
-These are **load-time** improvements included since **Windows 1.5.3**. Lower GPU use and sustained playback memory have not been established. See the [resource report](windows/references/performance.md) for playback measurements, reproduction steps and limits.
-
-**Windows 1.5.5** fixes black panel previews when replacing one video with another and adopts macOS 1.6.1 native Work detection and earlier guarded injection. Original video quality and frame rate are retained.
-
-**Windows 1.5.4** includes video backgrounds in the main-window **Your dot** conversation, embedded ChatGPT/Work and Dot floating control cards. The conversation reveals the existing original video and keeps native message bubbles without duplicate full-row panels. Verification rejects opaque inner messaging layers. Work follows native container visibility and pauses the covered Codex player. Floating Dot cards share one player clipped to their rounded visible bounds; the surrounding desktop stays transparent.
-
-Live 60-second tests preserved **3840×2160**, playback rate **1**, approximately **30 fps** and **zero additional dropped frames** in both the main-window Dot conversation and floating cards. These fixes are also included in the **1.6.0 Windows ZIP**. Sustained GPU/private-memory savings remain unproven; the poster-release experiment was discarded.
+The usage reader processes new history incrementally, and Windows avoids full-page route scans for ordinary message updates. MP4 integrity checks use bounded buffers while retaining the original video. Measured reader I/O, theme-load CPU/memory, and playback results are documented in the [usage report](docs/usage-fields.md#validation) and [Windows performance report](windows/references/performance.md). These measurements do not establish lower sustained GPU use or playback memory.
 
 ## Supported media
 
@@ -122,7 +126,8 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | Operating system | Windows 11 x64 (tested on 24H2), or macOS 13+ |
 | Processor | Windows x64 or Apple Silicon; no Intel Mac prebuilt binary |
 | Required software | Official Codex Desktop; Windows uses the registered Microsoft Store `OpenAI.Codex` package |
-| Installation | Extract the complete Windows ZIP, or move Xskin.app to Applications on macOS |
+| Installation | macOS: install the Codex plugin, or move Xskin.app to Applications. Windows: extract the complete ZIP. |
+| In-Codex panel | macOS local execution only; Windows uses the standalone app |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
 - Releases are platform-specific: **windows-v1.8.5** for Windows x64 and **v1.9.4** for macOS arm64/plugin. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
