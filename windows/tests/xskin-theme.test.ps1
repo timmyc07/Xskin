@@ -4,6 +4,59 @@ $root = Split-Path -Parent $PSScriptRoot
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ('xskin-tests-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temporary | Out-Null
 try {
+  & {
+    $probeParent = Join-Path $temporary 'path-inspection'
+    $probeLeaf = Join-Path $probeParent 'autostart.json'
+    New-Item -ItemType Directory -Path $probeParent | Out-Null
+    function Get-Item {
+      [CmdletBinding()] param([string]$LiteralPath, [switch]$Force)
+      [void]$visited.Add($LiteralPath)
+      if ($LiteralPath -ceq $probeLeaf) {
+        if ($mode -eq 'vanished') {
+          Microsoft.PowerShell.Management\Remove-Item -LiteralPath $LiteralPath -Force
+        } elseif ($mode -eq 'denied') {
+          throw [UnauthorizedAccessException]::new('fixture access denied')
+        } elseif ($mode -eq 'unknown') {
+          throw [IO.IOException]::new('fixture unknown I/O failure')
+        } else {
+          throw [Management.Automation.ErrorRecord]::new([IO.IOException]::new('fixture vanished during enumeration'),
+            'ItemNotFound,Microsoft.PowerShell.Commands.GetItemCommand', [Management.Automation.ErrorCategory]::ObjectNotFound, $LiteralPath)
+        }
+      }
+      if ($LiteralPath -ceq $probeParent -and $mode -eq 'parent-reparse') {
+        return [pscustomobject]@{ Attributes = [IO.FileAttributes]::ReparsePoint }
+      }
+      Microsoft.PowerShell.Management\Get-Item -LiteralPath $LiteralPath -Force:$Force -ErrorAction Stop
+    }
+    foreach ($mode in @('vanished', 'item-not-found', 'parent-reparse', 'denied', 'unknown')) {
+      [IO.File]::WriteAllText($probeLeaf, '{}')
+      $visited = [Collections.Generic.List[string]]::new()
+      $failure = $null
+      try { Assert-DreamSkinNoReparseComponents -Path $probeLeaf } catch { $failure = $_ }
+      if ($mode -in @('vanished', 'item-not-found')) {
+        if ($failure) { throw $failure }
+        if (-not $visited.Contains($probeParent) -or -not $visited.Contains([IO.Path]::GetPathRoot($probeLeaf))) {
+          throw 'A disappearing leaf skipped its ancestor checks.'
+        }
+      } elseif (-not $failure -or
+        ($mode -eq 'parent-reparse' -and $failure.Exception.Message -notlike '*junction or symbolic link*') -or
+        ($mode -eq 'denied' -and $failure.Exception -isnot [UnauthorizedAccessException]) -or
+        ($mode -eq 'unknown' -and $failure.Exception -isnot [IO.IOException])) {
+        throw "Path inspection did not fail closed for $mode."
+      }
+    }
+  }
+  $junctionTarget = Join-Path $temporary 'junction-target'
+  $junction = Join-Path $temporary 'dangling-junction'
+  New-Item -ItemType Directory -Path $junctionTarget | Out-Null
+  New-Item -ItemType Junction -Path $junction -Target $junctionTarget | Out-Null
+  [IO.Directory]::Delete($junctionTarget)
+  $nativeJunction = Get-Item -LiteralPath $junction -Force -ErrorAction SilentlyContinue
+  if ($nativeJunction -and ($nativeJunction.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+    try { Assert-DreamSkinNoReparseComponents -Path $junction; throw 'A dangling junction was accepted.' }
+    catch { if ($_.Exception.Message -notlike '*junction or symbolic link*') { throw } }
+  }
+  [IO.Directory]::Delete($junction)
   $stateRoot = Join-Path $temporary 'state'
   $paths = Initialize-DreamSkinThemeStore -SkillRoot $root -StateRoot $stateRoot
   $source = Join-Path $temporary 'source.mp4'
@@ -81,4 +134,4 @@ try {
   if (-not $fullPath.StartsWith([System.IO.Path]::GetTempPath(), [System.StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected test cleanup path.' }
   Remove-Item -LiteralPath $fullPath -Recurse -Force
 }
-Write-Host 'PASS: imports preserve active media, apply rolls back, and saved video themes round-trip.'
+Write-Host 'PASS: disappearing paths retain strict ancestor/reparse/access checks, imports preserve active media, apply rolls back, and saved video themes round-trip.'

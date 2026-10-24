@@ -10,11 +10,17 @@ function Assert-DreamSkinNoReparseComponents {
   $root = [System.IO.Path]::GetPathRoot($fullPath)
   $current = $fullPath
   while ($true) {
-    if (Test-Path -LiteralPath $current) {
+    $item = $null
+    try {
       $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
-      if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw "Managed Dream Skin path contains a junction or symbolic link: $current"
-      }
+    } catch {
+      # A state file can disappear during inspection; still check every parent.
+      if ($_.CategoryInfo.Category -ne [Management.Automation.ErrorCategory]::ObjectNotFound -or
+        $_.FullyQualifiedErrorId -notin @('PathNotFound,Microsoft.PowerShell.Commands.GetItemCommand',
+          'ItemNotFound,Microsoft.PowerShell.Commands.GetItemCommand')) { throw }
+    }
+    if ($null -ne $item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+      throw "Managed Dream Skin path contains a junction or symbolic link: $current"
     }
     $currentNormalized = $current.TrimEnd('\')
     $rootNormalized = $root.TrimEnd('\')
