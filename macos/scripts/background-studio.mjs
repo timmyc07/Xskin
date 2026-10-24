@@ -145,7 +145,7 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.9.4",
+    version: "1.9.5",
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,
@@ -254,7 +254,7 @@ async function importMedia(file) {
 }
 
 async function applySelection(id, existingOnly = false) {
-  const startArgs = existingOnly ? ["--existing-only"] : [];
+  const startArgs = existingOnly ? ["--existing-only", "--reuse-watcher"] : [];
   const selected = await selectedMedia();
   if (!selected || id !== selected.public.id) throw fail("select_media");
   await loadTheme(selected.directory);
@@ -304,7 +304,7 @@ async function applySelection(id, existingOnly = false) {
 }
 
 async function applyMask(maskOpacity, existingOnly = false) {
-  const startArgs = existingOnly ? ["--existing-only"] : [];
+  const startArgs = existingOnly ? ["--existing-only", "--reuse-watcher"] : [];
   const previous = (await loadTheme(themeRoot)).raw;
   const configPath = path.join(themeRoot, "theme.json");
   let published = false;

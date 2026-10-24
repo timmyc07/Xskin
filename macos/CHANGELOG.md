@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.5 — 2026-10-24
+
+- Keep the existing background injector running during embedded Apply and mask updates. Reuse its hot-apply path, and retain it after a failed verification so transaction rollback can restore the prior theme without disconnecting the usage overlay.
+
 ## 1.9.4 — 2026-10-23
 
 - Fix completed-preview loss after Apply changes media capabilities. Promote only the exact confirmed selection and validated original; share that Blob between preview/background without rereading it through the expired pending capability. Revalidate backend media revision and retain bounded reads, isolation and recovery.

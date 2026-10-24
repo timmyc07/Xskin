@@ -106,7 +106,7 @@ esac
   await fs.writeFile(configPath, JSON.stringify(initial));
   await assert.rejects(loadTheme(theme, "../escape.json"), /Theme config must be a filename/u);
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.9.4");
+  assert.equal(initialStatus.version, "1.9.5");
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);
@@ -393,7 +393,7 @@ esac
   assert.equal(embeddedApplied.value.selection, null);
   assert.equal(embeddedApplied.value.autostart, false, "Embedded apply never enables automatic startup");
   assert.deepEqual((await fs.readFile(path.join(home, "start-calls"), "utf8")).trim().split("\n"),
-    Array(6).fill("--existing-only"), "Embedded apply, mask and both rollback paths may only attach to an existing Codex connection");
+    Array(6).fill("--existing-only --reuse-watcher"), "Embedded apply, mask and both rollback paths reuse the existing Codex connection");
   console.log("PASS: isolated native import, local preview paths, explicit apply, original MP4 bytes, mask validation/persistence/rollback, pending persistence, killed apply/mask recovery, foreign-journal protection, lock exclusion, autostart status, and structured English localization codes without child output leaks.");
 } finally {
   if (blocked && blocked.exitCode === null) {

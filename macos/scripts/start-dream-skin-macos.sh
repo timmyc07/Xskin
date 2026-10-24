@@ -17,6 +17,8 @@ PORT_EXPLICIT="false"
 FOREGROUND_INJECTOR="false"
 DIRECT_LAUNCH="false"
 EXISTING_ONLY="false"
+REUSE_WATCHER="false"
+HOT_REUSED_WATCHER="false"
 STARTUP_PID=""
 STARTUP_STARTED_AT=""
 AUTOMATIC_HANDOFF="false"
@@ -32,10 +34,12 @@ while [ "$#" -gt 0 ]; do
     --foreground-injector) FOREGROUND_INJECTOR="true"; shift ;;
     --direct-launch) DIRECT_LAUNCH="true"; shift ;;
     --existing-only) EXISTING_ONLY="true"; shift ;;
+    --reuse-watcher) REUSE_WATCHER="true"; shift ;;
     --restart-new-launch) STARTUP_PID="${2:-}"; STARTUP_STARTED_AT="${3:-}"; AUTOMATIC_HANDOFF="true"; DIRECT_LAUNCH="true"; shift 3 ;;
     *) fail "Unknown start argument: $1" ;;
   esac
 done
+[ "$REUSE_WATCHER" != "true" ] || [ "$EXISTING_ONLY" = "true" ] || fail "--reuse-watcher requires --existing-only."
 case "$PORT" in ''|*[!0-9]*) fail "Invalid port: $PORT" ;; esac
 [ "$PORT" -ge 1024 ] && [ "$PORT" -le 65535 ] || fail "Port must be between 1024 and 65535."
 discover_codex_app
@@ -60,6 +64,12 @@ if [ "$EXISTING_ONLY" = "true" ] && [ "$DEBUG_READY" != "true" ]; then
   fail "No existing verified Codex connection is available. Codex was left unopened and unchanged."
 fi
 
+if [ "$REUSE_WATCHER" = "true" ] && [ "$DEBUG_READY" = "true" ] && current_injector_is_running "$PORT"; then
+  HOT_REUSED_WATCHER="true"
+  hot_reapply_theme "$PORT" 8000 || fail "The existing background watcher could not apply the updated theme."
+  INJECTOR_PID="$(state_field injectorPid)"
+fi
+
 if [ "$AUTOMATIC_HANDOFF" = true ]; then
   . "$SCRIPT_DIR/autostart-dream-skin-macos.sh"
   check_autostart_agent
@@ -79,12 +89,12 @@ elif codex_is_running && [ "$DEBUG_READY" = "false" ]; then
   fail "Codex is already open without a verified Xskin connection. Fully quit Codex, then open Codex (Xskin). Your app was left running."
 fi
 
-if [ -f "$STATE_PATH" ]; then
+if [ "$HOT_REUSED_WATCHER" != "true" ] && [ -f "$STATE_PATH" ]; then
   stop_recorded_injector
   /bin/rm -f "$STATE_PATH"
 fi
 
-INJECTOR_PID=""
+if [ "$HOT_REUSED_WATCHER" != "true" ]; then INJECTOR_PID=""; fi
 if [ "$DEBUG_READY" = "false" ]; then
   [ "$AUTOMATIC_HANDOFF" = true ] || PORT="$(select_available_port "$PORT")"
   printf 'Launching Codex with skin debug port %s…\n' "$PORT" >&2
@@ -133,6 +143,9 @@ if [ "$verify_code" -ne 0 ]; then
   fi
 fi
 if [ "$verify_code" -ne 0 ]; then
+  if [ "$HOT_REUSED_WATCHER" = "true" ]; then
+    fail "Injection verification failed. The existing watcher was kept for transaction recovery. See $INJECTOR_ERROR_LOG"
+  fi
   # The watcher is normally launched directly (launchctl is only a fallback),
   # so a successful `launchctl remove` does not prove that the recorded PID
   # stopped.  Verify the PID/path/start-time tuple before deleting state; if
