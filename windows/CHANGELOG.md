@@ -3,6 +3,7 @@
 ## 1.9.6 — 2026-10-24
 
 - Publish Windows standalone and Codex plugin packages under `windows-v1.9.6`, each with a matching `.zip.sha256` file. Update download links and the copyable AI installation prompts.
+- Keep historical changelog links inside the portable package by rewriting their documentation paths alongside the packaged README files.
 - Port macOS 1.9.5/1.9.6 fixes: reuse the verified existing background watcher during embedded Apply, mask changes and transaction rollback. Keep it running after failed verification so recovery retains the usage connection.
 - Reuse a matching managed-engine watcher when the embedded plugin runs from a different directory. Require exact process identity and matching executable/payload hashes; replace stale engines, including same-version changes.
 - Defer video decoding and clipping checks only for a hidden, intentionally suspended Dot surface. Continue verifying visible playback and the selected theme, stylesheet and mask for all surfaces; a hidden Dot no longer blocks Apply or runtime updates.

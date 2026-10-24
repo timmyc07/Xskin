@@ -25,7 +25,7 @@ foreach ($source in Get-ChildItem -LiteralPath (Join-Path $repository 'docs') -F
   })
   Write-DreamSkinUtf8FileAtomically -Path (Join-Path $destination $source.Name) -Content $content
 }
-foreach ($name in @('README.md', 'README.en.md')) {
+foreach ($name in @('README.md', 'README.en.md', 'CHANGELOG.md')) {
   $file = Join-Path $PackageRoot $name
   if (Test-Path -LiteralPath $file -PathType Leaf) {
     $content = (Read-DreamSkinUtf8File -Path $file).Replace('../docs/', 'docs/')
