@@ -12,7 +12,7 @@ Use **Refresh** to reload current settings. If an interrupted change needs recov
 
 ## Install or update locally
 
-Download the [macOS plugin 1.9.4 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.4/xskin-plugin-v1.9.4.zip), extract it and retain the complete folder. The compiled server/UI are included; users need neither npm nor Xcode. The [macOS release page](https://github.com/timmyc07/Xskin/releases/tag/v1.9.4) also provides the standalone app and SHA-256 files.
+Download the [macOS plugin 1.9.6 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/xskin-plugin-v1.9.6.zip), extract it and retain the complete folder. The compiled server/UI are included; users need neither npm nor Xcode. The [macOS release page](https://github.com/timmyc07/Xskin/releases/tag/v1.9.6) also provides the standalone app and SHA-256 files.
 
 ```bash
 codex plugin marketplace add /absolute/path/to/Xskin

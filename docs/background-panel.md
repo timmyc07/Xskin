@@ -1,16 +1,16 @@
 # Xskin user guide
 
-**macOS/plugin 1.9.4** provides an in-Codex panel at **More → Xskin**. It preserves completed original-media previews through Apply, respects host height/maxHeight and uses a thin transparent scrollbar. Working Preview remains full-width at 16:9; unavailable players become a compact in-stage message. After the earlier 1.9.3 post-Apply failures, the user confirmed the same video now keeps its preview, background and bottom controls working in actual-host 1.9.4. All 67 plugin tests, the full macOS runner, 204 isolated layouts / 720 scroll positions and functional-source CI passed. Physical cold starts, exhaustive routes and sustained playback remain pending. See [installation and evidence](in-app-studio.md). The standalone native app remains available below; Windows uses its separate 1.8.5 package.
+**macOS/plugin 1.9.6** provides an in-Codex panel at **More → Xskin**. It fixes Apply remaining on Working and runtime upgrades reverting because of a hidden, intentionally suspended Dot video. Embedded reapplication retains the existing background watcher. The user reports the issue is resolved; the full macOS runner, 76 plugin tests and local backend/main/Dot verification pass. Native panel clicking, physical cold starts and sustained playback remain unverified. See [installation and evidence](in-app-studio.md). The standalone native app remains available below; Windows uses its separate 1.9.4 package.
 
 Xskin is a standalone native macOS app. Import local images or MP4s, inspect a native preview, and apply them as Codex backgrounds from one focused window.
 
 ## Install and open
 
-[Download Xskin 1.9.4 for macOS](https://github.com/timmyc07/Xskin/releases/download/v1.9.4/Xskin-v1.9.4-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.8.5 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.8.5). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
+[Download Xskin 1.9.6 for macOS](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/Xskin-v1.9.6-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.9.4 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
 
 The release uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Confirm that the download came from this project's Release page before opening it.
 
-For the embedded panel, download the [macOS plugin 1.9.4 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.4/xskin-plugin-v1.9.4.zip), retain the complete folder and run these commands inside it:
+For the embedded panel, download the [macOS plugin 1.9.6 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/xskin-plugin-v1.9.6.zip), retain the complete folder and run these commands inside it:
 
 ```sh
 codex plugin marketplace add .

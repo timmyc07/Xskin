@@ -5,6 +5,7 @@
 - Fix Apply remaining on Working and runtime upgrades rolling back when a hidden Dot window intentionally suspends its video. Defer decoding and clipping checks only for that hidden, suspended surface; visible windows still require playback, and theme, stylesheet and mask checks remain enforced.
 - Cover hidden Dot posters and empty layouts, prepared launches, and watcher preservation after successful and failed embedded reapplication.
 - Validation: full macOS runner and 76 plugin tests pass; two Windows-only checks are skipped on macOS. Local runtime upgrade and the pending video Apply completed, saved-mask reapplication retained the watcher, and live main/Dot verification passed with healthy usage delivery. Native panel clicking, physical cold starts and sustained playback remain unverified.
+- The user reports the issue is resolved. Functional source `cfdbed3` passed [CI](https://github.com/timmyc07/Xskin/actions/runs/40058040924) and [Windows Flutter/package CI](https://github.com/timmyc07/Xskin/actions/runs/40058040918); final release checks and archive hashes are recorded in the published release.
 
 ## 1.9.5 — 2026-10-24
 
