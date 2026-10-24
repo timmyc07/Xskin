@@ -152,7 +152,7 @@ try {
       Write-XskinSettings -StateRoot $StateRoot -Values @{ pending = [IO.Path]::GetFileName($candidate.Directory) }
       Invoke-XskinApply -ThemeDirectory $candidate.Directory -StateRoot $StateRoot -Apply {
         if ($Embedded) {
-          & (Join-Path $PSScriptRoot 'start-dream-skin.ps1') -ExistingOnly -Resume -StateRoot $StateRoot
+          & (Join-Path $PSScriptRoot 'start-dream-skin.ps1') -ExistingOnly -ReuseWatcher -Resume -StateRoot $StateRoot
         } else {
           $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
           & $runtime.Start -Resume -StateRoot $StateRoot
@@ -169,7 +169,7 @@ try {
       $live = Test-XskinApplied -StateRoot $StateRoot
       Set-XskinMask -Opacity $request.maskOpacity -StateRoot $StateRoot -Apply {
         if ($Embedded) {
-          & (Join-Path $PSScriptRoot 'start-dream-skin.ps1') -ExistingOnly -Resume -StateRoot $StateRoot
+          & (Join-Path $PSScriptRoot 'start-dream-skin.ps1') -ExistingOnly -ReuseWatcher -Resume -StateRoot $StateRoot
         } elseif ($live) {
           & (Join-Path $PSScriptRoot 'verify-dream-skin.ps1') -StateRoot $StateRoot
           if ($LASTEXITCODE -ne 0) { throw 'The overlay did not verify. Previous overlay restored.' }

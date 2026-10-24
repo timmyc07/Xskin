@@ -3,6 +3,7 @@ param(
   [int]$Port = 9335,
   [switch]$Resume,
   [switch]$ExistingOnly,
+  [switch]$ReuseWatcher,
   [int]$NewLaunchPid,
   [string]$NewLaunchStartedAt,
   [string]$ProfilePath,
@@ -21,6 +22,7 @@ $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 $operationLock = Enter-DreamSkinOperationLock -TimeoutMilliseconds $(if ($NewLaunchPid) { 2000 } else { 60000 })
 $automaticClosed = $false
 try {
+  if ($ReuseWatcher -and -not $ExistingOnly) { throw '-ReuseWatcher requires -ExistingOnly.' }
   Assert-DreamSkinPort -Port $Port
   if ($ProfilePath) { $ProfilePath = [System.IO.Path]::GetFullPath($ProfilePath) }
   $node = Get-DreamSkinNodeRuntime
@@ -143,11 +145,57 @@ try {
     Start-Sleep -Milliseconds 400
     $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
   }
-  if (-not $Resume -and $previousState -and $previousState.browserId -ceq $cdpIdentity.BrowserId -and
+  $watcherPathMatches = $previousState -and (Test-DreamSkinPathEqual -Left $previousState.injectorPath -Right $Injector)
+  $watcherNodeMatches = $previousState -and (Test-DreamSkinPathEqual -Left $previousState.nodePath -Right $node.Path)
+  if ($ReuseWatcher -and $previousState -and -not $watcherPathMatches) {
+    $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $StateRoot
+    if ((Test-DreamSkinPathEqual -Left $previousState.injectorPath -Right (Join-Path $engine.Scripts 'injector.mjs')) -and
+      ($watcherNodeMatches -or (Test-DreamSkinPathEqual -Left $previousState.nodePath -Right (Join-Path $engine.Scripts 'node.exe')))) {
+      $watcherPathMatches = $true
+      $watcherNodeMatches = $true
+      foreach ($relative in @('VERSION', 'scripts\injector.mjs', 'scripts\image-metadata.mjs', 'scripts\video-file.mjs',
+        'scripts\token-usage.mjs', 'assets\dream-skin.css', 'assets\renderer-inject.js', 'assets\token-overlay.js')) {
+        $sourceFile = Join-Path (Split-Path -Parent $PSScriptRoot) $relative
+        $engineFile = Join-Path $engine.Root $relative
+        Assert-DreamSkinNoReparseComponents -Path $sourceFile
+        Assert-DreamSkinNoReparseComponents -Path $engineFile
+        if (-not (Test-Path -LiteralPath $engineFile -PathType Leaf) -or
+          (Get-FileHash -Algorithm SHA256 -LiteralPath $sourceFile).Hash -cne
+          (Get-FileHash -Algorithm SHA256 -LiteralPath $engineFile).Hash) {
+          $watcherPathMatches = $false
+          break
+        }
+      }
+    }
+  }
+  $matchingWatcher = $previousState -and $previousState.browserId -ceq $cdpIdentity.BrowserId -and
     $previousState.port -eq $Port -and
-    (Test-DreamSkinPathEqual -Left $previousState.injectorPath -Right $Injector) -and
+    $watcherPathMatches -and
     (Test-DreamSkinPathEqual -Left $previousState.themeDir -Right $themePaths.Active) -and
-    (Stop-DreamSkinRecordedInjector -State $previousState -CheckOnly)) {
+    (Stop-DreamSkinRecordedInjector -State $previousState -CheckOnly)
+  if ($ReuseWatcher -and $matchingWatcher -and $previousState.injectorStartedAt -and $watcherNodeMatches) {
+    Set-DreamSkinPaused -Paused $false -StateRoot $StateRoot | Out-Null
+    try {
+      $reapply = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+        $Injector, '--once', '--port', "$Port", '--theme-dir', $themePaths.Active,
+        '--browser-id', $cdpIdentity.BrowserId, '--timeout-ms', '8000')
+      if ($reapply.ExitCode -ne 0) { throw 'The existing background watcher could not apply the updated theme.' }
+      $liveIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
+      if (-not $liveIdentity -or $liveIdentity.BrowserId -cne $cdpIdentity.BrowserId -or
+        -not (Stop-DreamSkinRecordedInjector -State $previousState -CheckOnly)) { throw 'The existing Xskin connection closed during apply.' }
+      $verify = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+        $Injector, '--verify', '--port', "$Port", '--theme-dir', $themePaths.Active,
+        '--browser-id', $cdpIdentity.BrowserId, '--timeout-ms', '30000', '--prepare-first-frame')
+      Write-DreamSkinUtf8FileAtomically -Path $VerifyPath -Content (($verify.Output -join "`r`n") + "`r`n")
+      if ($verify.ExitCode -ne 0) { throw "Dream Skin verification failed. The existing watcher was kept for transaction recovery. See $VerifyPath" }
+    } catch {
+      if ($pauseWasSet) { Set-DreamSkinPaused -Paused $true -StateRoot $StateRoot | Out-Null }
+      throw
+    }
+    Write-Host 'Xskin reapplied the background using its existing injector.'
+    return
+  }
+  if (-not $Resume -and $matchingWatcher) {
     if (-not $ExistingOnly) { $null = Start-DreamSkinCodex -Codex $codex }
     Write-Host 'Xskin is already active; reusing its injector.'
     return

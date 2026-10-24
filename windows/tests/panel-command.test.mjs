@@ -173,12 +173,13 @@ function Install-DreamSkinRuntimeEngine {
     "function Install-DreamSkinRuntimeEngine { param([string]$SkillRoot, [string]$StateRoot) return @{ Start = (Join-Path $PSScriptRoot 'start-dream-skin.ps1') } }\n");
   for (const action of ["start", "verify", "restore"]) {
     await fs.writeFile(path.join(runtimeRoot, `scripts/${action}-dream-skin.ps1`), `
-param([switch]$PromptRestart, [switch]$Resume, [switch]$ExistingOnly, [string]$StateRoot)
+param([switch]$PromptRestart, [switch]$Resume, [switch]$ExistingOnly, [switch]$ReuseWatcher, [string]$StateRoot)
 if ([IO.Path]::GetFullPath($StateRoot) -ine '${stateRoot.replaceAll("'", "''")}') {
   throw ('The panel did not forward its custom state root: actual=' + $StateRoot + '; expected=' + '${stateRoot.replaceAll("'", "''")}')
 }
 [IO.File]::WriteAllText((Join-Path $StateRoot '${action}-root.txt'), $StateRoot)
 if ($ExistingOnly) { [IO.File]::AppendAllText((Join-Path $StateRoot 'existing-only.txt'), '${action}\n') }
+if ($ReuseWatcher) { [IO.File]::AppendAllText((Join-Path $StateRoot 'reuse-watcher.txt'), '${action}\n') }
 $global:LASTEXITCODE = 0
 `);
   }
@@ -201,6 +202,7 @@ $global:LASTEXITCODE = 0
   assert.equal(embeddedApplied.state.autostart, false);
   assert.equal((await run('resume', {}, true)).code, 0);
   assert.equal(await fs.readFile(path.join(stateRoot, 'existing-only.txt'), 'utf8'), 'start\nstart\nstart\n');
+  assert.equal(await fs.readFile(path.join(stateRoot, 'reuse-watcher.txt'), 'utf8'), 'start\nstart\n');
   assert.equal((await run('recover', {}, true)).recovered, false);
   const startScript = path.join(runtimeRoot, 'scripts/start-dream-skin.ps1');
   const originalStart = await fs.readFile(startScript);
@@ -209,10 +211,33 @@ $global:LASTEXITCODE = 0
     const before = (await run('status', {}, true)).state;
     const activeMetadata = path.join(stateRoot, 'active-theme/theme.json');
     const previous = await fs.readFile(activeMetadata);
+    const calls = path.join(stateRoot, 'rollback-calls.txt');
+    await fs.rm(calls, { force: true });
+    await fs.writeFile(startScript, `
+param([switch]$ExistingOnly, [switch]$ReuseWatcher, [switch]$Resume, [string]$StateRoot)
+if (-not $ExistingOnly -or -not $ReuseWatcher) { throw 'Embedded apply and rollback must reuse the existing watcher.' }
+$calls = Join-Path $StateRoot 'rollback-calls.txt'
+$first = -not (Test-Path -LiteralPath $calls)
+[IO.File]::AppendAllText($calls, 'reapply')
+if ($first) { throw 'fixture verification failure' }
+`);
+    const failed = await run(action, { maskOpacity: .81, imagePath: before.imagePath, selectionId: before.selectionId }, true);
+    assert.equal(failed.code, 1);
+    assert.equal(failed.errorCode, action === 'apply' ? 'applyFailedRestored' : 'maskFailedRestored');
+    assert.equal(await fs.readFile(calls, 'utf8'), 'reapplyreapply', 'Rollback uses the same hot-apply path.');
+    assert.deepEqual(await fs.readFile(activeMetadata), previous);
+    assert.equal((await run('status', {}, true)).state.selectionId, before.selectionId);
+    await fs.writeFile(startScript, originalStart);
+  }
+  for (const action of ['mask', 'apply']) {
+    if (action === 'apply') assert.equal((await run('import', { path: source })).code, 0);
+    const before = (await run('status', {}, true)).state;
+    const activeMetadata = path.join(stateRoot, 'active-theme/theme.json');
+    const previous = await fs.readFile(activeMetadata);
     const started = path.join(stateRoot, 'blocked-operation.txt');
     await fs.writeFile(startScript, `
-param([switch]$ExistingOnly, [switch]$Resume, [string]$StateRoot)
-if (-not $ExistingOnly) { throw 'Embedded operations must only use an existing connection.' }
+param([switch]$ExistingOnly, [switch]$ReuseWatcher, [switch]$Resume, [string]$StateRoot)
+if (-not $ExistingOnly -or -not $ReuseWatcher) { throw 'Embedded operations must reuse an existing watcher.' }
 [IO.File]::WriteAllText((Join-Path $StateRoot 'blocked-operation.txt'), 'started')
 Start-Sleep -Seconds 120
 `);

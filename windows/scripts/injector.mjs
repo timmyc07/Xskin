@@ -9,7 +9,7 @@ import { TokenUsageReader } from "./token-usage.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.4";
+const SKIN_VERSION = "1.9.6";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -876,7 +876,7 @@ async function verifySession(session) {
       result.stylePresent && !result.documentOverflow.x && (surface === 'dot'
         ? clearSurface(document.body) && maskStyle.content === 'none' &&
           (dotCards.length > 0 ? dotCards.every(card => card.video || card.poster) :
-            dotClipVerified && result.video?.cardsVisible === false && result.video.suspended)
+            (document.hidden || dotClipVerified) && result.video?.cardsVisible === false && result.video.suspended)
         : result.chromePresent && result.chromePointerEvents === 'none' &&
           Boolean(result.shell?.visible) && (surface === 'work' || Boolean(result.sidebar?.visible)));
     // Project selector markup varies across Codex builds — soft requirement.
@@ -920,7 +920,9 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       lastResult.styleMatches = lastResult.styleRevision === expectedStyleRevision;
       lastResult.pass &&= lastResult.styleMatches;
     }
-    if (prepareFirstFrame && expectedTheme.video &&
+    const hiddenDotVideo = lastResult.surface === 'dot' && lastResult.startupFrames?.documentHidden === true &&
+      lastResult.video?.suspended === true;
+    if (prepareFirstFrame && expectedTheme.video && !hiddenDotVideo &&
       !(lastResult.surface === 'work' && lastResult.video?.hostHidden === true) &&
       !(lastResult.surface === 'dot' && lastResult.video?.cardsVisible === false && lastResult.dotCards.length === 0)) {
       lastResult.pass &&= lastResult.video?.decoded === true;
@@ -930,7 +932,7 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
       lastResult.pass &&= lastResult.maskMatches;
     }
     if (lastResult.surface === 'dot') {
-      if (expectedTheme.video && lastResult.dotCards.length > 0) {
+      if (expectedTheme.video && lastResult.dotCards.length > 0 && !hiddenDotVideo) {
         lastResult.pass &&= lastResult.dotClipVerified && lastResult.dotCards.every(card => card.video);
       }
       lastResult.maskMatches = lastResult.dotCards.every(card =>

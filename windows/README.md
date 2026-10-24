@@ -1,4 +1,6 @@
-# Xskin for Windows 1.9.4
+# Xskin for Windows 1.9.6
+
+1.9.6 原始碼已同步 macOS 的 Apply 監看程序保留與隱藏 Dot 影片驗證修復。以下公開下載仍為 1.9.4；新版驗證記錄見 [Windows 更新記錄](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md)。
 
 本版本將 macOS 1.9.4 已完成的內嵌工作室、原始媒體預覽、套用後保留預覽、中斷復原、六組預設與官方啟動自動套用移植到 Windows。沿用 Flutter 面板、PowerShell 引擎與 Store 套件啟動；沒有增加額外產品功能。[對齊範圍與驗證](../docs/windows-parity.md) · [English](README.en.md)
 

@@ -1,4 +1,6 @@
-# Xskin for Windows 1.9.4
+# Xskin for Windows 1.9.6
+
+Source 1.9.6 includes the macOS fixes for watcher reuse during Apply and hidden Dot video verification. Published downloads below remain 1.9.4; see the [Windows changelog](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md) for the source update.
 
 Windows now mirrors the completed macOS 1.9.4 embedded studio, retained original-media previews, recovery, six presets and official-launch background option. It reuses the Windows Flutter/PowerShell engine. [Parity and validation](../docs/windows-parity.md) · [繁體中文](README.md)
 

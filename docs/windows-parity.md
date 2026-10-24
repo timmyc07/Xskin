@@ -1,4 +1,12 @@
-# Windows 1.9.4 parity with macOS 1.9.4
+# Windows 1.9.6 parity with macOS 1.9.6
+
+Windows source 1.9.6 ports the macOS fixes in `0773c1d` and `cfdbed3`: embedded Apply, mask and rollback reuse the verified watcher, retaining it on verification failure, and hidden suspended Dot videos defer decoding/clipping checks while theme, stylesheet and mask checks remain enforced. Visible playback still requires verification. Published Windows downloads remain 1.9.4.
+
+Windows also covers the plugin-cache/managed-engine directory boundary: an existing managed watcher can be reused only when its exact process identity and all eight executable/payload file hashes match. Missing or stale files, including same-version updates, retain the verified replacement path.
+
+Validation on 2026-10-24: the final full Windows runner, Flutter analysis and all seven Flutter tests passed. Plugin tests passed 74 with four platform/privilege skips. The managed engine, installed standalone runtime and registered plugin runtime were updated locally. Installed MCP mask reapplication completed in about 9.5 seconds while retaining the same managed-engine watcher PID, pending selection, media/settings/configuration hashes and official Codex process/browser identity. Live Verify passed on visible Codex and hidden suspended Dot at 1.9.6. No new release archives were published; physical login/Store updates, complete Home/task visual acceptance and sustained playback remain unverified.
+
+## Initial 1.9.4 port and validation
 
 The implementation was compared against macOS at `acb698e`, after fetching the 26 upstream commits absent from the initial checkout. The Windows port reuses completed macOS behavior and the existing Windows engine.
 

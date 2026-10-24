@@ -1,6 +1,6 @@
 # 平台对照
 
-macOS/plugin **1.9.6** fixes a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery.
+macOS/plugin and Windows source **1.9.6** fix a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Published Windows downloads remain **1.9.4**.
 
 macOS/plugin **1.9.6** and Windows **1.9.4** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
 

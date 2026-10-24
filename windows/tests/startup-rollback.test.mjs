@@ -13,7 +13,8 @@ async function run(mode, state, flags = []) {
   await fs.writeFile(path.join(state, "mode.txt"), mode);
   return new Promise((resolve, reject) => {
     const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-      path.join(scripts, "start-dream-skin.ps1"), "-StateRoot", state, ...flags], { windowsHide: true, timeout: 15000 });
+      path.join(scripts, "start-dream-skin.ps1"), "-StateRoot", state, ...flags], { windowsHide: true, timeout: 15000,
+      env: { ...process.env, PSModulePath: path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/Modules') } });
     let output = "";
     child.stdout.on("data", value => { output += value; });
     child.stderr.on("data", value => { output += value; });
@@ -24,6 +25,8 @@ async function run(mode, state, flags = []) {
 }
 try {
   await fs.cp(path.join(root, "scripts"), scripts, { recursive: true });
+  await fs.cp(path.join(root, 'assets'), path.join(temporary, 'assets'), { recursive: true });
+  await fs.copyFile(path.join(root, 'VERSION'), path.join(temporary, 'VERSION'));
   await fs.appendFile(path.join(scripts, "xskin-theme.ps1"), `
 $script:fixtureState = $StateRoot
 $script:fixtureMode = [IO.File]::ReadAllText((Join-Path $StateRoot 'mode.txt'))
@@ -64,6 +67,7 @@ function Start-DreamSkinCodex {
 function Stop-DreamSkinCodex { throw 'Official Codex must never be closed.' }
 function Stop-DreamSkinRecordedInjector {
   param($State, [switch]$CheckOnly)
+  if ($script:fixtureMode -eq 'foreign-injector') { throw 'The recorded injector identity does not match.' }
   if ($CheckOnly) { return Test-Path (Join-Path $script:fixtureState 'injector') }
   if (Test-Path (Join-Path $script:fixtureState 'injector')) { Event 'stop-injector'; Remove-Item (Join-Path $script:fixtureState 'injector') }
   return $true
@@ -83,6 +87,10 @@ function Invoke-DreamSkinNative {
   param($FilePath, $ArgumentList, [switch]$DiscardStderr)
   if ($ArgumentList -contains '--check-payload') { Event 'preflight'; return @{ ExitCode = 0; Output = @('{}') } }
   if ($ArgumentList -contains '--remove') { Event 'remove'; return @{ ExitCode = 0; Output = @('{}') } }
+  if ($ArgumentList -contains '--once') {
+    Event 'reapply'
+    return @{ ExitCode = $(if ($script:fixtureMode -eq 'reapply-failure') { 2 } else { 0 }); Output = @('{}') }
+  }
   Event 'verify'
   return @{ ExitCode = $(if ($script:fixtureMode -eq 'verify-failure') { 2 } else { 0 }); Output = @('{}') }
 }
@@ -106,6 +114,27 @@ function Invoke-DreamSkinNative {
   const reusedExisting = await run("repeat", existing, ["-ExistingOnly"]);
   assert.equal(reusedExisting.code, 0, reusedExisting.output);
   assert.equal(await fs.readFile(path.join(existing, "events.txt"), "utf8"), "lock\nunlock\nlock\ninjector\nverify\nunlock\nlock\nunlock\n");
+  const savedWatcher = await fs.readFile(path.join(existing, 'state.json'));
+  for (const mode of ['repeat', 'verify-failure', 'reapply-failure', 'foreign-injector']) {
+    await fs.writeFile(path.join(existing, 'events.txt'), '');
+    const reapplied = await run(mode, existing, ['-ExistingOnly', '-ReuseWatcher', '-Resume']);
+    assert.equal(reapplied.code, mode === 'repeat' ? 0 : 1, reapplied.output);
+    assert.deepEqual(await fs.readFile(path.join(existing, 'state.json')), savedWatcher, 'Hot apply preserves the exact watcher identity even after failure.');
+    await fs.stat(path.join(existing, 'injector'));
+    assert.equal(await fs.readFile(path.join(existing, 'events.txt'), 'utf8'),
+      mode === 'foreign-injector' ? 'lock\nunlock\n' : mode === 'reapply-failure' ? 'lock\nreapply\nunlock\n' : 'lock\nreapply\nverify\nunlock\n');
+  }
+  await fs.writeFile(path.join(existing, 'paused'), 'paused');
+  assert.equal((await run('verify-failure', existing, ['-ExistingOnly', '-ReuseWatcher', '-Resume'])).code, 1);
+  await fs.stat(path.join(existing, 'paused'));
+  assert.equal((await run('repeat', existing, ['-ExistingOnly', '-ReuseWatcher', '-Resume'])).code, 0);
+  assert.equal(await fs.access(path.join(existing, 'paused')).then(() => true, () => false), false);
+  const invalidReuse = path.join(temporary, 'invalid-reuse');
+  assert.equal((await run('cold', invalidReuse, ['-ReuseWatcher'])).code, 1);
+  assert.equal(await fs.readFile(path.join(invalidReuse, 'events.txt'), 'utf8'), 'lock\nunlock\n');
+  await fs.rm(path.join(existing, 'injector'));
+  const replacedMissing = await run('repeat', existing, ['-ExistingOnly', '-ReuseWatcher', '-Resume']);
+  assert.equal(replacedMissing.code, 0, replacedMissing.output);
   const failedExisting = await run("verify-failure", existing, ["-ExistingOnly", "-Resume"]);
   assert.equal(failedExisting.code, 1, failedExisting.output);
   const existingEvents = await fs.readFile(path.join(existing, "events.txt"), "utf8");
@@ -128,6 +157,42 @@ function Invoke-DreamSkinNative {
   const migrated = await run('repeat', moved);
   assert.equal(migrated.code, 0, migrated.output);
   assert.equal(await fs.readFile(path.join(moved, 'events.txt'), 'utf8'), 'lock\nlaunch\ninjector\nverify\nunlock\nlock\nstop-injector\ninjector\nverify\nunlock\n');
+  const managed = path.join(temporary, 'managed-engine');
+  assert.equal((await run('cold', managed)).code, 0);
+  const engine = path.join(managed, 'engine');
+  for (const name of ['scripts', 'assets']) {
+    await fs.cp(path.join(root, name), path.join(engine, name), { recursive: true });
+  }
+  await fs.copyFile(path.join(root, 'VERSION'), path.join(engine, 'VERSION'));
+  const managedState = path.join(managed, 'state.json');
+  const recorded = JSON.parse(await fs.readFile(managedState, 'utf8'));
+  recorded.injectorPath = path.join(engine, 'scripts/injector.mjs');
+  recorded.nodePath = path.join(engine, 'scripts/node.exe');
+  const managedWatcher = JSON.stringify(recorded);
+  await fs.writeFile(managedState, managedWatcher);
+  await fs.writeFile(path.join(managed, 'events.txt'), '');
+  const managedReapplied = await run('repeat', managed, ['-ExistingOnly', '-ReuseWatcher', '-Resume']);
+  assert.equal(managedReapplied.code, 0, managedReapplied.output);
+  assert.equal(await fs.readFile(managedState, 'utf8'), managedWatcher, 'A current managed engine watcher survives an Apply from the plugin cache.');
+  assert.equal(await fs.readFile(path.join(managed, 'events.txt'), 'utf8'), 'lock\nreapply\nverify\nunlock\n');
+  for (const relative of ['VERSION', 'scripts/injector.mjs', 'scripts/image-metadata.mjs', 'scripts/video-file.mjs',
+    'scripts/token-usage.mjs', 'assets/dream-skin.css', 'assets/renderer-inject.js', 'assets/token-overlay.js']) {
+    const file = path.join(engine, relative);
+    const current = await fs.readFile(file);
+    await fs.writeFile(file, Buffer.concat([current, Buffer.from('stale')]));
+    await fs.writeFile(managedState, managedWatcher);
+    await fs.writeFile(path.join(managed, 'events.txt'), '');
+    const updated = await run('repeat', managed, ['-ExistingOnly', '-ReuseWatcher', '-Resume']);
+    assert.equal(updated.code, 0, updated.output);
+    assert.equal(await fs.readFile(path.join(managed, 'events.txt'), 'utf8'), 'lock\nstop-injector\ninjector\nverify\nunlock\n', `A stale ${relative} requires a current watcher, including same-version updates.`);
+    await fs.writeFile(file, current);
+  }
+  await fs.rm(path.join(engine, 'assets/token-overlay.js'));
+  await fs.writeFile(managedState, managedWatcher);
+  await fs.writeFile(path.join(managed, 'events.txt'), '');
+  const missingPayload = await run('repeat', managed, ['-ExistingOnly', '-ReuseWatcher', '-Resume']);
+  assert.equal(missingPayload.code, 0, missingPayload.output);
+  assert.equal(await fs.readFile(path.join(managed, 'events.txt'), 'utf8'), 'lock\nstop-injector\ninjector\nverify\nunlock\n');
   const ordinary = path.join(temporary, "ordinary");
   const result = await run("ordinary", ordinary);
   assert.equal(result.code, 1, result.output);
@@ -152,4 +217,4 @@ function Invoke-DreamSkinNative {
     }
   }
 } finally { await fs.rm(temporary, { recursive: true, force: true }); }
-console.log("PASS: direct cold starts/reuse, ExistingOnly without activation, fresh graceful handoffs, refused quit and failed-activation ordinary recovery.");
+console.log("PASS: direct cold starts/reuse, embedded hot apply and failure preserve watcher identity, ExistingOnly without activation, fresh graceful handoffs, refused quit and failed-activation ordinary recovery.");
