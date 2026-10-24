@@ -9,7 +9,7 @@ Apply a reversible renderer skin through Chromium DevTools Protocol while launch
 
 ## Workflow
 
-Windows 1.9.4 also ships the shared embedded MCP App. Use the Windows plugin package/manifest and `xskin_open` to open it. Its status is read-only; imports prepare media only. Embedded Apply, mask and Resume require an existing verified connection and never launch or restart Codex. Interrupted changes require explicit recovery. See `../docs/windows-parity.md`.
+Windows 1.9.6 also ships the shared embedded MCP App. Use the Windows plugin package/manifest and `xskin_open` to open it. Its status is read-only; imports prepare media only. Embedded Apply, mask and Resume require an existing verified connection and never launch or restart Codex. Interrupted changes require explicit recovery. See `../docs/windows-parity.md`.
 
 For the Xskin Flutter panel, use `panel/` and the Windows README. The packaged `xskin.exe` invokes `scripts/xskin-command.ps1` with structured UTF-8 requests; image/MP4 imports remain pending until Apply. `xskin-theme.ps1` verifies apply transactions and rolls back image/video media and pause state on failure. Use `scripts/build-release.ps1` to test and package the complete Flutter runner, media libraries and engine. Run `flutter analyze` and `flutter test` in `panel/` after UI changes.
 

@@ -1,14 +1,14 @@
 # Xskin for Windows 1.9.6
 
-Source 1.9.6 includes the macOS fixes for watcher reuse during Apply and hidden Dot video verification. Published downloads below remain 1.9.4; see the [Windows changelog](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md) for the source update.
+Version 1.9.6 includes the macOS fixes for watcher reuse during Apply and hidden Dot video verification in both the standalone app and embedded plugin. See the [Windows changelog](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md) for validation.
 
 Windows now mirrors the completed macOS 1.9.4 embedded studio, retained original-media previews, recovery, six presets and official-launch background option. It reuses the Windows Flutter/PowerShell engine. [Parity and validation](../docs/windows-parity.md) · [繁體中文](README.md)
 
-**Download Windows 1.9.4: [standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/Xskin-1.9.4-windows-x64.zip) · [Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/xskin-plugin-v1.9.4-windows-x64.zip) · [Release and SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4#release-assets).** Verify each ZIP against its matching `.zip.sha256` before running it. To install both with a local coding assistant, copy the [AI installation prompt](https://github.com/timmyc07/Xskin#install-with-your-ai).
+**Download Windows 1.9.6: [standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.6/Xskin-1.9.6-windows-x64.zip) · [Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.6/xskin-plugin-v1.9.6-windows-x64.zip) · [Release and SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6#release-assets).** Verify each ZIP against its matching `.zip.sha256` before running it. To install both with a local coding assistant, copy the [AI installation prompt](https://github.com/timmyc07/Xskin#install-with-your-ai).
 
 ## Embedded studio
 
-Download and extract the complete `xskin-plugin-v1.9.4-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
+Download and extract the complete `xskin-plugin-v1.9.6-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
 
 ```powershell
 codex plugin marketplace add "D:\path with spaces\Xskin-plugin"
@@ -23,7 +23,7 @@ Opening/refreshing the panel or importing alone does not enable automatic backgr
 
 ## Standalone app, media and data
 
-Extract the full `Xskin-1.9.4-windows-x64.zip` and open Install Xskin.exe or xskin.exe. Keep all adjacent files. Flutter supports drag/drop, preview, explicit Apply, mask and four languages. Fully exit an ordinary session before using the direct shortcut. Installation leaves existing official sessions running.
+Extract the full `Xskin-1.9.6-windows-x64.zip` and open Install Xskin.exe or xskin.exe. Keep all adjacent files. Flutter supports drag/drop, preview, explicit Apply, mask and four languages. Fully exit an ordinary session before using the direct shortcut. Installation leaves existing official sessions running.
 
 New stores default to midnight aurora and contain all six byte-identical macOS preset packs. Existing backgrounds, imports, language, opacity and pause survive updates. Physical/MSIX-aware state roots, the per-user locator and owned shortcut checks remain in place. Do not move or delete the data directory to repair a connection.
 

@@ -2,10 +2,11 @@
 
 ## 1.9.6 — 2026-10-24
 
+- Publish Windows standalone and Codex plugin packages under `windows-v1.9.6`, each with a matching `.zip.sha256` file. Update download links and the copyable AI installation prompts.
 - Port macOS 1.9.5/1.9.6 fixes: reuse the verified existing background watcher during embedded Apply, mask changes and transaction rollback. Keep it running after failed verification so recovery retains the usage connection.
 - Reuse a matching managed-engine watcher when the embedded plugin runs from a different directory. Require exact process identity and matching executable/payload hashes; replace stale engines, including same-version changes.
 - Defer video decoding and clipping checks only for a hidden, intentionally suspended Dot surface. Continue verifying visible playback and the selected theme, stylesheet and mask for all surfaces; a hidden Dot no longer blocks Apply or runtime updates.
-- Add regression coverage for watcher identity, successful/failed hot reapplication and hidden Dot posters/empty layouts. Flutter package metadata is 1.9.6+19. Published Windows downloads remain 1.9.4 until a new release is published.
+- Add regression coverage for watcher identity, successful/failed hot reapplication and hidden Dot posters/empty layouts. Flutter package metadata is 1.9.6+19.
 - Validation: full Windows runner, Flutter analysis and all seven Flutter tests pass; plugin tests pass 74 with four platform/privilege skips. Updated the three local runtime copies without changing protected media/settings or the official process. Installed MCP mask reapplication completed in about 9.5 seconds with the same watcher PID; visible Codex and hidden suspended Dot both passed live Verify. Physical login/Store updates, complete route visuals and sustained playback remain unverified.
 
 ## 1.9.4 — 2026-10-24

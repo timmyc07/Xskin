@@ -8,18 +8,18 @@ Bring your favorite images and original 4K videos into Codex.<br>
 Import, preview, and apply inside Codex on macOS and Windows, or use the standalone apps.
 
 [![macOS](https://img.shields.io/badge/macOS-1.9.6-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/v1.9.6)
-[![Windows](https://img.shields.io/badge/Windows-1.9.4-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4)
+[![Windows](https://img.shields.io/badge/Windows-1.9.6-dceda0?style=flat-square)](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6)
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-202420?style=flat-square&logo=apple&logoColor=white)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-202420?style=flat-square)
 [![MIT License](https://img.shields.io/badge/license-MIT-202420?style=flat-square)](macos/LICENSE)
 
-**[Windows standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/Xskin-1.9.4-windows-x64.zip)** · **[Windows Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.4/xskin-plugin-v1.9.4-windows-x64.zip)** · **[macOS standalone](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/Xskin-v1.9.6-macos-arm64.zip)** · **[macOS Codex plugin](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/xskin-plugin-v1.9.6.zip)**
+**[Windows standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.6/Xskin-1.9.6-windows-x64.zip)** · **[Windows Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.6/xskin-plugin-v1.9.6-windows-x64.zip)** · **[macOS standalone](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/Xskin-v1.9.6-macos-arm64.zip)** · **[macOS Codex plugin](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/xskin-plugin-v1.9.6.zip)**
 
-[Windows SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4#release-assets) · [Report an issue](https://github.com/timmyc07/Xskin/issues)
+[Windows SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6#release-assets) · [Report an issue](https://github.com/timmyc07/Xskin/issues)
 
 English by default · Traditional Chinese · Simplified Chinese · Japanese
 
-> **Windows 1.9.4 · macOS 1.9.6.** Manage backgrounds inside Codex through **More → Xskin**, or use the standalone app. Download the plugin for your platform. See [installation and validation](docs/in-app-studio.md).
+> **Windows 1.9.6 · macOS 1.9.6.** Manage backgrounds inside Codex through **More → Xskin**, or use the standalone app. Download the plugin for your platform. See [installation and validation](docs/in-app-studio.md).
 
 [Windows guide](windows/README.md) · [macOS guide](docs/background-panel.md) · [Windows performance measurements](windows/references/performance.md)
 
@@ -30,15 +30,15 @@ English by default · Traditional Chinese · Simplified Chinese · Japanese
 On Windows, copy this prompt into an AI coding assistant that can run local commands. It installs both packages; no Flutter, npm or separate Node installation is needed. [繁體中文安裝提示詞](windows/CLIENT_DEPLOY_PROMPT.md)
 
 ```text
-Install Xskin 1.9.4 on this Windows x64 computer, including BOTH the standalone app and the in-Codex plugin. Complete the installation, not just instructions.
+Install Xskin 1.9.6 on this Windows x64 computer, including BOTH the standalone app and the in-Codex plugin. Complete the installation, not just instructions.
 
-Use only https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4 . Download Xskin-1.9.4-windows-x64.zip and xskin-plugin-v1.9.4-windows-x64.zip, plus each matching .zip.sha256 file. Verify both SHA-256 hashes before running anything; stop on a mismatch. Read the packaged Windows README and preserve all existing Xskin media, preferences and unrelated Codex settings.
+Use only https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6 . Download Xskin-1.9.6-windows-x64.zip and xskin-plugin-v1.9.6-windows-x64.zip, plus each matching .zip.sha256 file. Verify both SHA-256 hashes before running anything; stop on a mismatch. Read the packaged Windows README and preserve all existing Xskin media, preferences and unrelated Codex settings.
 
 Extract each complete ZIP into a separate persistent user-owned folder, keeping every adjacent file. Find the standalone root containing xskin.exe and run its Install Xskin.exe. Find the plugin root containing plugin.json, mcp.json and .agents/plugins/marketplace.json. Use the official Codex CLI (locate it in the installed OpenAI.Codex Store package if it is not on PATH). Check its plugin command help, then run:
 codex plugin marketplace add "<absolute extracted plugin root>"
 codex plugin add codex-background-studio@codex-background-studio-local
 
-Verify the standalone version and that the plugin is installed and enabled as 1.9.4. Preserve the current Codex session; if a host reload is needed, report that step without force-quitting it. Keep the installer's defaults and existing startup preferences. Do not replace official app files, change credentials/API keys/Base URLs or select a new background without my request. Report installed paths, versions and any remaining step.
+Verify the standalone version and that the plugin is installed and enabled as 1.9.6. Preserve the current Codex session; if a host reload is needed, report that step without force-quitting it. Keep the installer's defaults and existing startup preferences. Do not replace official app files, change credentials/API keys/Base URLs or select a new background without my request. Report installed paths, versions and any remaining step.
 ```
 
 ![Codex Home on macOS with an applied full-window MP4 background and translucent input controls](docs/images/xskin-codex-video-home.png)
@@ -47,7 +47,7 @@ Verify the standalone version and that the plugin is installed and enabled as 1.
 
 ## Windows in action
 
-Windows Codex Home with two different backgrounds, showing the full-window appearance, native window controls, navigation and translucent input. Download Windows 1.9.4 above and follow the [Windows guide](windows/README.md).
+Windows Codex Home with two different backgrounds, showing the full-window appearance, native window controls, navigation and translucent input. Download Windows 1.9.6 above and follow the [Windows guide](windows/README.md).
 
 | Eye close-up background | Sunset character background |
 | --- | --- |
@@ -115,7 +115,7 @@ Video preview starts paused so you can inspect it when needed. Background playba
 
 macOS 1.9.6 keeps the **official Codex app** as its normal entry: an enabled background service gracefully reopens each new ordinary launch once to apply the saved background and overlay. Xskin can stay closed. The optional `~/Applications/Codex (Xskin).app` starts directly with the background connection and avoids that reopen. Opening the embedded panel alone does not enable automatic startup; Apply and mask changes require an existing verified background connection.
 
-Windows 1.9.4 includes the same embedded studio, retained original-media previews, recovery and six presets. Explicitly enable **Apply when official Codex opens** to start the per-user login monitor; future fresh ordinary launches gracefully reopen once. Existing, paused and debugging sessions are skipped. Codex (Xskin) remains the direct-launch option. See [Windows parity and validation](docs/windows-parity.md).
+Windows 1.9.6 includes the same embedded studio, retained original-media previews, recovery and six presets, plus watcher reuse during Apply and hidden Dot video verification fixes. Explicitly enable **Apply when official Codex opens** to start the per-user login monitor; future fresh ordinary launches gracefully reopen once. Existing, paused and debugging sessions are skipped. Codex (Xskin) remains the direct-launch option. See [Windows parity and validation](docs/windows-parity.md).
 
 ### Leave room around the input
 
@@ -158,7 +158,7 @@ The debugging connection binds only to the loopback address. Xskin remains an ex
 | In-Codex panel | macOS and Windows local execution; use the matching platform plugin package |
 | Interface languages | English, Traditional Chinese, Simplified Chinese, and Japanese |
 
-- Releases are platform-specific: **windows-v1.9.4** for Windows x64 standalone/plugin and **v1.9.6** for macOS arm64/plugin. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
+- Releases are platform-specific: **windows-v1.9.6** for Windows x64 standalone/plugin and **v1.9.6** for macOS arm64/plugin. The Windows app is unsigned; use the project's official Release files and verify their SHA-256 checksums.
 - Both platforms support the optional Codex (Xskin) direct entry and an explicitly enabled official-app entry with one graceful reopen per fresh launch.
 - Automated macOS tests and Windows runner/Flutter checks passed. Three physical cold starts, login/Store-update checks and complete official-app Home/task visual inspection remain pending; see the [validation report](docs/platforms.md#2026-10-23-overlay-layout-validation). CDP/CSS authorization remains unconfirmed.
 - A cold start still needs application loading and media decoding. Startup time depends on app state, media, and hardware; no fixed latency is guaranteed. See the [measured startup results](docs/startup-verification.md).
@@ -204,4 +204,4 @@ Codex, OpenAI, macOS, Apple, and other product names and trademarks belong to th
 
 ---
 
-**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.4) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.9.6)
+**Bring your favorite scene into your everyday work.** [Windows →](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6) · [macOS →](https://github.com/timmyc07/Xskin/releases/tag/v1.9.6)

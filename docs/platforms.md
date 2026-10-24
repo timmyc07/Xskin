@@ -1,8 +1,8 @@
 # 平台对照
 
-macOS/plugin and Windows source **1.9.6** fix a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Published Windows downloads remain **1.9.4**.
+macOS/plugin and Windows **1.9.6** fix a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Windows standalone/plugin downloads and checksums are available under [windows-v1.9.6](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6).
 
-macOS/plugin **1.9.6** and Windows **1.9.4** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
+macOS/plugin **1.9.6** and Windows **1.9.6** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
 
 ## 运行模型（两边相同）
 
@@ -49,11 +49,11 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 | 实机 verify / 截图 | ✅ | ✅ |
 | 用户选图定制 | ✅ | ✅（系统托盘「更换背景图」） |
 | 背景工作室（圖片 / MP4 匯入、預覽、套用） | ✅（SwiftUI macOS .app） | ✅（Flutter Windows .exe） |
-| Codex 內嵌 Xskin 工作室 | ✅（MCP App） | ✅（1.9.4，同一 MCP App） |
+| Codex 內嵌 Xskin 工作室 | ✅（MCP App） | ✅（1.9.6，同一 MCP App） |
 | 对话 Token / 缓存 / 额度 / 方案 overlay | ✅（Codex 任务输入框上方） | ✅（Codex 任务输入框上方） |
 | 四語介面 / 拖放 / 獨立全版遮罩 | ✅ | ✅（1.5.1） |
 | 面板關閉後由 Codex (Xskin) 啟動 | ✅（1.8.0，受管 .app） | ✅（1.8.0，桌面／開始捷徑） |
-| 點官方 App 自動套用背景 | ✅（新的普通啟動正常重開一次） | ✅（1.9.4，需明確啟用；既有／暫停／偵錯工作階段略過） |
+| 點官方 App 自動套用背景 | ✅（新的普通啟動正常重開一次） | ✅（1.9.6，需明確啟用；既有／暫停／偵錯工作階段略過） |
 | 本地主题保存 / 切换 | ✅（菜单栏） | ✅（系统托盘） |
 | 官方签名校验 | ✅ | Store 签名类型 + 包身份 |
 | 客户部署提示词 | ✅ | ✅ `windows/CLIENT_DEPLOY_PROMPT.md` |
