@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.6 — 2026-10-24
+
+- Fix Apply remaining on Working and runtime upgrades rolling back when a hidden Dot window intentionally suspends its video. Defer decoding and clipping checks only for that hidden, suspended surface; visible windows still require playback, and theme, stylesheet and mask checks remain enforced.
+- Cover hidden Dot posters and empty layouts, prepared launches, and watcher preservation after successful and failed embedded reapplication.
+- Validation: full macOS runner and 76 plugin tests pass; two Windows-only checks are skipped on macOS. Local runtime upgrade and the pending video Apply completed, saved-mask reapplication retained the watcher, and live main/Dot verification passed with healthy usage delivery. Native panel clicking, physical cold starts and sustained playback remain unverified.
+
 ## 1.9.5 — 2026-10-24
 
 - Keep the existing background injector running during embedded Apply and mask updates. Reuse its hot-apply path, and retain it after a failed verification so transaction rollback can restore the prior theme without disconnecting the usage overlay.

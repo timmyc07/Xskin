@@ -28,7 +28,7 @@ discover_codex_app() { :; }
 require_macos_runtime() { NODE="${FIXTURE_NODE:-$SCRIPT_DIR/node}"; }
 ensure_state_root() { :; }
 fail() { printf '%s\n' "$*" >&2; exit 1; }
-state_field() { case "$1" in port) printf 19341 ;; session) if [ -f "$SCRIPT_DIR/paused" ]; then printf paused; else printf active; fi ;; esac; }
+state_field() { case "$1" in port) printf 19341 ;; injectorPid) printf '%s' "${FIXTURE_INJECTOR_PID:-}" ;; session) if [ -f "$SCRIPT_DIR/paused" ]; then printf paused; else printf active; fi ;; esac; }
 codex_is_running() { [ -f "$SCRIPT_DIR/running" ]; }
 verified_cdp_endpoint() { [ -f "$SCRIPT_DIR/running" ] && [ ! -f "$SCRIPT_DIR/no-cdp" ]; }
 activate_codex() { printf 'activate\n' >> "$SCRIPT_DIR/events"; }
@@ -57,6 +57,7 @@ cat > "$TEMPORARY/scripts/node" <<'NODE'
 #!/bin/bash
 [ "$1" != -e ] || exit 0
 if [ "${2:-}" = --check-payload ] && [ -f "$(dirname "$0")/bad-payload" ]; then exit 1; fi
+if [ "${2:-}" = --verify ] && [ -f "$(dirname "$0")/fail-verify" ]; then exit 2; fi
 printf '{"targets":[{"result":{"pass":true}}]}\n'
 NODE
 chmod +x "$TEMPORARY/scripts/node"
@@ -124,6 +125,20 @@ for state in closed ordinary connected; do
     [ ! -e "$TEMPORARY/scripts/events" ]
   fi
 done
+# Embedded Apply keeps the same watcher alive, including after verification fails.
+/bin/sleep 120 >/dev/null 2>&1 &
+export FIXTURE_INJECTOR_PID=$!
+printf '%s\n' "$FIXTURE_INJECTOR_PID" >> "$TEMPORARY/scripts/daemon-pids"
+rm -f "$TEMPORARY/scripts/events" "$TEMPORARY/scripts/no-cdp"
+bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --existing-only --reuse-watcher
+[ "$(cat "$TEMPORARY/scripts/events")" = reapply ]
+touch "$TEMPORARY/scripts/fail-verify"
+rm "$TEMPORARY/scripts/events"
+if bash "$TEMPORARY/scripts/start-dream-skin-macos.sh" --existing-only --reuse-watcher >/dev/null 2>&1; then exit 1; fi
+[ "$(cat "$TEMPORARY/scripts/events")" = reapply ]
+[ -f "$TEMPORARY/scripts/state/state.json" ]
+/bin/kill -0 "$FIXTURE_INJECTOR_PID"
+rm "$TEMPORARY/scripts/fail-verify"
 touch "$TEMPORARY/scripts/no-cdp"
 cp "$ROOT/scripts/pause-dream-skin-macos.sh" "$TEMPORARY/scripts/"
 touch "$TEMPORARY/scripts/state/shortcut-enabled"

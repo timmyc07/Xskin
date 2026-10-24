@@ -246,6 +246,37 @@ for (const hostHidden of [true, false]) {
 }
 
 const version = (await fs.readFile(new URL('../VERSION', import.meta.url), 'utf8')).trim();
+for (const hidden of [true, false]) for (const cardVisible of [true, false]) for (const prepare of [true, false]) {
+  const bounds = {x:10,y:10,left:10,top:10,right:90,bottom:40,width:80,height:30};
+  const card = {checkVisibility:() => true, getBoundingClientRect:() => bounds};
+  const video = {getBoundingClientRect:() => ({...bounds,width:0,height:0})};
+  let opacity = 0.62;
+  const session = {async evaluate(expression) {
+    return vm.runInNewContext(expression, {
+      window:{__CODEX_DREAM_SKIN_STATE__:{surface:'dot',version,themeId:theme.id,videoKey:theme.videoKey,
+        videoStatus:() => ({suspended:true,decoded:false,ready:false,currentTime:0,cardsVisible:cardVisible})}},
+      document:{hidden,body:{},
+        documentElement:{classList:{contains:() => true},scrollWidth:100,clientWidth:100,scrollHeight:100,clientHeight:100,
+          getAttribute:() => null},
+        querySelector:() => null, querySelectorAll:selector => cardVisible && selector.includes('data-avatar-overlay-native-surface-id') ? [card] : [],
+        getElementById:id => id === 'codex-dream-skin-video' ? video : id === 'codex-dream-skin-style' ? {} : null},
+      getComputedStyle:(node,pseudo) => ({content:'none',display:'block',visibility:'visible',pointerEvents:'none',
+        backgroundColor:'rgba(0, 0, 0, 0)',clipPath:'none',
+        backgroundImage:node === card && !pseudo ? `linear-gradient(rgba(0, 0, 0, ${opacity}), black), url(blob:poster)` : 'none'}),
+      innerWidth:100,innerHeight:100,
+    });
+  }};
+  const result = await waitForVerifiedSession(session, 250, theme, prepare);
+  assert.equal(result.pass, hidden,
+    'A hidden suspended Dot may retain its poster or empty card layout without blocking main-window Apply or startup.');
+  if (hidden && cardVisible && !prepare) {
+    opacity = 0.3;
+    assert.equal((await waitForVerifiedSession(session, 250, theme)).pass, false,
+      'Hidden Dot still verifies the selected mask depth.');
+  }
+}
+console.log('PASS: hidden suspended Dot defers video decoding and clipping; visible Dot and saved masks remain verified.');
+
 const messagingSelector = selectors.codex[0] + ' .messaging-root.messaging-embedded, ' +
   selectors.codex[0] + ' .messaging-root.messaging-embedded .thread-pane';
 for (const blockedLayer of [-1, 0, 1, 2, 3, 'image']) {
