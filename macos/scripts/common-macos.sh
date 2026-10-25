@@ -28,7 +28,7 @@ INJECTOR_JOB_LABEL="com.openai.codex-dream-skin-studio.injector"
 AUTOSTART_JOB_LABEL="com.openai.codex-dream-skin-studio.autostart"
 AUTOSTART_AGENT_PATH="$HOME/Library/LaunchAgents/$AUTOSTART_JOB_LABEL.plist"
 EXPECTED_CODEX_TEAM_ID="${CODEX_EXPECTED_TEAM_ID:-2DC432GLL2}"
-SKIN_VERSION="1.9.6"
+SKIN_VERSION="1.9.7"
 
 fail() {
   local message="$*"

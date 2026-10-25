@@ -9,7 +9,7 @@ import { TokenUsageReader } from "./token-usage.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.6";
+const SKIN_VERSION = "1.9.7";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -1144,7 +1144,6 @@ async function runWatch(options) {
               await removeEarlyPayload(session, previousEarlyScript);
               earlyScripts.delete(id);
               fallbackTargets.delete(id);
-              fallbackListeners.delete(id);
             } else {
               let nextEarlyScript = null;
               try {
@@ -1271,7 +1270,7 @@ async function runWatch(options) {
       if (!paused) for (const [id, session] of sessions) {
         if (!usageWatchers.has(id)) usageWatchers.set(id, watchUsageOverlay(session, usageReader));
       }
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await new Promise((resolve) => setTimeout(resolve, pendingTargets.size ? 50 : 1200));
     }
   } finally {
     for (const watcher of usageWatchers.values()) watcher.close();

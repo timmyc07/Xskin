@@ -75,6 +75,17 @@ Windows 新任务的记录文件尚未创建时会暂时监听其确切 UUID 的
 
 实现前参考了 [codex-token-overlay](https://github.com/soleillevant0125/codex-token-overlay) 与 [codex-token-meter](https://github.com/prefect12/codex-token-meter) 的开源方案；运行时沿用项目现有脚本与浏览器平台能力，没有增加这些项目作为依赖。
 
+### 2026-10-25 maintenance — 1.9.7 source
+
+- macOS reconnects a renderer after a failed live theme refresh, removes its early script and closes the old usage subscription. The regression proves that the latest revision is retried without another file change.
+- Windows retains one load callback per connection across pause/resume and fallback changes. Pending startup shells are probed every 50 ms, returning to 1.2-second polling when ready. Two deferred probes now wait 100 ms instead of 2.4 seconds in the fixture; this is not a measured physical cold-start improvement.
+- macOS theme loading/staging reject FIFO files without waiting for a writer. Runtime configuration is limited to 1 MiB, decoded as strict UTF-8 and checked for changes during reading. Rejected input preserves staged settings.
+- Validation: the complete macOS runner passes with an isolated test home, and the 1.9.7 native app builds. Plugin tests pass 76 with two Windows-only skips; portable Windows tests pass. Flutter 3.47.2 analysis and six local tests pass, with its Windows bridge test skipped. The cross-origin browser fixture passes 204 layouts and 720 scroll positions, including four languages, 200% text, failed previews, fixed/max host bounds and absent safe insets. Image/video Apply retains its Blob without additional media reads.
+
+The installed 1.9.6 runtime still passes its own Doctor/live verification. Running the new source Doctor against that old renderer correctly rejects the version mismatch; the source suite uses its own test settings instead of changing the running app. New-version live Apply, full official Home/task visuals, physical Windows startup/login and sustained playback remain unverified.
+
+Implementation references: [chrome-remote-interface](https://github.com/cyrus-and/chrome-remote-interface) was reviewed before making changes; existing helpers remain sufficient. Filesystem flags and file-handle checks follow the project's minimum [Node.js 20 filesystem API](https://nodejs.org/docs/latest-v20.x/api/fs.html), retrieved through Context7; local Node checks use 24.20.0. Dependency versions were kept unchanged.
+
 ### 2026-10-23 final release review
 
 The release includes bounded long-history recovery, native surface materials and waiting/reconnecting states. Final review avoids a duplicate 1 MiB tail read (24.8% less I/O in the dense-log fixture) and waits for matching CSS inside the existing verification deadline. See [review, release gates and limits](release-1.8.3-review.md). macOS retains official-app launches with one graceful reopen; Windows remains shortcut-only with no automatic reopen.

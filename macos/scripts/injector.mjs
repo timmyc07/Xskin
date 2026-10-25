@@ -11,9 +11,10 @@ import { setTimeout as delay } from "node:timers/promises";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.6";
+const SKIN_VERSION = "1.9.7";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
+const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 let staticPayloadAssets = null;
 
@@ -323,7 +324,19 @@ export async function loadTheme(themeDir, configName = "theme.json") {
   assertContainedPath(assetsRoot, canonicalConfigPath, "Theme config");
   let config;
   try {
-    config = await fs.readFile(canonicalConfigPath, "utf8");
+    const handle = await fs.open(canonicalConfigPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    try {
+      const before = await handle.stat();
+      if (!before.isFile() || before.size < 1 || before.size > MAX_CONFIG_BYTES) {
+        throw new Error(`Theme config must be a regular file no larger than ${MAX_CONFIG_BYTES} bytes`);
+      }
+      const bytes = await handle.readFile();
+      const after = await handle.stat();
+      if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || bytes.length > MAX_CONFIG_BYTES) {
+        throw new Error("Theme config changed while loading");
+      }
+      config = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } finally { await handle.close(); }
   } catch (error) {
     if (themeDir && error.code === "ENOENT") {
       throw new Error(`Explicit theme directory is missing theme.json: ${configPath}`);
@@ -443,7 +456,7 @@ export async function loadTheme(themeDir, configName = "theme.json") {
   }
   let imageHandle;
   try {
-    imageHandle = await fs.open(imagePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    imageHandle = await fs.open(imagePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
   } catch (error) {
     if (error.code === "ELOOP") throw new Error("Theme image changed into a symbolic link while loading");
     throw error;
@@ -1109,7 +1122,9 @@ async function runWatch(options) {
         if (record.ready) await applyToSession(session, current);
         else await session.evaluate(earlyPayloadFor(current.payload, current.revision));
       } catch (error) {
-        record.needsLoadFallback = true;
+        record.usageWatcher?.close();
+        await removeEarly(record);
+        session.close();
         console.error(`[dream-skin] theme refresh failed: ${error.message}`);
       }
     }

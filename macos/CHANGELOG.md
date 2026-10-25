@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.7 — 2026-10-25
+
+- Reconnect a renderer after a failed live theme refresh, unregister its persistent early script and release its usage subscription. Retry the latest theme without waiting for another file change.
+- Reject pipe files promptly during theme loading and staging. Bound runtime configuration to 1 MiB and require valid UTF-8 and a stable file snapshot before parsing.
+
 ## 1.9.6 — 2026-10-24
 
 - Fix Apply remaining on Working and runtime upgrades rolling back when a hidden Dot window intentionally suspends its video. Defer decoding and clipping checks only for that hidden, suspended surface; visible windows still require playback, and theme, stylesheet and mask checks remain enforced.
