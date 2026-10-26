@@ -219,3 +219,53 @@ console.log('PASS: late native shells retain early injection; expiry, pause and 
   assert.equal(applied.filter(value => value === 'changed').length, 2, 'Apply once for the theme change and once for its reload.');
 }
 console.log('PASS: pause/resume retains one load fallback per connection.');
+
+{
+  const events = new EventEmitter();
+  const calls = [];
+  const connections = [];
+  let fingerprint = 'old';
+  let polls = 0;
+  const context = {
+    process: events, Date, STRONG_THEME_AUDIT_MS: 30000,
+    TokenUsageReader: class {},
+    watchUsageOverlay(session) { return { close() { calls.push(`usage-stop:${session.id}`); } }; },
+    console: { error() {}, log() {} },
+    setTimeout(callback) {
+      fingerprint = 'new';
+      if (++polls >= 3) events.emit('SIGTERM');
+      return setImmediate(callback);
+    },
+    async connectBrowserIdentityAnchor() { return { closed: false, close() {} }; },
+    async loadPayload() { return { fingerprint, sourceStamp: fingerprint, payload: '', theme: { id: fingerprint } }; },
+    async loadTheme() { return { fingerprint, sourceStamp: fingerprint }; },
+    async fileExists() { return false; },
+    async readThemeSourceStamp() { return fingerprint; },
+    async listAppTargets() { return [{ id: 'fixture' }]; },
+    async connectTarget() {
+      const session = {
+        id: connections.length + 1, closed: false,
+        async evaluate() { return false; }, on() {},
+        close() { this.closed = true; calls.push(`close:${this.id}`); },
+      };
+      connections.push(session);
+      return session;
+    },
+    async registerEarlyPayload(session) { return `early-${session.id}-${fingerprint}`; },
+    earlyPayloadFor() { return ''; },
+    async removeEarlyPayload(session, identifier) { calls.push(`remove:${session.id}:${identifier}`); },
+    async probeSession() { return { codex: true }; },
+    async applyToSession(session, loaded) {
+      calls.push(`apply:${session.id}:${loaded.fingerprint}`);
+      if (session.id === 1 && loaded.fingerprint === 'new') throw new Error('transient renderer failure');
+    },
+    CdpIdentityMismatchError: class extends Error {},
+  };
+  await vm.runInNewContext(watchSource + '\nrunWatch({port:9335})', context);
+  assert.equal(connections.length, 2, 'Retry a failed refresh without another theme change.');
+  assert.ok(calls.includes('apply:2:new'), 'The replacement connection must apply the current revision.');
+  assert.ok(calls.indexOf('usage-stop:1') < calls.indexOf('apply:1:new'), 'Release the previous usage subscription before refreshing.');
+  const removed = calls.indexOf('remove:1:early-1-new');
+  assert.ok(removed > calls.indexOf('apply:1:new') && removed < calls.indexOf('close:1'), 'Remove the failed early script before closing its connection.');
+}
+console.log('PASS: failed live theme refreshes reconnect and apply the latest revision.');

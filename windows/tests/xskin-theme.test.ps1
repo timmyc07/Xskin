@@ -63,6 +63,31 @@ try {
   $mp4 = [byte[]](0,0,0,24,102,116,121,112,105,115,111,109,0,0,2,0,105,115,111,109,109,112,52,49)
   [System.IO.File]::WriteAllBytes($source, $mp4)
   $original = Read-DreamSkinTheme -ThemeDirectory $paths.Active
+  $activeJson = Read-DreamSkinUtf8File -Path $original.ThemePath
+  $unsafe = Join-Path $temporary 'unsafe-theme'
+  New-Item -ItemType Directory -Path $unsafe | Out-Null
+  Copy-Item -LiteralPath $original.ImagePath -Destination $unsafe
+  $metadata = Join-Path $unsafe 'theme.json'
+  $validBytes = $script:DreamSkinUtf8NoBom.GetBytes($activeJson)
+  foreach ($mode in @('empty', 'oversized', 'invalid-utf8')) {
+    $bytes = switch ($mode) {
+      'empty' { [byte[]]::new(0) }
+      'oversized' { $script:DreamSkinUtf8NoBom.GetBytes($activeJson + (' ' * (1MB + 1 - $validBytes.Length))) }
+      'invalid-utf8' { [byte[]](0xff) }
+    }
+    [IO.File]::WriteAllBytes($metadata, [byte[]]@($bytes))
+    try { $null = Read-DreamSkinTheme -ThemeDirectory $unsafe; throw "Accepted $mode theme metadata." }
+    catch { if ($_.Exception.Message -notlike 'Theme metadata is invalid JSON:*') { throw } }
+  }
+  [IO.File]::WriteAllBytes($metadata, $script:DreamSkinUtf8NoBom.GetBytes($activeJson + (' ' * (1MB - $validBytes.Length))))
+  $null = Read-DreamSkinTheme -ThemeDirectory $unsafe
+  $writer = [IO.File]::Open($metadata, [IO.FileMode]::Open, [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite)
+  try {
+    try { $null = Read-DreamSkinTheme -ThemeDirectory $unsafe; throw 'Accepted a concurrently writable theme.' }
+    catch { if ($_.Exception.Message -notlike 'Theme metadata is invalid JSON:*') { throw } }
+  } finally { $writer.Dispose() }
+  $null = Read-DreamSkinTheme -ThemeDirectory $unsafe
+  if ((Read-DreamSkinUtf8File -Path $original.ThemePath) -cne $activeJson) { throw 'Rejected input changed the active theme.' }
   $pending = New-XskinImport -ImagePath $original.ImagePath -VideoPath $source -StateRoot $stateRoot
   if ((Read-DreamSkinTheme -ThemeDirectory $paths.Active).Theme.video) { throw 'Import changed the active theme.' }
   if ((Get-FileHash -LiteralPath $pending.VideoPath).Hash -ne (Get-FileHash -LiteralPath $source).Hash) { throw 'Import changed video bytes.' }
@@ -134,4 +159,4 @@ try {
   if (-not $fullPath.StartsWith([System.IO.Path]::GetTempPath(), [System.StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected test cleanup path.' }
   Remove-Item -LiteralPath $fullPath -Recurse -Force
 }
-Write-Host 'PASS: disappearing paths retain strict ancestor/reparse/access checks, imports preserve active media, apply rolls back, and saved video themes round-trip.'
+Write-Host 'PASS: strict bounded theme reads reject concurrent writers, paths retain ancestor/reparse/access checks, imports preserve active media, apply rolls back, and saved video themes round-trip.'
