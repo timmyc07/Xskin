@@ -78,6 +78,40 @@ try {
     await assert.rejects(loadPayload(temporary), /configuration must be a regular file/,
       "A linked configuration cannot move the trusted media directory elsewhere.");
   } finally { fs.lstat = lstat; }
+  const configBytes = Buffer.from(JSON.stringify(theme));
+  for (const bytes of [Buffer.alloc(0), Buffer.alloc(1024 * 1024 + 1, 0x20)]) {
+    await fs.writeFile(metadata, bytes);
+    await assert.rejects(loadPayload(temporary), /regular file no larger than/);
+  }
+  await fs.writeFile(metadata, Buffer.concat([
+    Buffer.from('{"name":"'), Buffer.from([0xff]), Buffer.from('","image":"background.jpg"}'),
+  ]));
+  await assert.rejects(loadPayload(temporary), /encoded data|UTF-8/);
+  await fs.writeFile(metadata, Buffer.concat([configBytes, Buffer.alloc(1024 * 1024 - configBytes.length, 0x20)]));
+  assert.equal((await loadPayload(temporary)).theme.name, theme.name, "Accept a valid UTF-8 configuration at the 1 MiB limit.");
+  await fs.writeFile(metadata, configBytes);
+  const canonicalConfig = await fs.realpath(metadata);
+  let configClosed = false;
+  try {
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      if (args[0] === canonicalConfig) {
+        const read = handle.readFile.bind(handle);
+        const close = handle.close.bind(handle);
+        handle.readFile = async () => {
+          const bytes = await read();
+          await fs.appendFile(metadata, "\n");
+          return bytes;
+        };
+        handle.close = async () => { configClosed = true; await close(); };
+      }
+      return handle;
+    };
+    await assert.rejects(loadPayload(temporary), /configuration changed while loading/);
+    assert.equal(configClosed, true, "Rejected reads must release the configuration handle.");
+  } finally { fs.open = originalOpen; }
+  await fs.writeFile(metadata, configBytes);
+  assert.equal((await loadPayload(temporary)).fingerprint, loaded.fingerprint, "Rejected reads must leave the valid theme usable.");
   assert.equal(loaded.theme.maskOpacity, 0.62);
   assert.equal(loaded.theme.videoBytes, mp4.length, "The Mac renderer requires the original file length during handoff.");
   assert.ok(loaded.payload.includes("中文 $& theme"), "Replacement preserves literal dollar substitution sequences.");
@@ -131,4 +165,4 @@ try {
 } finally {
   await fs.rm(temporary, { recursive: true, force: true });
 }
-console.log("PASS: MP4 validation, bounded payloads, file handoff, cleanup, mutation detection and mask limits.");
+console.log("PASS: MP4 validation, strict bounded UTF-8 configuration, file handoff, cleanup, mutation detection and mask limits.");

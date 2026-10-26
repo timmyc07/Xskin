@@ -165,7 +165,18 @@ function Read-DreamSkinTheme {
     throw "Theme metadata is missing: $themePath"
   }
   try {
-    $theme = (Read-DreamSkinUtf8File -Path $themePath) | ConvertFrom-Json -ErrorAction Stop
+    $stream = [IO.File]::OpenRead($themePath)
+    try {
+      if ($stream.Length -lt 1 -or $stream.Length -gt 1MB) { throw 'Theme metadata must be between 1 byte and 1 MiB.' }
+      $bytes = [byte[]]::new([int]$stream.Length)
+      $offset = 0
+      while ($offset -lt $bytes.Length) {
+        $read = $stream.Read($bytes, $offset, $bytes.Length - $offset)
+        if ($read -eq 0) { throw 'Theme metadata changed while reading.' }
+        $offset += $read
+      }
+    } finally { $stream.Dispose() }
+    $theme = (ConvertFrom-DreamSkinUtf8Bytes -Bytes $bytes -Path $themePath) | ConvertFrom-Json -ErrorAction Stop
   } catch {
     throw "Theme metadata is invalid JSON: $themePath"
   }

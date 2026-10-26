@@ -10,6 +10,7 @@ const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
 const SKIN_VERSION = "1.9.7";
+const MAX_CONFIG_BYTES = 1024 * 1024;
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -341,7 +342,20 @@ async function loadTheme(themeDir) {
   const themePath = await fs.realpath(selectedThemePath);
   // MSIX can redirect individual files while leaving the selected directory path unchanged.
   const realThemeDir = path.dirname(themePath);
-  const themeText = await fs.readFile(themePath, "utf8");
+  const handle = await fs.open(themePath, "r");
+  let themeText, themeStat;
+  try {
+    themeStat = await handle.stat();
+    if (!themeStat.isFile() || themeStat.size < 1 || themeStat.size > MAX_CONFIG_BYTES) {
+      throw new Error(`Theme configuration must be a regular file no larger than ${MAX_CONFIG_BYTES} bytes`);
+    }
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (videoStamp(themeStat) !== videoStamp(after) || bytes.length !== themeStat.size) {
+      throw new Error("Theme configuration changed while loading");
+    }
+    themeText = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } finally { await handle.close(); }
   const raw = JSON.parse(themeText);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("Theme root must be an object");
@@ -397,7 +411,7 @@ async function loadTheme(themeDir) {
       return [key, /^(?:#[0-9a-f]{6}|rgba?\([0-9., %]+\))$/i.test(value) ? value : fallback];
     })),
   };
-  const [themeStat, imageStat] = await Promise.all([fs.stat(themePath), fs.stat(realImagePath)]);
+  const imageStat = await fs.stat(realImagePath);
   if (!imageStat.isFile()) throw new Error("Theme image is not a file");
   if (imageStat.size < 1) throw new Error("Theme image cannot be empty");
   if (imageStat.size > MAX_ART_BYTES) {

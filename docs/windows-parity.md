@@ -1,4 +1,14 @@
-# Windows 1.9.6 parity with macOS 1.9.6
+# Windows 1.9.7 parity with macOS 1.9.7
+
+The 2026-10-26 Windows sync includes macOS maintenance source `1e5e28d`. Windows retains one page-load fallback across pause/resume, probes pending shells every 50 ms and returns to its 1.2-second idle heartbeat. A failed live theme refresh already reconnects on Windows; a new regression confirms it releases the old usage subscription and early script, then applies the current revision without another file change.
+
+Windows now also matches the 1 MiB theme-configuration limit, strict UTF-8 decoding and file-handle mutation checks. PowerShell theme imports use bounded reads through .NET Framework-compatible `FileStream` with `FileShare.Read`, excluding concurrent writers, and reuse the existing strict UTF-8 decoder. MSIX file redirection and existing linked-configuration rejection remain covered. The injector uses the minimum supported [Node.js 20 file-handle API](https://nodejs.org/docs/latest-v20.x/api/fs.html), checked through Context7; Windows opens files with its supported read-only flag rather than relying on POSIX FIFO flags. Dependency versions are unchanged.
+
+Validation on 2026-10-26: full Windows PowerShell 5.1 and PowerShell 7.6.5 runners pass on Windows build 26100 with Node 24.22.0. Flutter 3.47.7 analysis, all seven Flutter tests and the Release x64 build pass. Plugin tests pass 74 with four existing platform/privilege skips. Standalone/plugin 1.9.7 ZIPs and SHA-256 files were built locally; both archives contain the current injector/theme loader and exclude `.env` and `auth.json`. The two full runners share an operation mutex and were run separately after an overlapping attempt was rejected. Context7's .NET documentation was not version-pinned; the Windows PowerShell 5.1 run validates the .NET Framework implementation.
+
+This sync does not install the new runtime or publish a release. macOS native checks were not rerun on Windows; installed-version live Apply, full official Home/task visuals, physical cold starts/login/Store updates and sustained playback remain unverified. Published stable downloads remain 1.9.6.
+
+## Previous 1.9.6 release
 
 Windows 1.9.6 ports the macOS fixes in `0773c1d` and `cfdbed3`: embedded Apply, mask and rollback reuse the verified watcher, retaining it on verification failure, and hidden suspended Dot videos defer decoding/clipping checks while theme, stylesheet and mask checks remain enforced. Visible playback still requires verification. Windows standalone/plugin archives and checksums are available under [windows-v1.9.6](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6).
 

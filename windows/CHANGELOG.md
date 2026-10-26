@@ -4,6 +4,8 @@
 
 - Keep one page-load fallback per live connection across pause/resume and theme changes, preventing duplicate reinjection and video handoff after reload.
 - Probe pending startup shells every 50 ms instead of 1.2 seconds; return to the existing 1.2-second heartbeat after initialization. Flutter package metadata is 1.9.7+20.
+- Match macOS theme-configuration validation: reject empty or oversized files above 1 MiB, invalid UTF-8 and changes during reading. PowerShell theme imports use bounded reads with concurrent writers excluded; the injector retains MSIX file redirection. Close rejected file handles and preserve the active theme.
+- Windows validation (2026-10-26): full PowerShell 5.1/7 runners, Flutter analysis, all seven Flutter tests and Release build pass; plugin tests pass 74 with four existing skips. Built and checked standalone/plugin ZIPs and SHA-256 files. Local installation, release publication and physical startup/playback acceptance remain pending; see [parity validation](../docs/windows-parity.md).
 
 ## 1.9.6 — 2026-10-24
 

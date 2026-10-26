@@ -1,5 +1,7 @@
 # 平台对照
 
+macOS/plugin and Windows **1.9.7 source** include the October 25 maintenance updates. The October 26 Windows sync also matches strict, stable UTF-8 theme-configuration loading; see [Windows parity and validation](windows-parity.md). Published stable downloads below remain 1.9.6.
+
 macOS/plugin and Windows **1.9.6** fix a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Windows standalone/plugin downloads and checksums are available under [windows-v1.9.6](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6).
 
 macOS/plugin **1.9.6** and Windows **1.9.6** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
@@ -79,6 +81,8 @@ Windows 新任务的记录文件尚未创建时会暂时监听其确切 UUID 的
 
 - macOS reconnects a renderer after a failed live theme refresh, removes its early script and closes the old usage subscription. The regression proves that the latest revision is retried without another file change.
 - Windows retains one load callback per connection across pause/resume and fallback changes. Pending startup shells are probed every 50 ms, returning to 1.2-second polling when ready. Two deferred probes now wait 100 ms instead of 2.4 seconds in the fixture; this is not a measured physical cold-start improvement.
+- The 2026-10-26 Windows sync also rejects empty/oversized theme configurations, invalid UTF-8 and mutations during reading. Its regression retains MSIX file redirection and confirms failed refreshes reconnect with the latest revision.
+- Windows follow-up validation: both full PowerShell 5.1/7 runners pass when run separately; Flutter 3.47.7 analysis, seven tests and Release build pass. Plugin tests pass 74 with four existing skips. Local standalone/plugin 1.9.7 ZIPs and checksums are verified; installation and publication remain pending.
 - macOS theme loading/staging reject FIFO files without waiting for a writer. Runtime configuration is limited to 1 MiB, decoded as strict UTF-8 and checked for changes during reading. Rejected input preserves staged settings.
 - Validation: the complete macOS runner passes with an isolated test home, and the 1.9.7 native app builds. Plugin tests pass 76 with two Windows-only skips; portable Windows tests pass. Flutter 3.47.2 analysis and six local tests pass, with its Windows bridge test skipped. The cross-origin browser fixture passes 204 layouts and 720 scroll positions, including four languages, 200% text, failed previews, fixed/max host bounds and absent safe insets. Image/video Apply retains its Blob without additional media reads.
 
