@@ -121,6 +121,7 @@ const watchSource = source.slice(source.indexOf('async function runWatch'), sour
 for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
   const events = new EventEmitter();
   const calls = [];
+  const pauses = [];
   let clock = 0, probes = 0, pauseChecks = 0;
   const anchor = {closed:false, close() {this.closed = true;}};
   const stop = () => events.emit('SIGTERM');
@@ -134,7 +135,7 @@ for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
     process:events, Date:{now:() => clock}, STRONG_THEME_AUDIT_MS:30000,
     TokenUsageReader:class {}, watchUsageOverlay() {return {close() {}};},
     console:{error() {}, log() {if (mode === 'late-shell') stop();}},
-    setTimeout(callback, ms) {clock += ms; if(mode === 'stop') stop(); return setImmediate(callback);},
+    setTimeout(callback, ms) {pauses.push(ms); clock += ms; if(mode === 'stop') stop(); return setImmediate(callback);},
     async connectBrowserIdentityAnchor() {return anchor;},
     async loadPayload() {return {fingerprint:'fixture', sourceStamp:'stamp', payload:'', theme:{id:'fixture'}, videoSource:{}};},
     async fileExists() {return mode === 'pause' && ++pauseChecks > 2;},
@@ -154,6 +155,8 @@ for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
   assert.equal(calls.filter(call => call === 'register').length, 1);
   if (mode === 'late-shell') {
     assert.equal(probes, 3);
+    assert.deepEqual(pauses.slice(0, 2), [50, 50], 'Probe pending startup shells promptly instead of waiting for the steady-state heartbeat.');
+    assert.equal(pauses.at(-1), 1200, 'Restore idle polling once the shell is ready.');
     assert.equal(calls.filter(call => call === 'video').length, 1);
     assert.equal(calls.includes('apply'), false, 'Do not replace artwork that early injection already installed.');
   } else {
@@ -165,3 +168,54 @@ for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
   assert.equal(anchor.closed, true);
 }
 console.log('PASS: late native shells retain early injection; expiry, pause and shutdown cancel pending observers.');
+
+{
+  const events = new EventEmitter();
+  const loads = [];
+  const applied = [];
+  let polls = 0;
+  let paused = false;
+  let fingerprint = 'initial';
+  const session = {
+    closed: false, async evaluate() { return true; },
+    on(method, listener) { if (method === 'Page.loadEventFired') loads.push(listener); },
+    close() { this.closed = true; },
+  };
+  const context = {
+    process: events, Date, STRONG_THEME_AUDIT_MS: 30000,
+    TokenUsageReader: class {}, watchUsageOverlay() { return { close() {} }; },
+    console: { error() {}, log() {} },
+    setTimeout(callback, ms) {
+      if (ms === 250) return setImmediate(callback);
+      if (++polls === 1) paused = true;
+      else if (polls === 2) paused = false;
+      else if (polls === 3) fingerprint = 'changed';
+      else {
+        loads.forEach(listener => listener());
+        return setImmediate(() => { events.emit('SIGTERM'); callback(); });
+      }
+      return setImmediate(callback);
+    },
+    async connectBrowserIdentityAnchor() { return { closed: false, close() {} }; },
+    async loadPayload() { return { fingerprint, sourceStamp: fingerprint, payload: '', theme: { id: fingerprint }, videoSource: {} }; },
+    async loadTheme() { return { fingerprint, sourceStamp: fingerprint }; },
+    async fileExists() { return paused; },
+    async readThemeSourceStamp() { return fingerprint; },
+    async listAppTargets() { return [{ id: 'fixture' }]; },
+    async connectTarget() { return session; },
+    async registerEarlyPayload() {
+      if (fingerprint === 'changed') throw new Error('early registration unavailable');
+      return 'early';
+    },
+    earlyPayloadFor() { return ''; }, async removeEarlyPayload() {},
+    async probeSession() { return { codex: true }; },
+    async waitForCodexProbe() { return { codex: true }; },
+    async attachVideoToSession() {}, async removeFromSession() {},
+    async applyToSession(_session, loaded) { applied.push(loaded.fingerprint); },
+    CdpIdentityMismatchError: class extends Error {},
+  };
+  await vm.runInNewContext(watchSource + '\nrunWatch({port:9335})', context);
+  assert.equal(loads.length, 1, 'Pause/resume and a fallback refresh must retain one load listener per live connection.');
+  assert.equal(applied.filter(value => value === 'changed').length, 2, 'Apply once for the theme change and once for its reload.');
+}
+console.log('PASS: pause/resume retains one load fallback per connection.');

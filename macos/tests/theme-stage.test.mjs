@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
+import { loadTheme } from "../scripts/injector.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const macosRoot = path.resolve(here, "..");
@@ -79,7 +81,55 @@ try {
   await fs.mkdir(symlinkStage);
   await assert.rejects(runStage(symlink, symlinkStage), /symbolic link/);
 
+  const run = promisify(execFile);
+  const unsafe = path.join(tempRoot, "unsafe");
+  await fs.mkdir(unsafe);
+  const configBytes = Buffer.from(JSON.stringify({ schemaVersion: 1, image: "background.png" }));
+  const imageBytes = await fs.readFile(fixtureAsset);
+  const rejectUnsafe = async pattern => {
+    for (const args of [
+      [stageScript, unsafe, stage],
+      [path.join(macosRoot, "scripts/injector.mjs"), "--check-payload", "--theme-dir", unsafe],
+    ]) await assert.rejects(run(process.execPath, args, { timeout: 2000 }), pattern);
+  };
+  for (const filename of ["theme.json", "background.png"]) {
+    await fs.writeFile(path.join(unsafe, "theme.json"), configBytes);
+    await fs.writeFile(path.join(unsafe, "background.png"), imageBytes);
+    await fs.unlink(path.join(unsafe, filename));
+    await run("mkfifo", [path.join(unsafe, filename)]);
+    await rejectUnsafe(/regular file|stable non-empty file/);
+    await fs.unlink(path.join(unsafe, filename));
+  }
+  await fs.writeFile(path.join(unsafe, "background.png"), imageBytes);
+  await fs.writeFile(path.join(unsafe, "theme.json"), Buffer.alloc(1024 * 1024 + 1, 0x20));
+  await rejectUnsafe(/larger than|no larger than/);
+  const unsafeConfig = path.join(unsafe, "theme.json");
+  await fs.writeFile(unsafeConfig, Buffer.concat([
+    Buffer.from('{"name":"'), Buffer.from([0xff]), Buffer.from('","schemaVersion":1,"image":"background.png"}'),
+  ]));
+  await rejectUnsafe(/encoded data|UTF-8/);
+  await fs.writeFile(unsafeConfig, configBytes);
+  const canonicalConfig = await fs.realpath(unsafeConfig);
+  const originalOpen = fs.open;
+  try {
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      if (args[0] === canonicalConfig) {
+        const read = handle.readFile.bind(handle);
+        handle.readFile = async () => {
+          const bytes = await read();
+          await fs.appendFile(unsafeConfig, "\n");
+          return bytes;
+        };
+      }
+      return handle;
+    };
+    await assert.rejects(loadTheme(unsafe), /changed while loading/);
+  } finally { fs.open = originalOpen; }
+  assert.deepEqual(await fs.readFile(path.join(stage, "theme.json")), Buffer.from(`${JSON.stringify(stagedConfig)}\n`), "Rejected sources must preserve the previously staged configuration.");
+
   console.log("PASS: theme staging snapshots a matched, contained config/image pair.");
+  console.log("PASS: theme loading and staging reject pipes, oversized config and invalid UTF-8 without blocking.");
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });
 }

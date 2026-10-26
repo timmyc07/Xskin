@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## 1.9.7 — 2026-10-25
+
+- Keep one page-load fallback per live connection across pause/resume and theme changes, preventing duplicate reinjection and video handoff after reload.
+- Probe pending startup shells every 50 ms instead of 1.2 seconds; return to the existing 1.2-second heartbeat after initialization. Flutter package metadata is 1.9.7+20.
+
 ## 1.9.6 — 2026-10-24
 
 - Publish Windows standalone and Codex plugin packages under `windows-v1.9.6`, each with a matching `.zip.sha256` file. Update download links and the copyable AI installation prompts.

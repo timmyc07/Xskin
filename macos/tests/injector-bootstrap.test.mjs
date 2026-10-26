@@ -213,6 +213,64 @@ await shutdownFixture("late-shell");
 await shutdownFixture("fetch");
 await shutdownFixture("backoff");
 
+{
+  const events = new EventEmitter();
+  const calls = [];
+  const connections = [];
+  let dirty;
+  let loads = 0;
+  let polls = 0;
+  const context = {
+    process: events, AbortController, Date, clearTimeout,
+    setTimeout: callback => setTimeout(callback, 0),
+    TokenUsageReader: class {},
+    watchUsageOverlay(session) { return { close() { calls.push(`usage-stop:${session.id}`); } }; },
+    console: { error() {}, log(message) {
+      if (message.includes("injected")) {
+        if (connections.length === 1) dirty({});
+        else events.emit("SIGTERM");
+      }
+    } },
+    async loadPayload() {
+      const revision = ++loads === 1 ? "old" : "new";
+      return { revision, payload: revision, theme: { id: revision }, timings: { buildMs: 0 } };
+    },
+    watchPayloadSources(_directory, callback) { dirty = callback; return () => {}; },
+    async listAppTargets() { return [{ id: "main" }]; },
+    async connectTarget() {
+      const session = {
+        id: connections.length + 1, closed: false,
+        async send(method) {
+          calls.push(`${method}:${this.id}`);
+          return { identifier: `early-${this.id}` };
+        },
+        async evaluate() { return false; }, on() {},
+        close() { this.closed = true; calls.push(`close:${this.id}`); },
+      };
+      connections.push(session);
+      return session;
+    },
+    async probeSession() { return { codex: true, surface: "main" }; },
+    earlyPayloadFor() { return ""; },
+    async applyToSession(session, loaded) {
+      calls.push(`apply:${session.id}:${loaded.revision}`);
+      if (session.id === 1 && loaded.revision === "new") throw new Error("transient renderer failure");
+    },
+    async attachVideoToSession() {},
+    async delay() {
+      if (++polls >= 8) events.emit("SIGTERM");
+      await new Promise(resolve => setTimeout(resolve, 5));
+    },
+  };
+  await vm.runInNewContext(`(${watchSource})({ port: 19341 })`, context);
+  assert.ok(calls.includes("apply:2:new"), "A failed live refresh must reconnect and apply the current theme without another file change.");
+  const failed = calls.indexOf("apply:1:new");
+  const unregistered = calls.indexOf("Page.removeScriptToEvaluateOnNewDocument:1", failed);
+  assert.ok(unregistered > failed && unregistered < calls.indexOf("close:1"), "Remove persistent scripts before replacing the failed connection.");
+  assert.ok(calls.includes("usage-stop:1"), "A failed refresh must release its usage subscription.");
+}
+console.log("PASS: failed live theme refreshes reconnect and apply the latest revision.");
+
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "dream-skin-stop-test-"));
 try {
   const stateRoot = path.join(temporary, "Library/Application Support/CodexDreamSkinStudio");
