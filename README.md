@@ -34,7 +34,7 @@ Install Xskin 1.9.8 on this Windows x64 computer, including BOTH the standalone 
 
 Use only https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.8 . Download Xskin-1.9.8-windows-x64.zip and xskin-plugin-v1.9.8-windows-x64.zip, plus each matching .zip.sha256 file. Verify both SHA-256 hashes before running anything; stop on a mismatch. Read the packaged Windows README and preserve all existing Xskin media, preferences and unrelated Codex settings.
 
-Extract each complete ZIP into a separate persistent user-owned folder, keeping every adjacent file. Find the standalone root containing xskin.exe and run its Install Xskin.exe. Find the plugin root containing plugin.json, mcp.json and .agents/plugins/marketplace.json. Use the official Codex CLI (locate it in the installed OpenAI.Codex Store package if it is not on PATH). Check its plugin command help, then run:
+Extract each complete ZIP into a separate persistent user-owned folder, keeping every adjacent file. Find the standalone root containing xskin.exe and run its Install Xskin.exe. Find the plugin root containing plugin.json, mcp.json and .agents/plugins/marketplace.json. Use the official Codex CLI (locate it in the installed OpenAI.Codex Store package if it is not on PATH). Check its plugin command help. If codex-background-studio-local points to an older extracted folder, remove only that source with codex plugin marketplace remove codex-background-studio-local, preserving background data and other marketplaces. Then run:
 codex plugin marketplace add "<absolute extracted plugin root>"
 codex plugin add codex-background-studio@codex-background-studio-local
 
