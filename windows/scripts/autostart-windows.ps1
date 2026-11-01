@@ -104,6 +104,10 @@ function Start-DreamSkinAutostart {
   if (-not $startup.Enabled -or $startup.Foreign) { throw 'The Xskin login task is disabled or its identity does not match.' }
   $null = Get-DreamSkinQuietLauncher -StateRoot $StateRoot
   $task = Get-DreamSkinAutostartTask
+  $statePath = Join-Path $StateRoot 'autostart.json'
+  Assert-DreamSkinNoReparseComponents -Path $statePath
+  # Manual setup preserves open sessions; a login trigger has no such cutoff.
+  Write-DreamSkinState -Path $statePath -State @{ preserveExistingBefore = [datetimeoffset]::UtcNow.ToString('o') }
   $running = $task.Run($null)
   try {
     $deadline = [datetime]::UtcNow.AddSeconds(15)
@@ -165,9 +169,10 @@ function Test-DreamSkinNewCodexLaunch {
   param([object]$Codex, [int]$ProcessId, [string]$StartedAt)
   if (-not $StartedAt) { return $false }
   $age = ([datetimeoffset]::UtcNow - [datetimeoffset]$StartedAt).TotalSeconds
-  if ($age -lt 0 -or $age -ge 15) { return $false }
+  if ($age -lt 0 -or $age -ge 60) { return $false }
   $info = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
-  return [bool]($info -and $info.CommandLine -and
+  if (-not $info -or -not $info.CommandLine) { return $null }
+  return [bool](
     $info.SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId -and
     $info.CommandLine -notmatch '(?i)(?:^|[\s"])--(?:type|remote-debugging-[\w-]+)(?:[=\s"]|$)' -and
     (Test-DreamSkinPathEqual -Left (Get-DreamSkinProcessExecutablePath -ProcessInfo $info) -Right $Codex.Executable) -and
@@ -199,6 +204,25 @@ function Stop-DreamSkinNewCodexLaunch {
   }
 }
 
+function New-DreamSkinAutostartContext {
+  param([object[]]$Candidates, [string]$StateRoot)
+  $context = @{ Seen = @{} }
+  $statePath = Join-Path $StateRoot 'autostart.json'
+  Assert-DreamSkinNoReparseComponents -Path $statePath
+  $startup = Read-DreamSkinState -Path $statePath
+  if ($startup.preserveExistingBefore) {
+    $cutoff = [datetimeoffset]$startup.preserveExistingBefore
+    foreach ($process in $Candidates) {
+      try {
+        if ([datetimeoffset]$process.StartTime.ToUniversalTime() -le $cutoff) {
+          $context.Seen["$($process.Id):$($process.StartTime.ToUniversalTime().ToString('o'))"] = $true
+        }
+      } catch { }
+    }
+  }
+  return $context
+}
+
 function Invoke-DreamSkinAutostartStep {
   param([object[]]$Candidates, [hashtable]$Context, [string]$StateRoot)
   $live = @{}
@@ -215,7 +239,9 @@ function Invoke-DreamSkinAutostartStep {
         continue
       }
       $codex = Get-DreamSkinCodexInstall
-      if (-not (Test-DreamSkinNewCodexLaunch -Codex $codex -ProcessId $process.Id -StartedAt $startedAt)) {
+      $fresh = Test-DreamSkinNewCodexLaunch -Codex $codex -ProcessId $process.Id -StartedAt $startedAt
+      if ($null -eq $fresh) { continue }
+      if (-not $fresh) {
         $Context.Seen[$key] = $true
         continue
       }

@@ -53,6 +53,10 @@ function Get-XskinAutostart {
   $enabled = Test-Path -LiteralPath (Join-Path $StateRoot 'automatic-enabled.txt')
   return @{ Enabled = $enabled; Loaded = $enabled; Foreign = $false }
 }
+function Get-DreamSkinAutostart {
+  param([string]$StateRoot)
+  return Get-XskinAutostart -StateRoot $StateRoot
+}
 function Set-XskinAutostart {
   param([bool]$Enabled, [string]$SkillRoot, [string]$StateRoot)
   $file = Join-Path $StateRoot 'automatic-enabled.txt'
@@ -60,7 +64,7 @@ function Set-XskinAutostart {
     [IO.File]::WriteAllText($file, 'enabled')
     [IO.File]::AppendAllText((Join-Path $StateRoot 'automatic-setups.txt'), 'setup')
   } elseif (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
-  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 3; shortcutSkinEnabled = $Enabled }
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 4; shortcutSkinEnabled = $Enabled }
 }
 function Install-DreamSkinRuntimeEngine {
   param([string]$StateRoot)
@@ -206,6 +210,28 @@ $global:LASTEXITCODE = 0
   assert.equal((await run('recover', {}, true)).recovered, false);
   const startScript = path.join(runtimeRoot, 'scripts/start-dream-skin.ps1');
   const originalStart = await fs.readFile(startScript);
+  assert.equal((await run('import', { path: source }, true)).code, 0);
+  assert.equal((await run('autostart', { enabled: true }, true)).code, 0);
+  await fs.rm(path.join(stateRoot, 'automatic-enabled.txt'));
+  const setupsBeforeRepair = await fs.readFile(path.join(stateRoot, 'automatic-setups.txt'), 'utf8');
+  await fs.writeFile(startScript, `
+param([switch]$ExistingOnly, [switch]$ReuseWatcher, [switch]$Resume, [string]$StateRoot)
+throw (New-XskinFailure -Code resumeUnavailable -Message 'fixture missing connection')
+`);
+  const disconnected = (await run('status', {}, true)).state;
+  const disconnectedMetadata = await fs.readFile(path.join(stateRoot, 'active-theme/theme.json'));
+  const missingConnection = await run('apply', { maskOpacity: .81, imagePath: disconnected.imagePath,
+    selectionId: disconnected.selectionId }, true);
+  assert.equal(missingConnection.errorCode, 'resumeUnavailable', 'A missing connection keeps its actionable error after rollback.');
+  assert.equal(await fs.readFile(path.join(stateRoot, 'automatic-setups.txt'), 'utf8'), `${setupsBeforeRepair}setup`,
+    'Manual Apply repairs missing monitoring when the saved preference is enabled.');
+  assert.equal((await run('status', {}, true)).state.autostartLoaded, true);
+  assert.equal((await run('mask', { maskOpacity: .81 }, true)).errorCode, 'resumeUnavailable');
+  assert.deepEqual(await fs.readFile(path.join(stateRoot, 'active-theme/theme.json')), disconnectedMetadata);
+  assert.equal((await run('status', {}, true)).state.selectionId, disconnected.selectionId,
+    'Reconnecting must not lose the pending selection.');
+  assert.equal((await run('autostart', { enabled: false }, true)).code, 0);
+  await fs.writeFile(startScript, originalStart);
   for (const action of ['mask', 'apply']) {
     if (action === 'apply') assert.equal((await run('import', { path: source })).code, 0);
     const before = (await run('status', {}, true)).state;

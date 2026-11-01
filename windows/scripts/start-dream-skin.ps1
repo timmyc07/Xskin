@@ -100,7 +100,7 @@ try {
   } else {
     Get-DreamSkinCodexProcesses -Codex $activeCodex
   }
-  if ($ExistingOnly -and -not $debugReady) { throw 'Apply requires an existing verified Xskin connection. Open Codex (Xskin) first.' }
+  if ($ExistingOnly -and -not $debugReady) { throw (New-XskinFailure -Code resumeUnavailable -Message 'Fully exit Codex, then reopen the official app with automatic backgrounds enabled, or use Codex (Xskin).') }
   if (-not $ExistingOnly -and ($pauseWasSet -or (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $false) -and -not $Resume) {
     $null = Start-DreamSkinCodex -Codex $codex
     Write-Host 'Xskin is paused or shortcut backgrounds are disabled. Official Codex was left open without applying a skin.'

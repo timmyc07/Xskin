@@ -1,16 +1,18 @@
 # Xskin user guide
 
-**macOS/plugin 1.9.6** provides an in-Codex panel at **More → Xskin**. It fixes Apply remaining on Working and runtime upgrades reverting because of a hidden, intentionally suspended Dot video. Embedded reapplication retains the existing background watcher. The user reports the issue is resolved; the full macOS runner, 76 plugin tests and local backend/main/Dot verification pass. Native panel clicking, physical cold starts and sustained playback remain unverified. See [installation and evidence](in-app-studio.md). The standalone native app remains available below; Windows uses its separate 1.9.6 package.
+**Xskin 1.9.8** provides the in-Codex panel at **More → Xskin** on both platforms. Windows repairs login-monitor races, slow startup and stopped/missing monitoring; Apply/Resume recover an enabled monitor and preserve pending media when no connection is available. macOS passed the full suite and live verification on Codex 26.1027.51404. See [installation and evidence](in-app-studio.md).
 
 Xskin is a standalone native macOS app. Import local images or MP4s, inspect a native preview, and apply them as Codex backgrounds from one focused window.
 
 ## Install and open
 
-[Download Xskin 1.9.6 for macOS](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/Xskin-v1.9.6-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.9.6 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.6). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
+[Download Xskin 1.9.8 for macOS](https://github.com/timmyc07/Xskin/releases/download/v1.9.8/Xskin-v1.9.8-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. Windows users should download the separate [Windows 1.9.8 package](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.8). The prebuilt macOS app requires **macOS 13 or later, Apple Silicon, and official Codex Desktop**. It uses a verified runtime bundled with Codex; no separate Node.js, package manager, or Xcode installation is needed.
 
 The release uses an ad-hoc signature and has not been notarized with Apple Developer ID. macOS may show a source verification warning. Confirm that the download came from this project's Release page before opening it.
 
-For the embedded panel, download the [macOS plugin 1.9.6 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.6/xskin-plugin-v1.9.6.zip), retain the complete folder and run these commands inside it:
+For the embedded panel, download the [macOS plugin 1.9.8 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.8/xskin-plugin-v1.9.8.zip), retain the complete folder and run these commands inside it:
+
+When updating an existing installation from a different extracted path, first run `codex plugin marketplace remove codex-background-studio-local`, then run the two commands below. This replaces only the Xskin marketplace source; keep existing background data and other marketplaces.
 
 ```sh
 codex plugin marketplace add .
@@ -41,7 +43,7 @@ English is the default. Use the in-app language selector to switch to **Traditio
 
 1. Apply the background you want to keep.
 2. On macOS, enable **Apply when official Codex opens**. Open the official app as usual; a new ordinary launch gracefully reopens once with the background. The panel can stay closed, including after login. An already-open session is left alone, and a refused quit is never forced.
-3. On Windows 1.9.6, explicitly enable **Apply when official Codex opens** for the same fresh-launch handoff, or fully exit and use **Codex (Xskin)** directly. Existing ordinary sessions are left running. The panel can stay closed.
+3. On Windows 1.9.8, explicitly enable **Apply when official Codex opens** for the same fresh-launch handoff, or fully exit and use **Codex (Xskin)** directly. Existing ordinary sessions are left running. The panel can stay closed.
 
 The optional macOS ~/Applications/Codex (Xskin).app starts directly with the background connection, avoiding the reopen. Pin it using normal system UI if preferred. Paused/disabled entries open ordinary Codex and retain pause. Upgrades manage only verified Xskin services/shortcuts and preserve media, language and opacity. Historical managed Dock pins are restored; new setup does not replace official pins automatically.
 

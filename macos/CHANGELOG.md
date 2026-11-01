@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.8 — 2026-11-01
+
+- Update the shared plugin distribution for Windows startup-monitor recovery and actionable missing-connection errors.
+- Audit the macOS runtime against Codex 26.1027.51404, including signed runtime discovery, live video/mask/usage verification and the launcher regression suite. See `docs/platforms.md` for validation scope.
+
 ## 1.9.7 — 2026-10-25
 
 - Reconnect a renderer after a failed live theme refresh, unregister its persistent early script and release its usage subscription. Retry the latest theme without waiting for another file change.

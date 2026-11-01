@@ -27,10 +27,21 @@ try {
   $currentStart = [datetime]::UtcNow.AddMinutes(-1).ToString('o')
   if (Test-DreamSkinNewCodexLaunch @identity) { throw 'Reused PID was accepted.' }
   if (Test-DreamSkinNewCodexLaunch -Codex $codex -ProcessId 101 -StartedAt $currentStart) { throw 'Old session was accepted.' }
+  $coldStart = [datetime]::UtcNow.AddSeconds(-25).ToString('o')
+  $currentStart = $coldStart
+  if (-not (Test-DreamSkinNewCodexLaunch -Codex $codex -ProcessId 101 -StartedAt $coldStart)) {
+    throw 'A slow cold start was rejected before its first window could appear.'
+  }
   $currentStart = $startedAt
 
   $fake = [pscustomobject]@{ Id = 101; StartTime = [datetime]$startedAt; MainWindowHandle = [IntPtr]1; Path = $codex.Executable }
   $fake | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($Timeout) return $script:exitResult }
+  Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State @{ preserveExistingBefore = [datetimeoffset]::UtcNow.ToString('o') }
+  $initial = New-DreamSkinAutostartContext -Candidates @($fake) -StateRoot $stateRoot
+  if (-not $initial.Seen.ContainsKey("101:$startedAt")) { throw 'Manual setup did not preserve an already-open session.' }
+  Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State @{ processId = 999; startedAt = 'previous boot' }
+  $initial = New-DreamSkinAutostartContext -Candidates @($fake) -StateRoot $stateRoot
+  if ($initial.Seen.Count -ne 0) { throw 'Login startup suppressed a fresh Codex launch that won the startup race.' }
   $script:quitCalls = 0
   $script:exitResult = $true
   $script:refuseQuit = $false
@@ -86,6 +97,14 @@ if (Test-Path -LiteralPath (Join-Path $StateRoot 'fail')) { throw 'fixture failu
   $info.CommandLine += ' --remote-debugging-port=9335'
   Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
   if (@(Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs')).Count -ne 5) { throw 'Managed relaunch looped.' }
+  $fake.Id = 180; $info.ProcessId = 180
+  $info.CommandLine = '"C:\Store\Official\ChatGPT.exe"'
+  function Get-CimInstance { return $null }
+  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
+  if ($context.Seen.ContainsKey("180:$startedAt")) { throw 'Transient startup metadata permanently consumed the launch.' }
+  function Get-CimInstance { return $info }
+  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
+  if (@(Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs')).Count -ne 6) { throw 'The fresh launch was not applied after metadata became available.' }
   $stopped = 0
   function Stop-DreamSkinRecordedInjector { $script:stopped++; return $true }
   Write-DreamSkinState -Path (Join-Path $stateRoot 'state.json') -State @{ codexPid = 999; codexStartedAt = 'old' }

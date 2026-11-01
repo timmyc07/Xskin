@@ -144,6 +144,9 @@ try {
       if (-not (Test-DreamSkinPathEqual -Left $preview.imagePath -Right ([string]$request.imagePath))) {
         throw (New-XskinFailure -Code selectMedia -Message 'The preview changed in another Xskin window. Import or select the background again.')
       }
+      if ((Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $true) {
+        Initialize-XskinAutostart -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+      }
       $candidate = Read-DreamSkinTheme -ThemeDirectory $preview.directory
       $candidate.Theme | Add-Member -NotePropertyName maskOpacity -NotePropertyValue $opacity -Force
       $candidate.Theme | Add-Member -NotePropertyName layout -NotePropertyValue 'wallpaper' -Force
@@ -200,6 +203,9 @@ try {
       }
     }
     'resume' {
+      if ((Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $true) {
+        Initialize-XskinAutostart -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+      }
       try { & (Join-Path $PSScriptRoot 'start-dream-skin.ps1') -ExistingOnly -Resume -StateRoot $StateRoot }
       catch { throw (New-XskinFailure -Code resumeUnavailable -Message $_.Exception.Message) }
     }
