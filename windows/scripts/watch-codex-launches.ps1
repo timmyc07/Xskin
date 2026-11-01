@@ -14,11 +14,8 @@ try {
   try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
   if (-not $acquired) { exit 0 }
   $sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
-  $context = @{ Seen = @{} }
-  # Installation and login leave every already-open session alone, including fresh ones.
-  foreach ($process in @(Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $sessionId })) {
-    try { $context.Seen["$($process.Id):$($process.StartTime.ToUniversalTime().ToString('o'))"] = $true } catch { }
-  }
+  $candidates = @(Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $sessionId })
+  $context = New-DreamSkinAutostartContext -Candidates $candidates -StateRoot $StateRoot
   Assert-DreamSkinNoReparseComponents -Path (Join-Path $StateRoot 'autostart.json')
   Write-DreamSkinState -Path (Join-Path $StateRoot 'autostart.json') -State @{
     processId = $PID; startedAt = Get-DreamSkinProcessStartedAt -ProcessId $PID

@@ -1,5 +1,12 @@
 # Windows Changelog
 
+## 1.9.8 — 2026-11-01
+
+- Fix a login race that skipped Codex when it opened before the background monitor. Explicit setup still preserves sessions that were already open. Retry temporarily unavailable process metadata and allow up to 60 seconds for a fresh official process to become ready, with the existing package, PID, start-time and session checks.
+- Repair an enabled monitor that is stopped or whose login task is missing. Migrate the managed runtime once and check monitoring during Apply and Resume without re-enabling a disabled preference.
+- Preserve the specific missing-connection error through Apply and mask rollback, keeping the previous background and pending media. An ordinary Codex session without a background connection still requires one complete exit/reopen; the embedded panel does not close an active session.
+- Flutter package metadata is 1.9.8+21.
+
 ## 1.9.7 — 2026-10-25
 
 - Keep one page-load fallback per live connection across pause/resume and theme changes, preventing duplicate reinjection and video handoff after reload.
