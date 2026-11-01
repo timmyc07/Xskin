@@ -8,7 +8,7 @@
 只使用官方專案 Release：https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.8
 下載 Xskin-1.9.8-windows-x64.zip、xskin-plugin-v1.9.8-windows-x64.zip，以及各自同名的 .zip.sha256。執行前用 Get-FileHash -Algorithm SHA256 驗證兩個 ZIP；不符就停止。先讀取套件內 Windows README，保留現有背景、匯入素材、語言、遮罩、暫停狀態與無關 Codex 設定。
 
-將兩個完整 ZIP 分別解壓至目前使用者的固定資料夾，保留所有相鄰檔案。找到包含 xskin.exe 的獨立版根目錄，執行其中的 Install Xskin.exe。找到同時包含 plugin.json、mcp.json、.agents/plugins/marketplace.json 的外掛根目錄。使用官方 Codex CLI；如果 codex 不在 PATH，從已安裝的 OpenAI.Codex Store 套件中尋找官方 CLI。先確認 plugin 指令說明，再執行：
+將兩個完整 ZIP 分別解壓至目前使用者的固定資料夾，保留所有相鄰檔案。找到包含 xskin.exe 的獨立版根目錄，執行其中的 Install Xskin.exe。找到同時包含 plugin.json、mcp.json、.agents/plugins/marketplace.json 的外掛根目錄。使用官方 Codex CLI；如果 codex 不在 PATH，從已安裝的 OpenAI.Codex Store 套件中尋找官方 CLI。先確認 plugin 指令說明。若已存在 codex-background-studio-local 且來源是舊解壓路徑，先只移除該 marketplace 來源（codex plugin marketplace remove codex-background-studio-local），保留外掛資料與其他來源，再執行：
 codex plugin marketplace add "<外掛解壓根目錄的絕對路徑>"
 codex plugin add codex-background-studio@codex-background-studio-local
 

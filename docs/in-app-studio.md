@@ -14,6 +14,8 @@ Use **Refresh** to reload current settings. If an interrupted change needs recov
 
 Download the [macOS plugin 1.9.8 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.8/xskin-plugin-v1.9.8.zip), extract it and retain the complete folder. The compiled server/UI are included; users need neither npm nor Xcode. The [macOS release page](https://github.com/timmyc07/Xskin/releases/tag/v1.9.8) also provides the standalone app and SHA-256 files.
 
+When updating an existing installation from a different extracted path, first run `codex plugin marketplace remove codex-background-studio-local`, then run the two commands below. This replaces only the Xskin marketplace source; keep existing background data and other marketplaces.
+
 ```bash
 codex plugin marketplace add /absolute/path/to/Xskin
 codex plugin add codex-background-studio@codex-background-studio-local

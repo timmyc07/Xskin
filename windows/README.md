@@ -12,6 +12,8 @@
 
 下載並解壓完整的 `xskin-plugin-v1.9.8-windows-x64.zip`，保留整個資料夾於固定位置。以下路徑必須指向同時含有 `plugin.json`、`mcp.json` 及 `.agents/plugins/marketplace.json` 的解壓根目錄。套件包括 Windows 專用啟動器、Node 與編譯後工作室，不需要安裝 npm 或 Flutter。
 
+若已安裝舊版，且新版解壓路徑不同，先執行 `codex plugin marketplace remove codex-background-studio-local`，再執行下方兩個命令。這只更換 Xskin 外掛來源，不要刪除背景資料或其他外掛來源。
+
 ```powershell
 codex plugin marketplace add "D:\完整路徑\Xskin-plugin"
 codex plugin add codex-background-studio@codex-background-studio-local

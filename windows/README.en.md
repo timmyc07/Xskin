@@ -12,6 +12,8 @@ Windows now mirrors the completed macOS 1.9.4 embedded studio, retained original
 
 Download and extract the complete `xskin-plugin-v1.9.8-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
 
+When updating an existing installation from a different extracted path, first run `codex plugin marketplace remove codex-background-studio-local`, then run the two commands below. This replaces only the Xskin marketplace source; keep existing background data and other marketplaces.
+
 ```powershell
 codex plugin marketplace add "D:\path with spaces\Xskin-plugin"
 codex plugin add codex-background-studio@codex-background-studio-local

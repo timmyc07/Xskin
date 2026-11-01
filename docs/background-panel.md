@@ -12,6 +12,8 @@ The release uses an ad-hoc signature and has not been notarized with Apple Devel
 
 For the embedded panel, download the [macOS plugin 1.9.8 ZIP](https://github.com/timmyc07/Xskin/releases/download/v1.9.8/xskin-plugin-v1.9.8.zip), retain the complete folder and run these commands inside it:
 
+When updating an existing installation from a different extracted path, first run `codex plugin marketplace remove codex-background-studio-local`, then run the two commands below. This replaces only the Xskin marketplace source; keep existing background data and other marketplaces.
+
 ```sh
 codex plugin marketplace add .
 codex plugin add codex-background-studio@codex-background-studio-local
