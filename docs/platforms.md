@@ -12,6 +12,7 @@ macOS/plugin **1.9.9** and Windows **1.9.9** share the embedded studio, complete
 | Chat navigation and usage | Delayed replies after a thread switch, composer replacement for the same thread, hide/show before the next poll, ambiguous composers, Home, and remote threads. |
 | macOS watcher | Four startup/Apply and theme-refresh interleavings across image and video. Shutdown must remove every registered script. |
 | Windows watcher | Eight combinations of image fallback or early video with reload, Pause, theme refresh, or shutdown. Duplicate load notifications count as one reload. |
+| Runtime upgrade | An older panel preserves the newer installed runtime. Explicit installation still supports rollback. |
 | Both injectors | A document that changes after discovery and a child frame that exposes a matching shell must not receive the skin. |
 
 The fixtures drive Xskin and simulated host events. Actual message delivery and navigation belong to the official desktop app and require separate end-to-end testing.

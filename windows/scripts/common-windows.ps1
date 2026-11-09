@@ -202,7 +202,8 @@ function Remove-DreamSkinRuntimeTree {
 function Install-DreamSkinRuntimeEngine {
   param(
     [Parameter(Mandatory = $true)][string]$SkillRoot,
-    [Parameter(Mandatory = $true)][string]$StateRoot
+    [Parameter(Mandatory = $true)][string]$StateRoot,
+    [switch]$KeepNewer
   )
   if (-not (Get-Command Ensure-DreamSkinManagedDirectory -ErrorAction SilentlyContinue)) {
     throw 'Dream Skin managed-directory validation is unavailable.'
@@ -240,6 +241,24 @@ function Install-DreamSkinRuntimeEngine {
   foreach ($relative in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot $relative) -PathType Leaf)) {
       throw "Dream Skin runtime source is incomplete: $relative"
+    }
+  }
+  $installedVersionPath = Join-Path $engine.Root 'VERSION'
+  if ($KeepNewer -and (Test-Path -LiteralPath $installedVersionPath -PathType Leaf)) {
+    $sourceVersionPath = Join-Path $sourceRoot 'VERSION'
+    Assert-DreamSkinNoReparseComponents -Path $installedVersionPath
+    Assert-DreamSkinNoReparseComponents -Path $sourceVersionPath
+    $installedVersion = (Read-DreamSkinUtf8File -Path $installedVersionPath).Trim()
+    $sourceVersion = (Read-DreamSkinUtf8File -Path $sourceVersionPath).Trim()
+    if ($installedVersion -match '^\d+\.\d+\.\d+$' -and $sourceVersion -match '^\d+\.\d+\.\d+$' -and
+      [version]$installedVersion -gt [version]$sourceVersion) {
+      Assert-DreamSkinRuntimeTree -Path $engine.Root
+      foreach ($relative in $required) {
+        if (-not (Test-Path -LiteralPath (Join-Path $engine.Root $relative) -PathType Leaf)) {
+          throw "Newer Dream Skin runtime is incomplete: $relative"
+        }
+      }
+      return $engine
     }
   }
   $runtimeDirectories = @('assets', 'scripts', 'presets')

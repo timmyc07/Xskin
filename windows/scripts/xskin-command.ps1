@@ -86,7 +86,7 @@ try {
     Ensure-DreamSkinManagedDirectory -Path $StateRoot -Root $StateRoot
   } elseif ($Action -notin @('status','recover')) {
     if ($Embedded -and $Action -eq 'import') {
-      $null = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+      $null = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot -KeepNewer
     }
     $paths = Initialize-DreamSkinThemeStore -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
     $null = Repair-XskinTransaction -StateRoot $StateRoot
@@ -157,7 +157,7 @@ try {
         if ($Embedded) {
           & (Join-Path $PSScriptRoot 'start-dream-skin.ps1') -ExistingOnly -ReuseWatcher -Resume -StateRoot $StateRoot
         } else {
-          $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+          $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot -KeepNewer
           & $runtime.Start -Resume -StateRoot $StateRoot
         }
       }
@@ -194,7 +194,7 @@ try {
       $null = Set-DreamSkinPaused -Paused $paused -StateRoot $StateRoot
       if (-not $paused) {
         try {
-          $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+          $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot -KeepNewer
           & $runtime.Start -Resume -StateRoot $StateRoot
         } catch {
           $null = Set-DreamSkinPaused -Paused $true -StateRoot $StateRoot
@@ -210,7 +210,7 @@ try {
       catch { throw (New-XskinFailure -Code resumeUnavailable -Message $_.Exception.Message) }
     }
     'launch' {
-      $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+      $runtime = Install-DreamSkinRuntimeEngine -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot -KeepNewer
       & $runtime.Start -StateRoot $StateRoot
     }
     'restore' {

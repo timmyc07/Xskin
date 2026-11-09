@@ -10,6 +10,18 @@ ensure_state_root
 runtime_matches() {
   local file relative
   [ -s "$INSTALL_ROOT/scripts/background-studio.mjs" ] || return 1
+  if [ -f "$INSTALL_ROOT/VERSION" ] && [ -f "$PROJECT_ROOT/VERSION" ] &&
+    ! /usr/bin/cmp -s "$INSTALL_ROOT/VERSION" "$PROJECT_ROOT/VERSION" &&
+    "$NODE" -e '
+      const fs = require("node:fs");
+      const versions = process.argv.slice(1).map(file => fs.readFileSync(file, "utf8").trim());
+      if (!versions.every(version => /^\d+\.\d+\.\d+$/.test(version))) process.exit(1);
+      const [installed, source] = versions.map(version => version.split(".").map(BigInt));
+      const difference = installed.findIndex((part, i) => part !== source[i]);
+      process.exit(difference >= 0 && installed[difference] > source[difference] ? 0 : 1);
+    ' "$INSTALL_ROOT/VERSION" "$PROJECT_ROOT/VERSION"; then
+    return 0
+  fi
   # Compare executable payloads so rebuilt versions update without reading theme media.
   for file in "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT"/scripts/* "$PROJECT_ROOT"/assets/*.css "$PROJECT_ROOT"/assets/*.js "$PROJECT_ROOT"/bin/*; do
     [ -f "$file" ] || continue

@@ -45,6 +45,17 @@ try {
     }
   }
 
+  $fixtureVersionPath = Join-Path $engine.Root 'VERSION'
+  [IO.File]::WriteAllText($fixtureVersionPath, '999.0.0')
+  $engine = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot -KeepNewer
+  if ((Read-DreamSkinUtf8File -Path $fixtureVersionPath) -cne '999.0.0') {
+    throw 'An older panel downgraded the installed runtime.'
+  }
+  $engine = Install-DreamSkinRuntimeEngine -SkillRoot $runtimeSourceRoot -StateRoot $runtimeStateRoot
+  if ((Read-DreamSkinUtf8File -Path $fixtureVersionPath) -cne (Read-DreamSkinUtf8File -Path (Join-Path $runtimeSourceRoot 'VERSION'))) {
+    throw 'An explicit install could not select an older runtime.'
+  }
+
   [System.IO.File]::WriteAllText((Join-Path $engine.Root 'stale-runtime.txt'), 'stale')
   [System.IO.File]::WriteAllText((Join-Path $runtimeSourceRoot 'scripts\runtime-update.test'), 'updated')
   $realRuntimeCleanup = (Get-Command Remove-DreamSkinRuntimeTree -CommandType Function).ScriptBlock

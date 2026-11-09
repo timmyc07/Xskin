@@ -2,6 +2,7 @@
 
 ## 1.9.10 — Unreleased
 
+- Keep an installed newer runtime when a panel prepares the background service. Explicit installation can still select an older package.
 - Keep Verify from reapplying an older background after reload while another operation is running.
 - Reject delayed usage data after the composer is replaced, the chat switches, or the window is hidden and immediately reopened.
 - Coordinate background updates with renderer startup, reload and shutdown. Ignore unrecognized pages and child frames during injection.
