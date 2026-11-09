@@ -94,7 +94,7 @@ function fixture({ surface = "codex", lang = "zh-TW" } = {}) {
       } };
     },
     querySelectorAll(selector) {
-      if (selector === "[data-composer-body]") return [inactiveComposer, composer];
+      if (selector === "[data-composer-body]") return [inactiveComposer, composer, ...(data.extraComposers ?? [])];
       assert.equal(selector, '[data-app-action-sidebar-thread-selected="true"][aria-current="page"]');
       return data.selected;
     },
@@ -280,6 +280,26 @@ assert.equal(f.row, null);
 assert.equal(f.timers.size, 0);
 assert.equal(f.listeners.size, 0);
 assert.equal(f.motionListeners.size, 0);
+
+const overlapping = fixture();
+overlapping.data.extraComposers = [overlapping.document.createElement("div")];
+overlapping.data.extraComposers[0].checkVisibility = () => true;
+overlapping.data.extraComposers[0].closest = () => null;
+assert.equal(overlapping.overlay.request().visible, false, "Two active composers must not guess which chat owns usage.");
+assert.equal(overlapping.row, null);
+overlapping.data.extraComposers = [];
+assert.equal(overlapping.overlay.request().visible, true, "The overlay recovers when navigation leaves one composer.");
+overlapping.overlay.dispose();
+
+const navigating = fixture();
+const oldBinding = navigating.overlay.request().installation;
+navigating.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${OTHER}`);
+assert.equal(navigating.overlay.request().threadId, OTHER);
+navigating.selected.setAttribute("data-app-action-sidebar-thread-id", `local:${THREAD}`);
+assert.equal(navigating.overlay.request().threadId, THREAD);
+assert.notEqual(navigating.overlay.request().installation, oldBinding,
+  "Leaving and returning to the same chat must invalidate a reply captured before navigation.");
+navigating.overlay.dispose();
 
 const nested = fixture();
 const wrapper = nested.document.createElement("div");

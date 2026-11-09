@@ -2,6 +2,7 @@
 
 ## 1.9.10 — Unreleased
 
+- Keep Verify from reapplying an older background after reload while another operation is running.
 - Reject delayed usage data after the composer is replaced, the chat switches, or the window is hidden and immediately reopened.
 - Coordinate background updates with renderer startup, reload and shutdown. Ignore unrecognized pages and child frames during injection.
 - Hide usage while multiple candidate composers are visible, and report the installed studio version.

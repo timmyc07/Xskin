@@ -366,6 +366,16 @@ assert.equal(f.timers.size, 0);
 assert.equal(f.listeners.size, 0);
 assert.equal(f.motionListeners.size, 0);
 
+const navigating = fixture();
+const oldBinding = navigating.overlay.request().installation;
+navigating.setIdentity(OTHER);
+assert.equal(navigating.overlay.request().threadId, OTHER);
+navigating.setIdentity(THREAD);
+assert.equal(navigating.overlay.request().threadId, THREAD);
+assert.notEqual(navigating.overlay.request().installation, oldBinding,
+  "Leaving and returning to the same chat must invalidate a reply captured before navigation.");
+navigating.overlay.dispose();
+
 const nested = fixture();
 const wrapper = nested.document.createElement("div");
 nested.anchor.append(wrapper);

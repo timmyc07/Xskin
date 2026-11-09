@@ -975,7 +975,8 @@ async function runOneShot(options) {
       if (options.reload) {
         await session.send("Page.reload", { ignoreCache: true });
         await new Promise((resolve) => setTimeout(resolve, 1600));
-        if (options.mode !== "remove") await applyToSession(session, loaded);
+        // Verify waits for the watcher so a concurrent pause or Apply keeps ownership.
+        if (options.mode === "once") await applyToSession(session, loaded);
       }
 
       if (options.mode === "once") await updateUsageOverlay(session, usageReader);

@@ -200,6 +200,7 @@ for (const [kind, url] of [
 ]) {
   const context = fixture(url, selectors[kind]);
   assert.equal(vm.runInNewContext(`(${detectSurface.toString()})()`, context), kind);
+  context.window.top = context.window;
   vm.runInNewContext(earlyPayloadFor('window.installed = true', 'fixture'), context);
   assert.equal(context.window.installed, true);
 }
@@ -365,17 +366,25 @@ for (const catchesUp of [true, false]) {
 const injectorSource = (await fs.readFile(new URL('../scripts/injector.mjs', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
 const oneShotStart = injectorSource.indexOf('async function runOneShot(');
 const oneShotFunction = injectorSource.slice(oneShotStart, injectorSource.indexOf('\n}\n', oneShotStart) + 2);
-for (const mode of ['verify', 'once']) {
+for (const mode of ['verify', 'once']) for (const reload of [false, true]) {
   let publications = 0;
+  let writes = 0;
+  let reloads = 0;
   const oneShot = vm.runInNewContext(`(${oneShotFunction})`, {
     TokenUsageReader: class {}, SKIN_VERSION:'fixture',
-    connectCodexTargets:async () => [{target:{id:'fixture'},session:{close() {}},probe:{surface:'codex'}}],
-    loadPayload:async () => ({theme:{}}), applyToSession:async () => {},
+    connectCodexTargets:async () => [{target:{id:'fixture'},session:{close() {}, async send(method) {
+      assert.equal(method, 'Page.reload');
+      reloads += 1;
+    }},probe:{surface:'codex'}}],
+    loadPayload:async () => ({theme:{}}), applyToSession:async () => {writes += 1;},
     updateUsageOverlay:async () => {publications += 1;},
     waitForVerifiedSession:async () => ({pass:true}),
     setTimeout:callback => {callback();}, console:{log() {}}, process:{},
   });
-  await oneShot({mode});
+  await oneShot({mode, reload});
+  assert.equal(reloads, Number(reload));
+  assert.equal(writes, mode === 'once' ? 1 + Number(reload) : 0,
+    'Verify, including reload, must not overwrite an in-flight change with a saved theme snapshot.');
   assert.equal(publications, mode === 'once' ? 1 : 0,
     'Verify must observe host heartbeats without masking a failed daemon by publishing usage itself.');
 }
