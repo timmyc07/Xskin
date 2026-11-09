@@ -69,7 +69,7 @@
   const workViews = new Map();
   let hostObserver = null;
   const syncWorkViews = () => {
-    if (SURFACE !== "codex") return;
+    if (SURFACE !== "codex" || !THEME.video) return;
     hostObserver?.disconnect();
     const current = new Set(document.querySelectorAll("webview"));
     for (const [view, record] of workViews) {
@@ -90,8 +90,10 @@
           hostObserver.observe(node, { attributes: true, attributeFilter: ["style", "class", "hidden"] });
         }
         const visible = !document.hidden && view.checkVisibility({ visibilityProperty: true, opacityProperty: true });
-        const box = view.getBoundingClientRect();
-        visibleWork ||= visible && box.width >= innerWidth * 0.95 && box.height >= innerHeight * 0.9;
+        if (visible && !visibleWork) {
+          const box = view.getBoundingClientRect();
+          visibleWork = box.width >= innerWidth * 0.95 && box.height >= innerHeight * 0.9;
+        }
         let record = workViews.get(view);
         if (!record) {
           record = { visible: null, loaded: () => { record.visible = null; syncWorkViews(); } };
@@ -755,6 +757,7 @@
   });
 
   let chromeParts = null;
+  let workThread = null;
   let observedShellMain = null;
   let resizeObserver = null;
 
@@ -801,7 +804,8 @@
     const shellMain = document.querySelector(SURFACE === "work" ? 'main#main' :
       'main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)');
     if (SURFACE === "work") {
-      for (let node = document.querySelector('#thread'); node && node !== document.body; node = node.parentElement) {
+      workThread = document.querySelector('#thread');
+      for (let node = workThread; node && node !== document.body; node = node.parentElement) {
         node.classList.add("dream-skin-work-surface");
       }
     }
@@ -886,12 +890,14 @@
     if (window[DISABLED_KEY]) return;
     const root = document.documentElement;
     if (!root) return;
-    syncWorkViews();
-    window[STATE_KEY]?.usageOverlay?.request();
-    videoController?.syncLayout();
     metrics.ensureCalls += 1;
     const shell = rootPass ? applyRootState(root) : null;
-    if (route) syncRouteState(shell, { layout });
+    if (route) {
+      syncWorkViews();
+      window[STATE_KEY]?.usageOverlay?.request();
+      videoController?.syncLayout();
+      syncRouteState(shell, { layout });
+    }
   };
 
   const cleanup = () => {
@@ -961,10 +967,10 @@
     '[data-testid="home-icon"], [data-feature="game-source"], [class~="group/home-suggestions"], [class*="_homeUtilityBar_"], ' +
     `#${CHROME_ID}, #thread, main#main, #prompt-textarea, webview, [data-avatar-overlay-native-surface-id], [data-composer-body]`;
   const observer = new MutationObserver((records) => {
-    // Message streaming changes content, not the shell or home-route markers.
+    // Work streams into the retained thread. Recheck its shell only when the thread itself moves or changes.
     const routeChanged = records.some((record) => record.type === "attributes" ||
-      [...record.addedNodes, ...record.removedNodes].some((node) => node.nodeType === 1 &&
-        (node.matches(routeMarkers) || node.querySelector(routeMarkers))));
+      (!workThread?.contains(record.target) && [...record.addedNodes, ...record.removedNodes].some((node) => node.nodeType === 1 &&
+        (node.matches(routeMarkers) || node.querySelector(routeMarkers)))));
     if (routeChanged) scheduleEnsure({ route: true });
   });
   rootObserver = new MutationObserver(() => {
@@ -1041,7 +1047,7 @@
       attributeFilter: ["class", "data-theme", "data-appearance", "data-color-mode", "style"],
     });
   }
-  const timer = setInterval(() => ensure(), 4000);
+  const timer = setInterval(() => { if (!document.hidden) ensure(); }, 4000);
   window[STATE_KEY].timer = timer;
   window.addEventListener("resize", resizeHandler, { passive: true });
   if (mediaHandler && mediaQuery) {

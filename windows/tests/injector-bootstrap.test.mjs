@@ -118,7 +118,7 @@ assert.match(source, /Page\.removeScriptToEvaluateOnNewDocument/,
 console.log("PASS: Windows early injection is shell-guarded, generation-safe, ordered before probing, and fallback-scoped.");
 
 const watchSource = source.slice(source.indexOf('async function runWatch'), source.indexOf('\nif (path.resolve(process.argv[1]'));
-for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
+for (const mode of ['late-shell', 'auxiliary', 'guest', 'stop', 'pause']) {
   const events = new EventEmitter();
   const calls = [];
   const pauses = [];
@@ -129,23 +129,23 @@ for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
     closed:false,
     async evaluate(expression) {calls.push(expression.includes('GENERATION__ = null') ? 'cancel' : 'evaluate'); return true;},
     on() {},
-    close() {this.closed = true; calls.push('close'); if (['auxiliary','pause'].includes(mode)) stop();},
+    close() {this.closed = true; calls.push('close'); if (mode === 'pause') stop();},
   };
   const context = {
     process:events, Date:{now:() => clock}, STRONG_THEME_AUDIT_MS:30000,
     TokenUsageReader:class {}, watchUsageOverlay() {return {close() {}};},
-    console:{error() {}, log() {if (mode === 'late-shell') stop();}},
-    setTimeout(callback, ms) {pauses.push(ms); clock += ms; if(mode === 'stop') stop(); return setImmediate(callback);},
+    console:{error() {}, log() {if (['late-shell', 'guest'].includes(mode)) stop();}},
+    setTimeout(callback, ms) {pauses.push(ms); clock += ms; if (mode === 'stop' || (mode === 'auxiliary' && pauses.filter(value => value === 1200).length === 3)) stop(); return setImmediate(callback);},
     async connectBrowserIdentityAnchor() {return anchor;},
     async loadPayload() {return {fingerprint:'fixture', sourceStamp:'stamp', payload:'', theme:{id:'fixture'}, videoSource:{}};},
     async fileExists() {return mode === 'pause' && ++pauseChecks > 2;},
     async readThemeSourceStamp() {return 'stamp';},
-    async listAppTargets() {return [{id:'fixture'}];},
+    async listAppTargets() {return [{id:'fixture', type:mode === 'guest' ? 'webview' : 'page'}];},
     async connectTarget() {calls.push('connect'); return session;},
     async registerEarlyPayload() {calls.push('register'); return 'early';},
     earlyPayloadFor() {return '';},
     async removeEarlyPayload() {calls.push('unregister');},
-    async probeSession() {probes++; return {codex:mode === 'late-shell' && probes > 2, readyState:'complete'};},
+    async probeSession() {probes++; calls.push('probe'); return {codex:['late-shell', 'guest'].includes(mode) && probes > 2, readyState:'complete'};},
     async attachVideoToSession() {calls.push('video');},
     async applyToSession() {calls.push('apply');},
     CdpIdentityMismatchError:class extends Error {},
@@ -159,11 +159,17 @@ for (const mode of ['late-shell', 'auxiliary', 'stop', 'pause']) {
     assert.equal(pauses.at(-1), 1200, 'Restore idle polling once the shell is ready.');
     assert.equal(calls.filter(call => call === 'video').length, 1);
     assert.equal(calls.includes('apply'), false, 'Do not replace artwork that early injection already installed.');
+  } else if (mode === 'guest') {
+    assert.equal(probes, 3);
+    assert.ok(pauses.every(value => value === 1200));
+    assert.ok(calls.indexOf('register') > calls.lastIndexOf('probe'));
+    assert.equal(calls.filter(value => value === 'apply').length, 1);
   } else {
     assert.ok(calls.includes('cancel'));
     assert.ok(calls.includes('unregister'));
     assert.ok(calls.indexOf('cancel') < calls.indexOf('unregister'));
     assert.ok(calls.indexOf('unregister') < calls.indexOf('close'));
+    if (mode === 'auxiliary') assert.deepEqual(pauses.slice(-3), [1200, 1200, 1200]);
   }
   assert.equal(anchor.closed, true);
 }

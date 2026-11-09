@@ -9,7 +9,7 @@ import { TokenUsageReader } from "./token-usage.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.8";
+const SKIN_VERSION = "1.9.9";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -490,12 +490,12 @@ async function readThemeSourceStamp(loadedTheme) {
 async function probeSession(session) {
   return session.evaluate(`(() => {
     const surface = (${detectSurface.toString()})();
-    const markers = {
+    const markers = surface ? {
       shell: Boolean(document.querySelector('main[data-app-shell-main-surface]:not([data-app-shell-active-page="false"] *)')),
       sidebar: Boolean(document.querySelector('aside.app-shell-left-panel')),
       composer: Boolean(document.querySelector('[data-composer-body]:not([data-app-shell-active-page="false"] *)')),
       main: Boolean(document.querySelector('[role="main"]')),
-    };
+    } : null;
     return {
       title: document.title,
       href: location.href,
@@ -1031,12 +1031,19 @@ async function runWatch(options) {
   let loadedPayload = null;
   let paused = false;
   const stop = () => { stopping = true; };
+  const stopPendingEarly = async (pending) => {
+    if (pending.startedAt !== null) {
+      await pending.session.evaluate('window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null').catch(() => {});
+    }
+    await removeEarlyPayload(pending.session, pending.earlyScriptId);
+    pending.startedAt = null;
+    pending.earlyScriptId = null;
+  };
   const discardPending = async (id) => {
     const pending = pendingTargets.get(id);
     if (!pending) return;
     pendingTargets.delete(id);
-    await pending.session.evaluate('window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null').catch(() => {});
-    await removeEarlyPayload(pending.session, pending.earlyScriptId);
+    await stopPendingEarly(pending);
     pending.session.close();
   };
   const rejectTarget = (target, baseDelayMs, error = null) => {
@@ -1210,7 +1217,9 @@ async function runWatch(options) {
           if (!pending) {
             session = await connectTarget(target, options.port);
             if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
-            if (!paused) {
+            // The same guest origin also serves ordinary Chat. Probe it before sending theme assets.
+            const startedAt = target.type === "webview" ? null : Date.now();
+            if (!paused && startedAt !== null) {
               try {
                 earlyScriptId = await registerEarlyPayload(
                   session,
@@ -1226,23 +1235,32 @@ async function runWatch(options) {
                 console.error(`[dream-skin] early injection unavailable for ${target.id}: ${error.message}`);
               }
             }
-            pending = { session, earlyScriptId, fallback: earlyInjectionFallback, startedAt: Date.now() };
+            pending = { session, earlyScriptId, fallback: earlyInjectionFallback, startedAt, nextProbeAt: 0 };
             pendingTargets.set(target.id, pending);
           }
           if (stopping || identityAnchor.closed) break;
+          if (pending.startedAt === null) {
+            if (pending.nextProbeAt > Date.now()) continue;
+            pending.nextProbeAt = Date.now() + 1200;
+          }
           const probe = await probeSession(session);
           if (!probe?.codex) {
-            // React can create a native Work shell after document loading completes.
-            if (Date.now() - pending.startedAt < 10000) continue;
-            await discardPending(target.id);
-            rejectTarget(target, 5000);
+            if (pending.startedAt !== null && Date.now() - pending.startedAt >= 10000) {
+              await stopPendingEarly(pending);
+            }
             continue;
+          }
+          if (!paused && pending.startedAt === null) {
+            earlyScriptId = await registerEarlyPayload(session, loadedPayload.payload, loadedPayload.fingerprint)
+              .catch(() => null);
+            pending.earlyScriptId = earlyScriptId;
+            earlyInjectionFallback = !earlyScriptId;
           }
           fallbackTargets.set(target.id, earlyInjectionFallback);
           attachLoadFallback(target.id, target, session);
           if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
           let earlyApplied = false;
-          if (!paused && !earlyInjectionFallback) {
+          if (!paused && !earlyInjectionFallback && pending.startedAt !== null) {
             earlyApplied = await session.evaluate(
               `window.__CODEX_DREAM_SKIN_EARLY_APPLIED__ === ${JSON.stringify(loadedPayload.fingerprint)}`,
             ).catch(() => false);
@@ -1270,7 +1288,8 @@ async function runWatch(options) {
       if (!paused) for (const [id, session] of sessions) {
         if (!usageWatchers.has(id)) usageWatchers.set(id, watchUsageOverlay(session, usageReader));
       }
-      await new Promise((resolve) => setTimeout(resolve, pendingTargets.size ? 50 : 1200));
+      const starting = [...pendingTargets.values()].some(pending => pending.startedAt !== null);
+      await new Promise((resolve) => setTimeout(resolve, starting ? 50 : 1200));
     }
   } finally {
     for (const watcher of usageWatchers.values()) watcher.close();
