@@ -112,7 +112,7 @@ assert.match(
 );
 assert.match(
   source,
-  /const earlyApplied = await session\.evaluate\([\s\S]*if \(!earlyApplied\) \{[\s\S]*applyToSession/,
+  /const earlyApplied = record\.pendingAt !== null && await session\.evaluate\([\s\S]*if \(!earlyApplied\) \{[\s\S]*applyToSession/,
   "The watcher must not run the full payload twice after a successful early install.",
 );
 
@@ -130,6 +130,7 @@ async function shutdownFixture(mode) {
   let finished = false;
   let probes = 0;
   let fixtureNow = Date.now();
+  const delayedShell = ["auxiliary", "guest"].includes(mode);
   const stop = () => { stoppedAt = performance.now(); events.emit("SIGTERM"); };
   const session = {
     closed: false,
@@ -146,8 +147,8 @@ async function shutdownFixture(mode) {
   const context = {
     process: events, AbortController, setTimeout, clearTimeout,
     TokenUsageReader: class {}, watchUsageOverlay() { return { close() {} }; },
-    Date: class extends Date { static now() { return mode === "auxiliary" ? fixtureNow : Date.now(); } },
-    console: { error() {}, log() { if (["active", "late-shell"].includes(mode)) stop(); } },
+    Date: class extends Date { static now() { return delayedShell ? fixtureNow : Date.now(); } },
+    console: { error() {}, log() { if (["active", "late-shell", "guest"].includes(mode)) stop(); } },
     async loadPayload() { return { payload: "", revision: "fixture", theme: { id: "fixture" } }; },
     watchPayloadSources() { return () => {}; },
     nextDiscoveryDelayMs() { return 30000; },
@@ -156,14 +157,18 @@ async function shutdownFixture(mode) {
     async connectTarget() { calls.push("connect"); return session; },
     async probeSession() {
       probes++;
-      return { codex: mode !== "auxiliary" && (mode !== "late-shell" || probes > 2), readyState: "complete" };
+      return { codex: mode !== "auxiliary" && (!["guest", "late-shell"].includes(mode) || probes > 2), readyState: "complete" };
     },
     async waitForCodexProbe() { return { codex: true }; },
     async applyToSession() { calls.push("apply"); },
     async attachVideoToSession() { calls.push("video"); },
     delay(ms, value, options) {
-      if (mode === "auxiliary" && calls.filter(call => call === "poll").length === 1) setImmediate(stop);
-      if (mode === "auxiliary") { calls.push("poll"); fixtureNow += 11000; }
+      if (delayedShell) {
+        calls.push(ms);
+        fixtureNow += calls.includes(800) ? 800 : 11000;
+        if (mode === "auxiliary" && calls.filter(call => call === 800).length === 3) setImmediate(stop);
+        return delay(0, value, options);
+      }
       if (mode === "backoff" && ms === 30000) setImmediate(stop);
       return delay(ms, value, options);
     },
@@ -178,7 +183,7 @@ async function shutdownFixture(mode) {
     },
   };
   vm.createContext(context);
-  context.listAppTargets = ["active", "auxiliary", "late-shell"].includes(mode) ? async () => [{ id: "main" }] : vm.runInContext(`(${listSource})`, context);
+  context.listAppTargets = ["active", "auxiliary", "late-shell", "guest"].includes(mode) ? async () => [{ id: "main", type: mode === "guest" ? "webview" : "page" }] : vm.runInContext(`(${listSource})`, context);
   const run = vm.runInContext(`(${watchSource})`, context);
   const running = run({ port: 19341 }).then(() => { finished = true; });
   if (mode === "active") {
@@ -194,7 +199,16 @@ async function shutdownFixture(mode) {
     assert.equal(calls.filter(call => call === "connect").length, 1);
     assert.ok(!calls.includes("apply") && !calls.includes("video"), "Pending auxiliary windows must never receive a theme or media handoff.");
     assert.ok(calls.indexOf("Page.removeScriptToEvaluateOnNewDocument") < calls.indexOf("close"));
-    assert.ok(calls.indexOf("cancel-pending") < calls.indexOf("close"), "Expired pending observers must be invalidated before the debugger disconnects.");
+    assert.ok(calls.indexOf("cancel-pending") < calls.indexOf(800), "Expired pending observers must be invalidated before returning to steady polling.");
+    assert.equal(calls.filter(call => call === "Page.addScriptToEvaluateOnNewDocument").length, 1,
+      "Persistent auxiliary windows must not receive the payload again.");
+  }
+  if (mode === "guest") {
+    assert.equal(probes, 3);
+    assert.equal(calls.filter(call => call === "connect").length, 1);
+    assert.deepEqual(calls.filter(call => typeof call === "number").slice(0, 2), [800, 800]);
+    assert.ok(calls.indexOf("Page.addScriptToEvaluateOnNewDocument") > calls.indexOf(800, calls.indexOf(800) + 1));
+    assert.equal(calls.filter(call => call === "apply").length, 1, "An existing guest is skinned only after becoming Work.");
   }
   if (mode === "late-shell") {
     assert.equal(probes, 3);
@@ -209,6 +223,7 @@ async function shutdownFixture(mode) {
 }
 await shutdownFixture("active");
 await shutdownFixture("auxiliary");
+await shutdownFixture("guest");
 await shutdownFixture("late-shell");
 await shutdownFixture("fetch");
 await shutdownFixture("backoff");

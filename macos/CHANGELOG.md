@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.9 — 2026-11-09
+
+- Probe embedded Chat and Work before sending background assets. A guest that becomes Work receives the current theme once it is recognized.
+- Return unrecognized auxiliary windows to normal discovery after startup. Retain the connection without repeatedly registering or sending the background.
+- Skip route scans inside Work's retained thread as responses stream. Skip periodic repair in hidden windows and avoid measuring hidden webviews.
+
 ## 1.9.8 — 2026-11-01
 
 - Update the shared plugin distribution for Windows startup-monitor recovery and actionable missing-connection errors.

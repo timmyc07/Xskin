@@ -1,5 +1,12 @@
 # Windows Changelog
 
+## 1.9.9 — 2026-11-09
+
+- Probe embedded Chat and Work before sending background assets. A guest that becomes Work receives the current theme once it is recognized.
+- Return unrecognized auxiliary windows to normal discovery after startup. Retain the connection without repeatedly registering or sending the background.
+- Skip route scans inside Work's retained thread as responses stream. Skip periodic repair in hidden windows and avoid measuring hidden webviews.
+- Flutter package metadata is 1.9.9+22.
+
 ## 1.9.8 — 2026-11-01
 
 - Fix a login race that skipped Codex when it opened before the background monitor. Explicit setup still preserves sessions that were already open. Retry temporarily unavailable process metadata and allow up to 60 seconds for a fresh official process to become ready, with the existing package, PID, start-time and session checks.

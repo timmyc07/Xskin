@@ -872,16 +872,26 @@ workFixture.window.__CODEX_DREAM_SKIN_STATE__.setVideo({name:"background.mp4",si
 const workVideo = workFixture.nodes.get("codex-dream-skin-video");
 assert.equal(workVideo.paused, true, "A hidden embedder must suspend video even when document.hidden is false.");
 assert.equal(workFixture.window.__CODEX_DREAM_SKIN_STATE__.videoStatus().hostHidden, true);
+const workThread = workFixture.document.querySelector("#thread");
+const streamingTarget = {};
+workThread.contains = node => node === streamingTarget;
+workFixture.observers[0].callback([{ type: "childList", target: streamingTarget, addedNodes: [{
+  nodeType: 1,
+  matches() { throw new Error("Streaming Work content should not be searched for route markers"); },
+}], removedNodes: [] }]);
+assert.equal(workFixture.timers.size, 0);
+
 const hostFixture = createFixture({id:"work-host",video:"background.mp4",videoKey:"original",videoBytes:1});
 let hostVisible = false;
 let viewUrl = "https://chatgpt.com/?source=codex_app_embedded";
 let handoffs = 0;
+let webviewLayoutReads = 0;
 const viewListeners = new Map();
 const view = {
   parentElement: null,
   getURL: () => viewUrl,
   checkVisibility: () => hostVisible,
-  getBoundingClientRect: () => ({width:1280,height:800}),
+  getBoundingClientRect: () => { webviewLayoutReads++; return {width:1280,height:800}; },
   addEventListener(name, callback) { viewListeners.set(name, callback); },
   removeEventListener(name) { viewListeners.delete(name); },
   async executeJavaScript(expression) { handoffs++; vm.runInNewContext(expression, workFixture.context); },
@@ -893,6 +903,7 @@ const hostState = hostFixture.window.__CODEX_DREAM_SKIN_STATE__;
 hostState.setVideo({name:"background.mp4",size:1});
 const hostVideo = hostFixture.nodes.get("codex-dream-skin-video");
 assert.equal(hostVideo.paused, false);
+assert.equal(webviewLayoutReads, 0, "Hidden guests must not trigger a layout measurement.");
 hostVisible = true;
 hostFixture.observers[2].callback();
 assert.equal(workVideo.paused, false, "Showing Work must resume its original video.");

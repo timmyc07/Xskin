@@ -1,4 +1,6 @@
-# Windows 1.9.8 parity with macOS 1.9.8
+# Windows 1.9.9 parity with macOS 1.9.9
+
+Windows 1.9.9 shares the renderer and discovery performance fixes described in [desktop compatibility and streaming](platforms.md#2026-11-09-desktop-compatibility-and-streaming). Get the standalone and plugin packages from [windows-v1.9.9](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.9).
 
 Windows 1.9.8 repairs login startup races, slow cold starts, temporarily missing process metadata and stopped/missing enabled monitoring. Apply/Resume preserve startup preferences and pending media. Both standalone/plugin packages and SHA-256 files are available under [windows-v1.9.8](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.8). Windows PowerShell 5.1/7 CI, the Windows 11 ARM full suite and Flutter/package CI passed on the repair commit. Physical reboot/Store-upgrade and live Windows Codex acceptance remain pending. See [current validation scope](platforms.md#2026-11-01-compatibility-and-windows-startup-recovery).
 
