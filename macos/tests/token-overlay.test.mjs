@@ -171,6 +171,7 @@ f.overlay.update(f.sample({ totalTokens: 2200, running: true }));
 assert.ok(parseFloat(f.row.style.getPropertyValue("--dream-skin-fan-period")) < slowPeriod);
 assert.equal(f.timers.size, 1, "Only the host heartbeat timeout is needed, with no per-frame JavaScript");
 
+const beforeHide = f.overlay.request().installation;
 f.document.hidden = true;
 f.listeners.get("visibilitychange")();
 assert.equal(f.overlay.request().visible, false);
@@ -178,6 +179,7 @@ assert.equal(f.overlay.status().spinning, false);
 f.document.hidden = false;
 f.listeners.get("visibilitychange")();
 assert.equal(f.overlay.status().spinning, false, "Returning from an intentional pause waits for fresh activity");
+assert.notEqual(f.overlay.request().installation, beforeHide, "Even a fast hide/show invalidates a delayed snapshot.");
 f.overlay.update(f.sample({ totalTokens: 2200, running: true }));
 assert.equal(f.overlay.status().spinning, true);
 f.motion.matches = true;

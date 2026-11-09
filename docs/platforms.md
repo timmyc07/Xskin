@@ -4,6 +4,18 @@ macOS/plugin and Windows **1.9.9** include the 1.9.6 fix for a runtime-upgrade a
 
 macOS/plugin **1.9.9** and Windows **1.9.9** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
 
+## 1.9.10 interaction checks
+
+| Scope | Cases |
+|---|---|
+| Embedded panel | 81 ordered pairs across Choose, Apply, mask, language, Pause, Resume, automatic startup, Recover, and Refresh. The first command remains in flight while the second is attempted. Existing tests cover chooser cancellation, disconnect and preview disposal. |
+| Chat navigation and usage | Delayed replies after a thread switch, composer replacement for the same thread, hide/show before the next poll, ambiguous composers, Home, and remote threads. |
+| macOS watcher | Four startup/Apply and theme-refresh interleavings across image and video. Shutdown must remove every registered script. |
+| Windows watcher | Eight combinations of image fallback or early video with reload, Pause, theme refresh, or shutdown. Duplicate load notifications count as one reload. |
+| Both injectors | A document that changes after discovery and a child frame that exposes a matching shell must not receive the skin. |
+
+The fixtures drive Xskin and simulated host events. Actual message delivery and navigation belong to the official desktop app and require separate end-to-end testing.
+
 ## 2026-11-09 desktop compatibility and streaming
 
 - The installed ChatGPT/Codex desktop app (26.1027.61615, build 24141) exposes ordinary Chat and Work through the same embedded origin. Ordinary Chat has the new app shell and composer but lacks the Work markers used for background injection. Xskin 1.9.8 kept re-registering the full payload on that guest after the startup deadline.

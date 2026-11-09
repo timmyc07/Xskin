@@ -134,7 +134,8 @@ async function selectedMedia() {
 }
 
 async function status() {
-  const [config, selected, runtime, startup] = await Promise.all([
+  const [version, config, selected, runtime, startup] = await Promise.all([
+    fs.readFile(path.join(scripts, "..", "VERSION"), "utf8"),
     readJson(path.join(themeRoot, "theme.json")),
     selectedMedia(),
     run("/bin/bash", [path.join(scripts, "status-dream-skin-macos.sh"), "--json"], { timeout: 5000 }),
@@ -145,7 +146,7 @@ async function status() {
   const activePath = path.join(themeRoot, file);
   const stat = await regularFile(activePath);
   return {
-    version: "1.9.7",
+    version: version.trim(),
     active: { name: config.name, kind: config.video ? "video" : "image", path: activePath, bytes: stat.size, applied: JSON.parse(runtime.stdout).session === "active" },
     selection: selected?.public ?? null,
     maskOpacity: config.maskOpacity ?? DEFAULT_MASK_OPACITY,

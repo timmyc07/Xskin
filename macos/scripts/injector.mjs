@@ -11,7 +11,7 @@ import { setTimeout as delay } from "node:timers/promises";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.9";
+const SKIN_VERSION = "1.9.10";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_CONFIG_BYTES = 1024 * 1024;
@@ -592,15 +592,16 @@ export async function attachVideoToSession(session, source) {
 }
 
 async function applyToSession(session, loaded) {
-  await session.evaluate(loaded.payload);
+  await session.evaluate(`window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null;\n${loaded.payload}`);
   await attachVideoToSession(session, loaded.videoSource);
 }
 
-async function sendUsageSnapshot(session, threadId, snapshot) {
+async function sendUsageSnapshot(session, { threadId, installation }, snapshot) {
   await session.evaluate(`(() => {
     const overlay = window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay;
     const request = overlay?.request();
-    if (request?.visible && request.threadId === ${JSON.stringify(threadId)}) overlay.update(${JSON.stringify(snapshot)});
+    if (request?.visible && request.threadId === ${JSON.stringify(threadId)} &&
+      request.installation === ${JSON.stringify(installation)}) overlay.update(${JSON.stringify(snapshot)});
   })()`);
 }
 
@@ -608,7 +609,7 @@ export async function updateUsageOverlay(session, reader) {
   const request = await session.evaluate('window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()');
   if (!request?.visible) return;
   const snapshot = request.threadId ? await reader.read(request.threadId) : null;
-  await sendUsageSnapshot(session, request.threadId, snapshot);
+  await sendUsageSnapshot(session, request, snapshot);
 }
 
 export function watchUsageOverlay(session, reader) {
@@ -644,7 +645,7 @@ export function watchUsageOverlay(session, reader) {
           const active = reader.watch(threadId, async snapshot => {
             if (closed || subscription !== active) return;
             try {
-              await sendUsageSnapshot(session, threadId, snapshot);
+              await sendUsageSnapshot(session, request, snapshot);
               if (subscription === active) pushFailures = 0;
             } catch (error) {
               if (!closed && subscription === active && ++pushFailures >= 3) { session.close(); close(); }
@@ -653,7 +654,7 @@ export function watchUsageOverlay(session, reader) {
           });
           subscription = active;
           await active.refresh(true);
-        } else if (request?.visible) await sendUsageSnapshot(session, threadId, null);
+        } else if (request?.visible) await sendUsageSnapshot(session, request, null);
       } else if (subscription && performance.now() - lastHeartbeatAt >= 5000) {
         lastHeartbeatAt = performance.now();
         await subscription.refresh(true);
@@ -676,6 +677,7 @@ export function watchUsageOverlay(session, reader) {
 async function removeFromSession(session) {
   return session.evaluate(`(() => {
     window.__CODEX_DREAM_SKIN_DISABLED__ = true;
+    window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null;
     const state = window.__CODEX_DREAM_SKIN_STATE__;
     if (state?.cleanup) return state.cleanup();
     document.documentElement?.classList.remove('codex-dream-skin');
@@ -998,6 +1000,7 @@ async function runOneShot(options) {
 
 export function earlyPayloadFor(payload, revision) {
   return `(() => {
+    if (window.top !== window) return;
     const generationKey = "__CODEX_DREAM_SKIN_EARLY_GENERATION__";
     const appliedKey = "__CODEX_DREAM_SKIN_EARLY_APPLIED__";
     const generation = ${JSON.stringify(revision)};
@@ -1071,7 +1074,12 @@ async function runWatch(options) {
   const sessions = new Map();
   let stopping = false;
   let reloadTimer = null;
-  let reloadChain = Promise.resolve();
+  let operations = Promise.resolve();
+  const serialize = (operation) => {
+    const next = operations.then(operation);
+    operations = next.catch(() => {});
+    return next;
+  };
   let discoveryDelayMs = 100;
   let outageStartedAt = null;
   let lastListErrorAt = 0;
@@ -1136,7 +1144,7 @@ async function runWatch(options) {
     if (reloadTimer) clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {
       reloadTimer = null;
-      reloadChain = reloadChain.then(refreshPayload).catch((error) => {
+      serialize(refreshPayload).catch((error) => {
         console.error(`[dream-skin] theme reload failed: ${error.message}`);
       });
     }, 45);
@@ -1163,91 +1171,97 @@ async function runWatch(options) {
       }
       if (stopping) break;
 
-      const activeIds = new Set(targets.map((target) => target.id));
-      for (const [id, record] of sessions) {
-        if (!activeIds.has(id) || record.session.closed) {
-          record.usageWatcher?.close();
-          record.session.close();
-          sessions.delete(id);
+      // A file change, target startup and page reload all write the same renderer state.
+      await serialize(async () => {
+        if (stopping) return;
+        const activeIds = new Set(targets.map((target) => target.id));
+        for (const [id, record] of sessions) {
+          if (!activeIds.has(id) || record.session.closed) {
+            record.usageWatcher?.close();
+            await removeEarly(record);
+            record.session.close();
+            sessions.delete(id);
+          }
         }
-      }
 
-      for (const target of targets) {
-        if (stopping) break;
-        if (sessions.get(target.id)?.ready) continue;
-        let record = sessions.get(target.id);
-        let session = record?.session;
-        try {
-          if (!record) {
-            session = await connectTarget(target, options.port);
-            if (stopping) { session.close(); break; }
-            // The same guest origin also serves ordinary Chat. Probe it before sending theme assets.
-            const pendingAt = target.type === "webview" ? null : Date.now();
-            record = { session, earlyScriptId: null, needsLoadFallback: false, ready: false, pendingAt, nextProbeAt: 0 };
-            sessions.set(target.id, record);
-            if (pendingAt !== null) {
-              try {
-                record.earlyScriptId = await registerEarly(session, current.payload, current.revision);
-                if (!stopping) await session.evaluate(earlyPayloadFor(current.payload, current.revision));
-              } catch (error) {
-                record.needsLoadFallback = true;
-                console.error(`[dream-skin] early injection unavailable: ${error.message}`);
+        for (const target of targets) {
+          if (stopping) break;
+          let record = sessions.get(target.id);
+          let session = record?.session;
+          try {
+            if (record?.ready) {
+              const reload = record.reload;
+              if (!reload) continue;
+              if (Date.now() >= reload.deadline) { record.reload = null; continue; }
+              if (!(await probeSession(session))?.codex || stopping || record.reload !== reload) continue;
+              record.reload = null;
+              const earlyApplied = await session.evaluate(
+                `window.__CODEX_DREAM_SKIN_EARLY_APPLIED__ === ${JSON.stringify(current.revision)}`,
+              );
+              if (stopping) continue;
+              if (earlyApplied) await attachVideoToSession(session, current.videoSource);
+              else await applyToSession(session, current);
+              continue;
+            }
+            if (!record) {
+              session = await connectTarget(target, options.port);
+              if (stopping) { session.close(); break; }
+              // The same guest origin also serves ordinary Chat. Probe it before sending theme assets.
+              const pendingAt = target.type === "webview" ? null : Date.now();
+              record = { session, earlyScriptId: null, needsLoadFallback: false, ready: false, pendingAt, nextProbeAt: 0 };
+              sessions.set(target.id, record);
+              if (pendingAt !== null) {
+                try {
+                  record.earlyScriptId = await registerEarly(session, current.payload, current.revision);
+                  record.needsLoadFallback = !record.earlyScriptId;
+                  if (!stopping) await session.evaluate(earlyPayloadFor(current.payload, current.revision));
+                } catch (error) {
+                  record.needsLoadFallback = true;
+                  console.error(`[dream-skin] early injection unavailable: ${error.message}`);
+                }
               }
             }
-          }
-          if (stopping) { await removeEarly(record); session.close(); break; }
-          if (record.pendingAt === null) {
-            if (record.nextProbeAt > Date.now()) continue;
-            record.nextProbeAt = Date.now() + 800;
-          }
-          const probe = await probeSession(session);
-          if (stopping) { await removeEarly(record); session.close(); break; }
-          if (!probe?.codex) {
-            if (record.pendingAt !== null && Date.now() - record.pendingAt >= 10000) {
-              await removeEarly(record);
-              record.pendingAt = null;
+            if (stopping) { await removeEarly(record); session.close(); break; }
+            if (record.pendingAt === null) {
+              if (record.nextProbeAt > Date.now()) continue;
+              record.nextProbeAt = Date.now() + 800;
             }
-            continue;
-          }
-          if (record.pendingAt === null) {
-            record.earlyScriptId = await registerEarly(session, current.payload, current.revision).catch(() => null);
-            record.needsLoadFallback = !record.earlyScriptId;
-          }
-          session.on("Page.loadEventFired", () => {
-            if (stopping) return;
-            if (!record.needsLoadFallback && !current.videoSource) return;
-            setTimeout(() => (async () => {
-              if (stopping) return;
-              if (!(await waitForCodexProbe(session))?.codex) return;
-              if (record.needsLoadFallback) await applyToSession(session, current);
-              else await attachVideoToSession(session, current.videoSource);
-            })().catch((error) => {
-              console.error(`[dream-skin] fallback reinject failed: ${error.message}`);
-            }), 0);
-          });
-          const earlyApplied = record.pendingAt !== null && await session.evaluate(
-            `window.__CODEX_DREAM_SKIN_EARLY_APPLIED__ === ${JSON.stringify(current.revision)}`,
-          );
-          if (stopping) { await removeEarly(record); session.close(); break; }
-          if (!earlyApplied) {
-            await session.evaluate(
-              `window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = ${JSON.stringify(`fallback:${current.revision}`)}`,
+            const probe = await probeSession(session);
+            if (stopping) { await removeEarly(record); session.close(); break; }
+            if (!probe?.codex) {
+              if (record.pendingAt !== null && Date.now() - record.pendingAt >= 10000) {
+                await removeEarly(record);
+                record.pendingAt = null;
+              }
+              continue;
+            }
+            if (record.pendingAt === null) {
+              record.earlyScriptId = await registerEarly(session, current.payload, current.revision).catch(() => null);
+              record.needsLoadFallback = !record.earlyScriptId;
+            }
+            session.on("Page.loadEventFired", () => {
+              if (!stopping && (record.needsLoadFallback || current.videoSource)) {
+                record.reload = { deadline: Date.now() + 10000 };
+              }
+            });
+            const earlyApplied = record.pendingAt !== null && await session.evaluate(
+              `window.__CODEX_DREAM_SKIN_EARLY_APPLIED__ === ${JSON.stringify(current.revision)}`,
             );
-            await applyToSession(session, current);
-          } else {
-            await attachVideoToSession(session, current.videoSource);
+            if (stopping) { await removeEarly(record); session.close(); break; }
+            if (earlyApplied) await attachVideoToSession(session, current.videoSource);
+            else await applyToSession(session, current);
+            record.ready = true;
+            record.usageWatcher = watchUsageOverlay(session, usageReader);
+            console.log(`[dream-skin] injected verified ${probe.surface} target ${target.id}`);
+          } catch (error) {
+            record?.usageWatcher?.close();
+            if (record) await removeEarly(record);
+            session?.close();
+            sessions.delete(target.id);
+            console.error(`[dream-skin] inject failed for ${target.id}: ${error.message}`);
           }
-          record.ready = true;
-          record.usageWatcher = watchUsageOverlay(session, usageReader);
-          console.log(`[dream-skin] injected verified ${probe.surface} target ${target.id}`);
-        } catch (error) {
-          record?.usageWatcher?.close();
-          if (record) await removeEarly(record);
-          session?.close();
-          sessions.delete(target.id);
-          console.error(`[dream-skin] inject failed for ${target.id}: ${error.message}`);
         }
-      }
+      });
       const pending = [...sessions.values()].some(record => !record.ready && record.pendingAt !== null);
       const pollDelay = pending ? 50 : sessions.size ? 800 : (targets.length ? 250 : 100);
       await pause(pollDelay);
@@ -1257,7 +1271,7 @@ async function runWatch(options) {
     discovery.abort();
     if (reloadTimer) clearTimeout(reloadTimer);
     closePayloadWatchers();
-    await reloadChain.catch(() => {});
+    await operations;
     await Promise.all([...sessions.values()].map((record) => removeEarly(record)));
     for (const record of sessions.values()) record.session.close();
   }

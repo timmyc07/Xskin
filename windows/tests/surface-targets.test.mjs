@@ -56,6 +56,10 @@ try {
   await until(() => subscriptions.length === 2 && delivered.at(-1)?.threadId === 'thread-b');
   assert.equal(subscriptions[0].closed, true, 'Switching threads closes the old exact-file watcher.');
   const afterSwitch = delivered.length;
+  // Replace the composer before the bridge's next poll. The same thread ID is insufficient.
+  currentUsage = {...currentUsage, installation:'replacement'};
+  await subscriptions[1].onSnapshot({threadId:'thread-b',totalTokens:999});
+  assert.equal(delivered.length, afterSwitch, 'A delayed snapshot cannot update a replacement composer for the same thread.');
   await subscriptions[0].onSnapshot({threadId:'thread-a',totalTokens:999});
   assert.equal(delivered.length, afterSwitch, 'A late callback cannot publish another thread’s usage.');
   currentUsage = {...currentUsage, visible:false};
