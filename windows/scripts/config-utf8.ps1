@@ -59,10 +59,25 @@ function Read-DreamSkinUtf8File {
   [CmdletBinding()]
   param(
     [Parameter(Mandatory = $true)]
-    [string]$Path
+    [string]$Path,
+
+    [switch]$AllowReplacement
   )
 
-  $bytes = [System.IO.File]::ReadAllBytes($Path)
+  if ($AllowReplacement) {
+    # An atomic Windows replacement opens the destination with delete access.
+    $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+    try {
+      $buffer = [System.IO.MemoryStream]::new()
+      try {
+        $stream.CopyTo($buffer)
+        $bytes = $buffer.ToArray()
+      } finally { $buffer.Dispose() }
+    } finally { $stream.Dispose() }
+  } else {
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+  }
   return (ConvertFrom-DreamSkinUtf8Bytes -Bytes $bytes -Path $Path)
 }
 

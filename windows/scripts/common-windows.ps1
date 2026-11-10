@@ -825,7 +825,7 @@ function Read-DreamSkinState {
   param([Parameter(Mandatory = $true)][string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) { return $null }
   try {
-    $state = (Read-DreamSkinUtf8File -Path $Path) | ConvertFrom-Json -ErrorAction Stop
+    $state = (Read-DreamSkinUtf8File -Path $Path -AllowReplacement) | ConvertFrom-Json -ErrorAction Stop
     if ($null -eq $state -or $state -is [string] -or $state -is [array]) { throw 'State root must be an object.' }
     $properties = @($state.PSObject.Properties.Name)
     if ($properties -contains 'platform' -and "$($state.platform)" -ine 'windows') {
@@ -865,6 +865,8 @@ function Read-DreamSkinState {
       throw 'State browser ID is invalid.'
     }
     return $state
+  } catch [System.IO.FileNotFoundException], [System.IO.DirectoryNotFoundException] {
+    return $null
   } catch {
     throw "Dream Skin state is unreadable; it was preserved for inspection: $Path"
   }

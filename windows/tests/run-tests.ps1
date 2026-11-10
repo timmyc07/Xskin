@@ -603,6 +603,23 @@ try {
     browserId = 'browser-123'
   }
   Write-DreamSkinState -Path $statePath -State $state
+  $sharedStatePath = Join-Path $temporaryRoot 'monitor-replacement.json'
+  Write-DreamSkinState -Path $sharedStatePath -State @{ processId = 12345 }
+  $replacementAccess = [System.IO.FileStream]::new($sharedStatePath, [System.IO.FileMode]::Open,
+    [System.IO.FileAccess]::Read, ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete),
+    4096, [System.IO.FileOptions]::DeleteOnClose)
+  try {
+    $ordinaryReaderBlocked = $false
+    try { $null = [System.IO.File]::ReadAllBytes($sharedStatePath) }
+    catch [System.IO.IOException] { $ordinaryReaderBlocked = $true }
+    if (-not $ordinaryReaderBlocked -or (Read-DreamSkinState -Path $sharedStatePath).processId -ne 12345) {
+      throw 'A managed state read failed while the same file was open for replacement.'
+    }
+  } finally { $replacementAccess.Dispose() }
+  if ($null -ne (Read-DreamSkinState -Path $sharedStatePath)) {
+    throw 'A vanished managed state file was not treated as absent.'
+  }
+
   $loadedState = Read-DreamSkinState -Path $statePath
   if ($loadedState.schemaVersion -ne 3 -or $loadedState.port -ne 9335 -or
     $loadedState.browserId -cne 'browser-123') { throw 'State round-trip failed.' }
