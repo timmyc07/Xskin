@@ -1,5 +1,14 @@
 # Windows Changelog
 
+## 1.9.10 — 2026-11-10
+
+- Keep login monitor startup readable while the monitor atomically replaces its state file.
+- Keep an installed newer runtime when a panel prepares the background service. Explicit installation can still select an older package.
+- Keep Verify from reapplying an older background after reload while another operation is running.
+- Reject delayed usage data after the composer is replaced, the chat switches, or the window is hidden and immediately reopened.
+- Coordinate background updates with renderer startup, reload and shutdown. Ignore unrecognized pages and child frames during injection.
+- Drain reloads after checking Pause and the current background. Flutter package metadata is 1.9.10+23.
+
 ## 1.9.9 — 2026-11-09
 
 - Probe embedded Chat and Work before sending background assets. A guest that becomes Work receives the current theme once it is recognized.

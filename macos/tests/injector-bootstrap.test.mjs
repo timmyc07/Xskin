@@ -60,6 +60,7 @@ function createFixture() {
     },
     clearTimeout(id) { timers.delete(id); },
   };
+  context.window.top = context.window;
   return { context, markers, observers, timers };
 }
 
@@ -70,6 +71,13 @@ assert.deepEqual(guarded.context.window.installs, [], "Auxiliary app targets mus
 guarded.markers.shell = true;
 guarded.observers[0].callback([]);
 assert.deepEqual(guarded.context.window.installs, [], "A main surface without the Codex sidebar is not sufficient.");
+
+const childFrame = createFixture();
+childFrame.context.window.top = {};
+childFrame.markers.shell = childFrame.markers.sidebar = true;
+vm.runInNewContext(earlyPayloadFor('window.installs.push("child")', "child"), childFrame.context);
+assert.deepEqual(childFrame.context.window.installs, [], "An embedded child frame cannot install the skin.");
+assert.equal(childFrame.observers.length, 0);
 
 const rootless = createFixture();
 rootless.context.document.documentElement = null;
@@ -112,8 +120,8 @@ assert.match(
 );
 assert.match(
   source,
-  /const earlyApplied = record\.pendingAt !== null && await session\.evaluate\([\s\S]*if \(!earlyApplied\) \{[\s\S]*applyToSession/,
-  "The watcher must not run the full payload twice after a successful early install.",
+  /const earlyApplied = record\.pendingAt !== null && await session\.evaluate\([\s\S]*if \(earlyApplied\) await attachVideoToSession[\s\S]*else await applyToSession/,
+  "The watcher must not run the full payload twice after a successful early install."
 );
 
 assert.match(source, /A completed CDP command[\s\S]*process\.stdout, process\.stderr[\s\S]*process\.exit\(process\.exitCode \?\? 0\)/, "Completed CLI operations must flush output and exit without waiting on idle debugger sockets.");
@@ -285,6 +293,75 @@ await shutdownFixture("backoff");
   assert.ok(calls.includes("usage-stop:1"), "A failed refresh must release its usage subscription.");
 }
 console.log("PASS: failed live theme refreshes reconnect and apply the latest revision.");
+
+for (const media of ["image", "video"]) for (const hold of ["register", "apply"]) {
+  const events = new EventEmitter();
+  const calls = [];
+  const scripts = new Set();
+  let dirty, debounce, reload;
+  let revision = "old";
+  let release, begin;
+  const blocked = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { begin = resolve; });
+  const session = {
+    closed: false,
+    async send(method, { source, identifier }) {
+      if (method === "Page.addScriptToEvaluateOnNewDocument") {
+        calls.push(`register:${source}`);
+        if (source === "old" && hold === "register") { begin(); await blocked; }
+        scripts.add(source);
+        return { identifier: source };
+      }
+      scripts.delete(identifier);
+      return {};
+    },
+    async evaluate() { return false; },
+    on(method, listener) { if (method === "Page.loadEventFired") reload = listener; },
+    close() { this.closed = true; },
+  };
+  const context = {
+    process: events, AbortController, Date,
+    setTimeout(callback) { debounce = callback; return 1; }, clearTimeout() {},
+    TokenUsageReader: class {}, watchUsageOverlay() { return { close() {} }; },
+    console: { error() {}, log() {} },
+    async loadPayload() {
+      calls.push(`read:${revision}`);
+      return { revision, payload: revision, theme: { id: revision }, timings: { buildMs: 0 },
+        videoSource: media === "video" ? {} : null };
+    },
+    watchPayloadSources(_directory, callback) { dirty = callback; return () => {}; },
+    async listAppTargets() { return [{ id: "main", type: "webview" }]; },
+    async connectTarget() { return session; },
+    async probeSession() { return { codex: true, surface: "work" }; },
+    earlyPayloadFor(payload) { return payload; },
+    async applyToSession(_session, loaded) {
+      if (loaded.revision === "old" && hold === "apply") { begin(); await blocked; }
+      calls.push(`apply:${loaded.revision}`);
+    },
+    async attachVideoToSession() {},
+    async delay() { await new Promise(setImmediate); },
+  };
+  const running = vm.runInNewContext(`(${watchSource})({ port: 19341 })`, context);
+  try {
+    await started;
+    revision = "new";
+    dirty({});
+    debounce();
+    if (hold === "apply" && media === "video") { reload(); reload(); }
+    await new Promise(setImmediate);
+    assert.ok(!calls.includes("read:new"), `${media}/${hold}: refresh must wait for the ongoing renderer write`);
+    release();
+    for (let i = 0; i < 20 && !calls.includes("apply:new"); i++) await new Promise(setImmediate);
+    assert.ok(calls.indexOf("apply:old") < calls.indexOf("apply:new") && calls.includes("apply:new"));
+    assert.deepEqual([...scripts], ["new"], "The next document must receive only the latest revision.");
+  } finally {
+    events.emit("SIGTERM");
+    release();
+    await running;
+  }
+  assert.deepEqual([...scripts], [], "Shutdown removes every registered script after interleaved work.");
+}
+console.log("PASS: four startup/Apply and theme-refresh interleavings retain only the newest renderer script.");
 
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "dream-skin-stop-test-"));
 try {

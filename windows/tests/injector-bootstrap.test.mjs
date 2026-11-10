@@ -67,6 +67,7 @@ function createFixture() {
     },
     clearTimeout(id) { timers.delete(id); },
   };
+  context.window.top = context.window;
   return { context, markers, observers };
 }
 
@@ -79,6 +80,13 @@ assert.deepEqual(guarded.context.window.installs, [], "A main surface without th
 guarded.markers.sidebar = true;
 guarded.observers[0].callback([]);
 assert.deepEqual(guarded.context.window.installs, ["guarded"], "The guarded payload should install once the shell is complete.");
+
+const childFrame = createFixture();
+childFrame.context.window.top = {};
+childFrame.markers.shell = childFrame.markers.sidebar = true;
+vm.runInNewContext(earlyPayloadFor('window.installs.push("child")', "child"), childFrame.context);
+assert.deepEqual(childFrame.context.window.installs, [], "An embedded child frame cannot install the skin.");
+assert.equal(childFrame.observers.length, 0);
 
 const rootless = createFixture();
 rootless.context.document.documentElement = null;
@@ -108,9 +116,9 @@ const evaluateStart = source.indexOf("await session.evaluate(earlyPayloadFor", r
 const probeStart = source.indexOf("const probe = await probeSession", registrationStart);
 assert.ok(registrationStart >= 0 && evaluateStart > registrationStart && probeStart > evaluateStart,
   "New targets must register and run the early payload before full shell probing.");
-assert.match(source, /attachLoadFallback\(target.id, target, session\)/,
+assert.match(source, /attachLoadFallback\(target.id, session\)/,
   "Load events must also hand video files to early-injected documents after reload.");
-assert.match(source, /if \(!fallbackTargets\.get\(id\) && !loadedPayload.videoSource\) return;/,
+assert.match(source, /\(fallbackTargets\.get\(id\) \|\| loadedPayload.videoSource\)/,
   "Successful early injection needs a load callback only for video handoff.");
 assert.match(source, /Page\.removeScriptToEvaluateOnNewDocument/,
   "Watcher shutdown and theme refresh must unregister persistent Page scripts.");
@@ -183,7 +191,8 @@ console.log('PASS: late native shells retain early injection; expiry, pause and 
   let paused = false;
   let fingerprint = 'initial';
   const session = {
-    closed: false, async evaluate() { return true; },
+    closed: false, target: { id: 'fixture' },
+    async evaluate() { return fingerprint !== 'changed'; },
     on(method, listener) { if (method === 'Page.loadEventFired') loads.push(listener); },
     close() { this.closed = true; },
   };
@@ -196,10 +205,9 @@ console.log('PASS: late native shells retain early injection; expiry, pause and 
       if (++polls === 1) paused = true;
       else if (polls === 2) paused = false;
       else if (polls === 3) fingerprint = 'changed';
-      else {
-        loads.forEach(listener => listener());
-        return setImmediate(() => { events.emit('SIGTERM'); callback(); });
-      }
+      else if (polls === 4) {
+        loads.forEach(listener => { listener(); listener(); });
+      } else return setImmediate(() => { events.emit('SIGTERM'); callback(); });
       return setImmediate(callback);
     },
     async connectBrowserIdentityAnchor() { return { closed: false, close() {} }; },
@@ -225,3 +233,73 @@ console.log('PASS: late native shells retain early injection; expiry, pause and 
   assert.equal(applied.filter(value => value === 'changed').length, 2, 'Apply once for the theme change and once for its reload.');
 }
 console.log('PASS: pause/resume retains one load fallback per connection.');
+
+for (const media of ["image-fallback", "video-early"]) for (const action of ["reload", "pause", "refresh", "shutdown"]) {
+  const events = new EventEmitter();
+  const writes = [];
+  let onLoad, appliedFingerprint = null;
+  let polls = 0;
+  let paused = false;
+  let fingerprint = "old";
+  const session = {
+    target: { id: "fixture" }, closed: false,
+    async evaluate(expression) {
+      if (expression.includes("EARLY_APPLIED__ ===")) return appliedFingerprint === fingerprint;
+      return true;
+    },
+    on(method, listener) { if (method === "Page.loadEventFired") onLoad = listener; },
+    close() { this.closed = true; },
+  };
+  const context = {
+    process: events, Date, STRONG_THEME_AUDIT_MS: 30000,
+    TokenUsageReader: class {}, watchUsageOverlay() { return { close() {} }; },
+    console: { error() {}, log() {} },
+    setTimeout(callback) {
+      if (++polls === 1) {
+        // A new document has run the persistent script only when registration succeeded.
+        appliedFingerprint = media === "video-early" ? "old" : null;
+        onLoad(); onLoad();
+        if (action === "pause") paused = true;
+        if (action === "refresh") fingerprint = "new";
+        if (action === "shutdown") events.emit("SIGTERM");
+      } else events.emit("SIGTERM");
+      return setImmediate(callback);
+    },
+    async connectBrowserIdentityAnchor() { return { closed: false, close() {} }; },
+    async loadPayload() {
+      return { fingerprint, sourceStamp: fingerprint, payload: "", theme: { id: fingerprint },
+        videoSource: media === "video-early" ? { key: fingerprint } : null };
+    },
+    async loadTheme() { return { fingerprint, sourceStamp: fingerprint }; },
+    async fileExists() { return paused; },
+    async readThemeSourceStamp() { return fingerprint; },
+    async listAppTargets() { return [{ id: "fixture" }]; },
+    async connectTarget() { return session; },
+    async registerEarlyPayload() {
+      if (media === "image-fallback") throw new Error("Fixture registration failure");
+      return "early";
+    },
+    earlyPayloadFor() { return ""; },
+    async removeEarlyPayload(_session, identifier) { if (identifier) writes.push("unregister"); },
+    async probeSession() { return { codex: true }; },
+    async attachVideoToSession(_session, video) { if (video) writes.push(`video:${video.key}`); },
+    async removeFromSession() { writes.push("pause"); },
+    async applyToSession(_session, loaded) { writes.push(`apply:${loaded.fingerprint}`); },
+    CdpIdentityMismatchError: class extends Error {},
+  };
+  await vm.runInNewContext(watchSource + '\nrunWatch({port:9335})', context);
+  const writesAfterStartup = writes.slice(1).filter(write => write !== "unregister");
+  const label = `${media}/${action}`;
+  if (action === "shutdown") assert.deepEqual(writesAfterStartup, [], label);
+  if (action === "pause") {
+    assert.deepEqual(writesAfterStartup, ["pause"], label);
+    if (media === "video-early") assert.ok(writes.indexOf("unregister") < writes.indexOf("pause"));
+  }
+  if (action === "refresh") {
+    assert.ok(writesAfterStartup.length >= 1 && writesAfterStartup.every(write => write.endsWith(":new")), label);
+  }
+  if (action === "reload") {
+    assert.deepEqual(writesAfterStartup, [media === "video-early" ? "video:old" : "apply:old"], label);
+  }
+}
+console.log("PASS: eight image/video, reload, pause, refresh and shutdown combinations.");

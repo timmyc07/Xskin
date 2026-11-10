@@ -60,6 +60,8 @@ async function rejects(args, errorCode) {
 try {
   await fs.mkdir(theme, { recursive: true });
   await fs.cp(path.join(root, "scripts"), path.join(engine, "scripts"), { recursive: true });
+  const version = await fs.readFile(path.join(root, "VERSION"), "utf8");
+  await fs.writeFile(path.join(engine, "VERSION"), version);
   // Replace every runtime mutation before starting the native CLI.
   await fs.writeFile(path.join(engine, "scripts/status-dream-skin-macos.sh"), '#!/bin/bash\nprintf \'{"session":"active"}\\n\'\n');
   await fs.writeFile(path.join(engine, "scripts/pause-dream-skin-macos.sh"), '#!/bin/bash\nprintf "pause\\n" >> "$HOME/pause-calls"\n');
@@ -106,7 +108,7 @@ esac
   await fs.writeFile(configPath, JSON.stringify(initial));
   await assert.rejects(loadTheme(theme, "../escape.json"), /Theme config must be a filename/u);
   const initialStatus = await success("status");
-  assert.equal(initialStatus.version, "1.9.7");
+  assert.equal(initialStatus.version, version.trim());
   assert.equal(initialStatus.active.path, path.join(theme, initial.image));
   assert.equal(initialStatus.active.applied, true);
   assert.equal(initialStatus.selection, null);

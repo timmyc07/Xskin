@@ -9,7 +9,7 @@ import { TokenUsageReader } from "./token-usage.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.9";
+const SKIN_VERSION = "1.9.10";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -592,15 +592,16 @@ export async function attachVideoToSession(session, source) {
 }
 
 async function applyToSession(session, loaded) {
-  await session.evaluate(loaded.payload);
+  await session.evaluate(`window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null;\n${loaded.payload}`);
   await attachVideoToSession(session, loaded.videoSource);
 }
 
-async function sendUsageSnapshot(session, threadId, snapshot) {
+async function sendUsageSnapshot(session, { threadId, installation }, snapshot) {
   await session.evaluate(`(() => {
     const overlay = window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay;
     const request = overlay?.request();
-    if (request?.visible && request.threadId === ${JSON.stringify(threadId)}) overlay.update(${JSON.stringify(snapshot)});
+    if (request?.visible && request.threadId === ${JSON.stringify(threadId)} &&
+      request.installation === ${JSON.stringify(installation)}) overlay.update(${JSON.stringify(snapshot)});
   })()`);
 }
 
@@ -608,7 +609,7 @@ export async function updateUsageOverlay(session, reader) {
   const request = await session.evaluate('window.__CODEX_DREAM_SKIN_STATE__?.usageOverlay?.request()');
   if (!request?.visible) return;
   const snapshot = request.threadId ? await reader.read(request.threadId) : null;
-  await sendUsageSnapshot(session, request.threadId, snapshot);
+  await sendUsageSnapshot(session, request, snapshot);
 }
 
 export function watchUsageOverlay(session, reader) {
@@ -644,7 +645,7 @@ export function watchUsageOverlay(session, reader) {
           const active = reader.watch(threadId, async snapshot => {
             if (closed || subscription !== active) return;
             try {
-              await sendUsageSnapshot(session, threadId, snapshot);
+              await sendUsageSnapshot(session, request, snapshot);
               if (subscription === active) pushFailures = 0;
             } catch (error) {
               if (!closed && subscription === active && ++pushFailures >= 3) { session.close(); close(); }
@@ -653,7 +654,7 @@ export function watchUsageOverlay(session, reader) {
           });
           subscription = active;
           await active.refresh(true);
-        } else if (request?.visible) await sendUsageSnapshot(session, threadId, null);
+        } else if (request?.visible) await sendUsageSnapshot(session, request, null);
       } else if (subscription && performance.now() - lastHeartbeatAt >= 5000) {
         lastHeartbeatAt = performance.now();
         await subscription.refresh(true);
@@ -675,6 +676,7 @@ export function watchUsageOverlay(session, reader) {
 
 export function earlyPayloadFor(payload, revision) {
   return `(() => {
+    if (window.top !== window) return;
     const generationKey = "__CODEX_DREAM_SKIN_EARLY_GENERATION__";
     const appliedKey = "__CODEX_DREAM_SKIN_EARLY_APPLIED__";
     const generation = ${JSON.stringify(revision)};
@@ -721,6 +723,7 @@ async function removeEarlyPayload(session, identifier) {
 async function removeFromSession(session) {
   return session.evaluate(`(() => {
     window.__CODEX_DREAM_SKIN_DISABLED__ = true;
+    window.__CODEX_DREAM_SKIN_EARLY_GENERATION__ = null;
     const state = window.__CODEX_DREAM_SKIN_STATE__;
     if (state?.cleanup) return state.cleanup();
     document.documentElement?.classList.remove('codex-dream-skin');
@@ -989,7 +992,8 @@ async function runOneShot(options) {
         if (options.reload) {
           await session.send("Page.reload", { ignoreCache: true });
           await new Promise((resolve) => setTimeout(resolve, 1600));
-          if (options.mode !== "remove") await applyToSession(session, loadedPayload);
+          // Verify waits for the watcher so a concurrent pause or Apply keeps ownership.
+          if (options.mode === "once") await applyToSession(session, loadedPayload);
         }
         if (options.mode === "once") await updateUsageOverlay(session, usageReader);
         const verified = options.mode === "remove"
@@ -1021,6 +1025,7 @@ async function runWatch(options) {
   const earlyScripts = new Map();
   const fallbackTargets = new Map();
   const fallbackListeners = new Set();
+  const reloads = new Map();
   const pendingTargets = new Map();
   const targetFailures = new Map();
   let stopping = false;
@@ -1057,24 +1062,13 @@ async function runWatch(options) {
     }
     targetFailures.set(target.id, { failures, lastLogAt: previous.lastLogAt, until: now + delayMs });
   };
-  const attachLoadFallback = (id, target, session) => {
+  const attachLoadFallback = (id, session) => {
     if (fallbackListeners.has(id)) return;
     fallbackListeners.add(id);
-    let lastReinjectErrorLogAt = 0;
     session.on("Page.loadEventFired", () => {
-      if (!fallbackTargets.get(id) && !loadedPayload.videoSource) return;
-      setTimeout(() => {
-        const operation = waitForCodexProbe(session, 10000).then((probe) => {
-          if (!probe?.codex) throw new Error("Codex shell was not ready after reload");
-          return paused ? removeFromSession(session) : applyToSession(session, loadedPayload);
-        });
-        operation.catch((error) => {
-          if (Date.now() - lastReinjectErrorLogAt >= 30000) {
-            console.error(`[dream-skin] reinject failed for ${target.id}: ${error.message}`);
-            lastReinjectErrorLogAt = Date.now();
-          }
-        });
-      }, 250);
+      if (!stopping && !paused && (fallbackTargets.get(id) || loadedPayload.videoSource)) {
+        reloads.set(session, { deadline: Date.now() + 10000 });
+      }
     });
   };
   process.on("SIGINT", stop);
@@ -1140,6 +1134,7 @@ async function runWatch(options) {
       paused = nextPaused;
 
       if (pauseChanged || payloadChanged) {
+        if (paused) reloads.clear();
         for (const watcher of usageWatchers.values()) watcher.close();
         usageWatchers.clear();
         for (const id of pendingTargets.keys()) await discardPending(id);
@@ -1147,8 +1142,8 @@ async function runWatch(options) {
           try {
             const previousEarlyScript = earlyScripts.get(id);
             if (paused) {
-              await removeFromSession(session);
               await removeEarlyPayload(session, previousEarlyScript);
+              await removeFromSession(session);
               earlyScripts.delete(id);
               fallbackTargets.delete(id);
             } else {
@@ -1164,7 +1159,7 @@ async function runWatch(options) {
               } catch (error) {
                 fallbackTargets.set(id, true);
                 console.error(`[dream-skin] early theme refresh unavailable for ${id}: ${error.message}`);
-                attachLoadFallback(id, { id }, session);
+                attachLoadFallback(id, session);
               }
               if (nextEarlyScript) earlyScripts.set(id, nextEarlyScript);
               else earlyScripts.delete(id);
@@ -1177,6 +1172,7 @@ async function runWatch(options) {
             earlyScripts.delete(id);
             fallbackTargets.delete(id);
             fallbackListeners.delete(id);
+            reloads.delete(session);
             session.close();
             sessions.delete(id);
           }
@@ -1199,6 +1195,7 @@ async function runWatch(options) {
           earlyScripts.delete(id);
           fallbackTargets.delete(id);
           fallbackListeners.delete(id);
+          reloads.delete(session);
           session.close();
           sessions.delete(id);
           targetFailures.delete(id);
@@ -1257,7 +1254,7 @@ async function runWatch(options) {
             earlyInjectionFallback = !earlyScriptId;
           }
           fallbackTargets.set(target.id, earlyInjectionFallback);
-          attachLoadFallback(target.id, target, session);
+          attachLoadFallback(target.id, session);
           if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
           let earlyApplied = false;
           if (!paused && !earlyInjectionFallback && pending.startedAt !== null) {
@@ -1281,12 +1278,33 @@ async function runWatch(options) {
           }
           fallbackTargets.delete(target.id);
           fallbackListeners.delete(target.id);
+          reloads.delete(session);
           if (identityAnchor.closed || error instanceof CdpIdentityMismatchError) break;
           rejectTarget(target, 2500, error);
         }
       }
       if (!paused) for (const [id, session] of sessions) {
         if (!usageWatchers.has(id)) usageWatchers.set(id, watchUsageOverlay(session, usageReader));
+      }
+      // Process page reloads after pause and theme changes in the same watcher loop.
+      for (const [session, reload] of reloads) {
+        if (stopping || identityAnchor.closed) break;
+        if (session.closed || Date.now() >= reload.deadline) { reloads.delete(session); continue; }
+        try {
+          if (!(await probeSession(session))?.codex || stopping || identityAnchor.closed) continue;
+          if (reloads.get(session) !== reload) continue;
+          reloads.delete(session);
+          const earlyApplied = await session.evaluate(
+            `window.__CODEX_DREAM_SKIN_EARLY_APPLIED__ === ${JSON.stringify(loadedPayload.fingerprint)}`,
+          );
+          if (stopping || identityAnchor.closed) break;
+          if (earlyApplied) await attachVideoToSession(session, loadedPayload.videoSource);
+          else await applyToSession(session, loadedPayload);
+        } catch (error) {
+          console.error(`[dream-skin] reinject failed: ${error.message}`);
+          await removeEarlyPayload(session, earlyScripts.get(session.target.id));
+          session.close();
+        }
       }
       const starting = [...pendingTargets.values()].some(pending => pending.startedAt !== null);
       await new Promise((resolve) => setTimeout(resolve, starting ? 50 : 1200));

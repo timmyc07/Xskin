@@ -33,6 +33,7 @@
   let cacheFill = null;
   let cacheText = null;
   let threadId;
+  let boundComposer = null;
   let snapshot = null;
   let lastReceivedAt = null;
   let disposed = false;
@@ -135,15 +136,17 @@
     const current = !home && local && (selectedThread || draftPattern.test(selectedId ?? "")) &&
       (!selectedThread || !conversationThread || selectedThread === conversationThread)
       ? conversationThread ?? selectedThread : null;
-    if (current !== threadId) {
+    const composers = [...document.querySelectorAll("[data-composer-body]")].filter(node =>
+      !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
+    const composer = composers.length === 1 ? composers[0] : null;
+    // Keep the added height within the composer's layout container.
+    const anchor = composer;
+    if (current !== threadId || anchor !== boundComposer) {
       threadId = current;
+      boundComposer = anchor;
       clearData();
       changed = true;
     }
-    const composer = [...document.querySelectorAll("[data-composer-body]")].find(node =>
-      !node.closest('[data-app-shell-active-page="false"]') && node.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
-    // Keep the added height within the composer's layout container.
-    const anchor = composer;
     if (!anchor || !threadId) {
       row?.remove();
       row = text = cacheBar = cacheFill = cacheText = null;
@@ -152,7 +155,6 @@
     }
     if (!row) {
       changed = true;
-      installation = window.crypto.randomUUID();
       row = document.createElement("div");
       row.id = ID;
       row.className = "dream-skin-usage";
@@ -177,8 +179,10 @@
       row.append(fan, text, cache);
     }
     if (anchor.previousElementSibling !== row) anchor.insertAdjacentElement("beforebegin", row);
-    if (changed) render();
-    else paintMotion();
+    if (changed) {
+      installation = window.crypto.randomUUID();
+      render();
+    } else paintMotion();
     return { threadId, visible: !document.hidden, installation };
   };
   const update = next => {
@@ -224,7 +228,11 @@
   };
   // Hidden pages unsubscribe; returning waits for a real host heartbeat.
   const visibilityChange = () => {
-    if (document.hidden) { clearData(); render(); }
+    if (document.hidden) {
+      if (row) installation = window.crypto.randomUUID();
+      clearData();
+      render();
+    }
     request();
   };
   document.addEventListener("visibilitychange", visibilityChange);

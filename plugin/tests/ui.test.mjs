@@ -786,3 +786,32 @@ test("only the exact confirmed Apply may promote a completed selection, and hidd
     assert.equal(ui.revoked.filter(url => url === previousUrl).length, 1, scenario);
   }
 });
+
+test("all 81 ordered panel action pairs keep one backend operation in flight", async () => {
+  const actions = [
+    controller => controller.choose(),
+    controller => controller.apply(),
+    controller => controller.mask(47),
+    controller => controller.language("ja"),
+    controller => controller.run("xskin_pause"),
+    controller => controller.run("xskin_resume"),
+    controller => controller.run("xskin_autostart", { enabled: true }),
+    controller => controller.run("xskin_recover"),
+    controller => controller.refresh(),
+  ];
+  for (const first of actions) for (const second of actions) {
+    let finish;
+    let calls = 0;
+    const controller = createStudioController({
+      callServerTool() { calls++; return new Promise(resolve => { finish = resolve; }); },
+    }, () => {});
+    controller.receive(result(state()));
+    const running = first(controller);
+    assert.equal(await second(controller), false);
+    assert.equal(calls, 1);
+    finish(result(state()));
+    assert.equal(await running, true);
+    assert.equal(controller.view.busy, null);
+    controller.dispose();
+  }
+});

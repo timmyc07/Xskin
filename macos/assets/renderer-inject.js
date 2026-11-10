@@ -1,5 +1,6 @@
 ((cssText, artDataUrl, themeConfig) => {
   const SURFACE = (__DREAM_SKIN_DETECT_SURFACE__)();
+  if (!SURFACE) return;
   const STATE_KEY = "__CODEX_DREAM_SKIN_STATE__";
   const HOST_VISIBLE_KEY = "__CODEX_DREAM_SKIN_HOST_VISIBLE__";
   const HOST_VISIBILITY_EVENT = "codex-dream-skin-host-visibility";

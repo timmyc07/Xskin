@@ -466,6 +466,13 @@ assert.equal(videoHome.homeSurface.classList.contains("dream-skin-home"), false,
 assert.ok(videoHome.shellMain.classList.contains("dream-skin-home-shell"));
 assert.match(css, /data-dream-wallpaper="true"\] #root main\[data-app-shell-main-surface\]\s*\{[^}]*border: 0 !important;[^}]*border-radius: 0 !important;[^}]*box-shadow: none !important;/, "Video must not retain a decorative frame around the main native surface.");
 
+const navigatedAway = createFixture({ id: "stale-injection" });
+navigatedAway.context.location = new URL("https://example.com/");
+vm.runInNewContext(navigatedAway.payload, navigatedAway.context);
+assert.equal(navigatedAway.window.__CODEX_DREAM_SKIN_STATE__, undefined);
+assert.equal(navigatedAway.nodes.has("codex-dream-skin-style"), false,
+  "A surface can navigate away after the watcher probe and before its payload arrives.");
+
 const defaults = createFixture({
   id: "default-contract",
   appearance: "auto",

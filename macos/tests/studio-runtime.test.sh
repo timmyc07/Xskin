@@ -29,6 +29,7 @@ SOURCE="$(cd "$(dirname "$0")/.." && pwd -P)"
 INSTALL
 cat > "$TEMPORARY/node" <<'NODE'
 #!/bin/bash
+if [ "${1:-}" = -e ]; then exec "$FIXTURE_REAL_NODE" "$@"; fi
 printf 'backend:%s\n' "$*" >> "$FIXTURE_EVENTS"
 if [ "${2:-}" = recover ]; then
   printf '{"recovered":true}\n'
@@ -36,7 +37,7 @@ if [ "${2:-}" = recover ]; then
 fi
 NODE
 chmod +x "$SOURCE/scripts/install-dream-skin-macos.sh" "$TEMPORARY/node"
-printf 'same-version\n' > "$SOURCE/VERSION"
+printf '1.9.9\n' > "$SOURCE/VERSION"
 printf '// backend\n' > "$SOURCE/scripts/background-studio.mjs"
 printf '// reader\n' > "$SOURCE/scripts/token-usage.mjs"
 printf '// injector\n' > "$SOURCE/scripts/injector.mjs"
@@ -45,6 +46,7 @@ printf '/* css */\n' > "$SOURCE/assets/dream-skin.css"
 printf 'helper\n' > "$SOURCE/bin/CodexLauncher"
 mkdir -p "$INSTALLED"
 cp -R "$SOURCE/" "$INSTALLED/"
+export FIXTURE_REAL_NODE="${NODE:-$(command -v node)}"
 export FIXTURE_INSTALLED="$INSTALLED" FIXTURE_NODE="$TEMPORARY/node" FIXTURE_EVENTS="$TEMPORARY/events" FIXTURE_FAIL="$TEMPORARY/fail" FIXTURE_INSTALL_ARGS="$TEMPORARY/install-args"
 run() { /bin/bash "$SOURCE/scripts/studio-command-macos.sh" status; }
 assert_no_install() {
@@ -73,6 +75,15 @@ run
 /usr/bin/grep -Fxq install "$FIXTURE_EVENTS"
 assert_no_install
 printf 'image changed\n' > "$SOURCE/assets/background.jpg"
+assert_no_install
+# Keep a newer runtime when an older panel is opened. A newer panel can still upgrade.
+printf '1.9.10\n' > "$INSTALLED/VERSION"
+assert_no_install
+printf '1.10.12\n' > "$SOURCE/VERSION"
+rm "$FIXTURE_EVENTS"
+run
+/usr/bin/grep -Fxq install "$FIXTURE_EVENTS"
+[ "$(cat "$INSTALLED/VERSION")" = '1.10.12' ]
 assert_no_install
 printf 'changed again\n' >> "$SOURCE/assets/token-overlay.js"
 touch "$FIXTURE_FAIL"

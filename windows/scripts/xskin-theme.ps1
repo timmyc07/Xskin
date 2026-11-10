@@ -242,7 +242,7 @@ function Set-XskinAutostart {
     [Parameter(Mandatory = $true)][string]$StateRoot)
   $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
   if ((Get-DreamSkinAutostart -StateRoot $StateRoot).Foreign) { throw 'Refusing to change an unrelated automatic-startup task.' }
-  $null = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
+  $null = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot -KeepNewer
   Set-XskinLaunchShortcuts -StateRoot $StateRoot
   # Persist the physical store before deleting the legacy task that used to locate it.
   Save-XskinStateRoot -StateRoot $StateRoot
