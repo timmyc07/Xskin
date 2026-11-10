@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.9.10 — Unreleased
+## 1.9.10 — 2026-11-10
 
 - Keep an installed newer runtime when a panel prepares the background service. Explicit installation can still select an older package.
 - Keep Verify from reapplying an older background after reload while another operation is running.

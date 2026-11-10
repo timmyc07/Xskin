@@ -1,16 +1,16 @@
-# Xskin for Windows 1.9.9
+# Xskin for Windows 1.9.10
 
-Version 1.9.9 fixes login-monitor startup races, slow cold starts and stopped/missing monitoring. Apply and Resume repair previously enabled monitoring; missing connections retain an actionable error and pending media. See the [Windows changelog](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md) for validation.
+Version 1.9.10 processes page reloads after Pause and theme updates, and rejects delayed usage data after a chat or composer change. See the [Windows changelog](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md) for validation.
 
 Windows now mirrors the completed macOS 1.9.4 embedded studio, retained original-media previews, recovery, six presets and official-launch background option. It reuses the Windows Flutter/PowerShell engine. [Parity and validation](../docs/windows-parity.md) · [繁體中文](README.md)
 
-**Download Windows 1.9.9: [standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.9/Xskin-1.9.9-windows-x64.zip) · [Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.9/xskin-plugin-v1.9.9-windows-x64.zip) · [Release and SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.9#release-assets).** Verify each ZIP against its matching `.zip.sha256` before running it. To install both with a local coding assistant, copy the [AI installation prompt](https://github.com/timmyc07/Xskin#install-with-your-ai).
+**Download Windows 1.9.10: [standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.10/Xskin-1.9.10-windows-x64.zip) · [Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.10/xskin-plugin-v1.9.10-windows-x64.zip) · [Release and SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.10#release-assets).** Verify each ZIP against its matching `.zip.sha256` before running it. To install both with a local coding assistant, copy the [AI installation prompt](https://github.com/timmyc07/Xskin#install-with-your-ai).
 
 **First test after upgrading:** close the Xskin panel, install the complete new packages and keep existing data. Enable **Apply when official Codex opens**, fully quit Codex, then reopen the official app once. The fresh launch gracefully reopens once to establish the connection; retry the retained pending media afterward.
 
 ## Embedded studio
 
-Download and extract the complete `xskin-plugin-v1.9.9-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
+Download and extract the complete `xskin-plugin-v1.9.10-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
 
 When updating an existing installation from a different extracted path, first run `codex plugin marketplace remove codex-background-studio-local`, then run the two commands below. This replaces only the Xskin marketplace source; keep existing background data and other marketplaces.
 
@@ -27,7 +27,7 @@ Opening/refreshing the panel or importing alone does not enable automatic backgr
 
 ## Standalone app, media and data
 
-Extract the full `Xskin-1.9.9-windows-x64.zip` and open Install Xskin.exe or xskin.exe. Keep all adjacent files. Flutter supports drag/drop, preview, explicit Apply, mask and four languages. Fully exit an ordinary session before using the direct shortcut. Installation leaves existing official sessions running.
+Extract the full `Xskin-1.9.10-windows-x64.zip` and open Install Xskin.exe or xskin.exe. Keep all adjacent files. Flutter supports drag/drop, preview, explicit Apply, mask and four languages. Fully exit an ordinary session before using the direct shortcut. Installation leaves existing official sessions running.
 
 New stores default to midnight aurora and contain all six byte-identical macOS preset packs. Existing backgrounds, imports, language, opacity and pause survive updates. Physical/MSIX-aware state roots, the per-user locator and owned shortcut checks remain in place. Do not move or delete the data directory to repair a connection.
 
