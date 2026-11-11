@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.11
+
+- Apply the saved background when Codex opens during macOS login before Xskin's launch observer is ready. Enabling or updating Xskin leaves an already-open Codex session alone.
+
 ## 1.9.10 — 2026-11-10
 
 - Keep an installed newer runtime when a panel prepares the background service. Explicit installation can still select an older package.

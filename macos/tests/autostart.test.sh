@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 TEMPORARY="$(/usr/bin/mktemp -d /tmp/xskin-shortcut-test.XXXXXX)"
 trap '/bin/rm -rf "$TEMPORARY"' EXIT
 STATE_ROOT="$TEMPORARY/state 中文 🌙"
+START_ERROR_LOG="$STATE_ROOT/start-error.log"
 INSTALL_ROOT="$TEMPORARY/runtime"
 PROJECT_ROOT="$INSTALL_ROOT"
 SCRIPT_DIR="$INSTALL_ROOT/scripts"
@@ -38,6 +39,8 @@ rm "$AUTOSTART_AGENT_PATH"
 discover_codex_app() { :; }
 require_macos_runtime() { :; }
 ensure_state_root() { :; }
+codex_main_pids() { printf '101\n'; }
+process_started_at() { [ "$1" = 101 ] && printf FixtureStart; }
 NODE="${NODE:-/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node}"
 INJECTOR="$ROOT/scripts/injector.mjs"
 THEME_DIR="$ROOT/assets"
@@ -53,6 +56,8 @@ enable_autostart >/dev/null
 [ -f "$AUTOSTART_AGENT_PATH" ] && [ -f "$TEMPORARY/loaded" ]
 check_autostart_agent
 [ "$(/usr/bin/plutil -extract WorkingDirectory raw -o - "$AUTOSTART_AGENT_PATH")" = "$STATE_ROOT" ]
+existing_process="$(/usr/bin/plutil -extract EnvironmentVariables.XSKIN_AUTOSTART_EXISTING_PROCESS raw -o - "$AUTOSTART_AGENT_PATH")"
+[ "$existing_process" = '101 FixtureStart' ]
 disable_autostart
 [ ! -f "$AUTOSTART_AGENT_PATH" ] && [ ! -f "$TEMPORARY/loaded" ]
 [ -f "$STATE_ROOT/shortcut-enabled" ]
@@ -85,10 +90,11 @@ rm "$TEMPORARY/fail-bootstrap"
 
 # Only launch events for fresh, ordinary processes may trigger a handoff.
 CURRENT_PID=101
+CURRENT_START=FixtureStart
 AUTOSTART_PREVIOUS_PID=101
 STATE_PATH="$STATE_ROOT/state.json"
-process_started_at() { printf FixtureStart; }
-new_codex_launch_matches() { [ "$1" = "$CURRENT_PID" ] && [ "$2" = FixtureStart ] && [ ! -f "$TEMPORARY/stale" ]; }
+process_started_at() { printf '%s' "$CURRENT_START"; }
+new_codex_launch_matches() { [ "$1" = "$CURRENT_PID" ] && [ "$2" = "$CURRENT_START" ] && [ ! -f "$TEMPORARY/stale" ]; }
 codex_main_pids() { printf '%s' "$CURRENT_PID"; }
 function /bin/ps() { if [ -f "$TEMPORARY/debug" ]; then printf 'fixture --remote-debugging-port=9341\n'; else printf 'fixture\n'; fi; }
 state_field() { case "$1" in session) cat "$STATE_PATH" ;; codexPid) printf 999 ;; esac; }
@@ -136,4 +142,22 @@ rm "$STATE_ROOT/shortcut-enabled"
 CURRENT_PID=150
 autostart_step launch 150
 [ "$(tail -n 1 "$TEMPORARY/events")" = stop-injector ]
-printf 'PASS: native launch service preserves preferences, rejects foreign agents, skips existing/paused/debug/stale sessions, and hands off each user launch at most once without a relaunch loop.\n'
+
+# The observer reports a launch it finds on startup, possibly followed by a queued notification.
+mkdir -p "$PROJECT_ROOT/bin"
+cat > "$PROJECT_ROOT/bin/CodexLauncher" <<'LAUNCHER'
+#!/bin/bash
+[ "$1" = --watch-launches ] || exit 1
+printf 'launch %s\nlaunch %s\n' "$FIXTURE_PID" "$FIXTURE_PID"
+LAUNCHER
+chmod +x "$PROJECT_ROOT/bin/CodexLauncher"
+touch "$STATE_ROOT/shortcut-enabled"
+CODEX_BUNDLE=/fixture/Official.app
+CURRENT_PID=101
+export FIXTURE_PID="$CURRENT_PID"
+if (XSKIN_AUTOSTART_EXISTING_PROCESS="$existing_process" watch_normal_launches) 2>/dev/null; then exit 1; fi
+[ "$(tail -n 1 "$TEMPORARY/events")" = stop-injector ]
+CURRENT_START=NextBoot
+if (XSKIN_AUTOSTART_EXISTING_PROCESS="$existing_process" watch_normal_launches) 2>/dev/null; then exit 1; fi
+[ "$(tail -n 2 "$TEMPORARY/events")" = $'stop-injector\nhandoff:101' ]
+printf 'PASS: native launch service catches fresh launches at login, preserves preferences, rejects foreign agents, skips existing/paused/debug/stale sessions, and hands off each launch at most once.\n'

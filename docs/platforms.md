@@ -1,5 +1,7 @@
 # 平台对照
 
+macOS **1.9.11** picks up fresh Codex launches that occur before the login observer is ready. Enabling or upgrading Xskin still leaves an already-open Codex session running. Paused, disabled and already connected sessions retain their existing behavior.
+
 macOS/plugin and Windows **1.9.10** include the 1.9.6 fix for a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Windows standalone/plugin downloads and checksums are available under [windows-v1.9.10](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.10).
 
 macOS/plugin **1.9.10** and Windows **1.9.10** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
