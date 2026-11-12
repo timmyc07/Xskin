@@ -269,14 +269,15 @@ html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work
   --text-tertiary: var(--ds-muted) !important;
 }
 
-html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) :is([role="menu"], [role="listbox"], [popover], [role="dialog"]) {
+/* The native panel resizer uses a transparent full-window manual popover. */
+html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) :is([role="menu"], [role="listbox"], [popover]:not(:where([popover="manual"].pointer-events-none)), [role="dialog"]):not(:where(.codex-dialog.fixed.inset-0)) {
   background: var(--ds-floating-surface) !important;
   color: var(--ds-text) !important;
   border-color: var(--ds-line) !important;
   backdrop-filter: blur(16px) saturate(108%);
 }
 
-html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) [role="dialog"] {
+html.codex-dream-skin:is([data-dream-surface="codex"], [data-dream-surface="work"]) [role="dialog"]:not(:where(.codex-dialog.fixed.inset-0)) {
   background: var(--ds-dialog-surface) !important;
 }
 

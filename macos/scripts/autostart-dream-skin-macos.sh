@@ -48,14 +48,20 @@ enable_autostart() {
   disable_autostart
   "$SCRIPT_DIR/setup-direct-launch.sh" --install
   /bin/mkdir -p "$(dirname "$AUTOSTART_AGENT_PATH")"
-  local temporary
+  local temporary existing_pid existing_process=""
+  existing_pid="$(codex_main_pids)"
+  case "$existing_pid" in
+    ''|*[!0-9]*) ;;
+    *) existing_process="$existing_pid $(process_started_at "$existing_pid" || true)" ;;
+  esac
   temporary="$(/usr/bin/mktemp "$AUTOSTART_AGENT_PATH.XXXXXX")"
   "$NODE" -e '
     const fs = require("node:fs");
-    const [file, label, watcher, state] = process.argv.slice(1);
+    const [file, label, watcher, state, existingProcess] = process.argv.slice(1);
     fs.writeFileSync(file, JSON.stringify({
       Label: label,
       ProgramArguments: ["/bin/bash", watcher, "watch"],
+      EnvironmentVariables: { XSKIN_AUTOSTART_EXISTING_PROCESS: existingProcess },
       RunAtLoad: true,
       KeepAlive: { SuccessfulExit: false },
       ThrottleInterval: 30,
@@ -64,7 +70,7 @@ enable_autostart() {
       StandardOutPath: `${state}/autostart.log`,
       StandardErrorPath: `${state}/autostart-error.log`,
     }), { mode: 0o600 });
-  ' "$temporary" "$AUTOSTART_JOB_LABEL" "$SCRIPT_DIR/autostart-dream-skin-macos.sh" "$STATE_ROOT"
+  ' "$temporary" "$AUTOSTART_JOB_LABEL" "$SCRIPT_DIR/autostart-dream-skin-macos.sh" "$STATE_ROOT" "$existing_process"
   /usr/bin/plutil -convert xml1 "$temporary"
   /bin/chmod 600 "$temporary"
   /bin/mv "$temporary" "$AUTOSTART_AGENT_PATH"
@@ -100,6 +106,7 @@ autostart_step() {
   started_at="$(process_started_at "$pid")" || return 0
   new_codex_launch_matches "$pid" "$started_at" || return 0
   AUTOSTART_PREVIOUS_PID="$pid"
+  [ "$pid $started_at" != "${XSKIN_AUTOSTART_EXISTING_PROCESS:-}" ] || return 0
   [ -f "$STATE_ROOT/shortcut-enabled" ] || return 0
   [ ! -f "$STATE_PATH" ] || [ "$(state_field session)" != paused ] || return 0
   command_line="$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)"
@@ -116,8 +123,7 @@ watch_normal_launches() {
   require_macos_runtime
   ensure_state_root
   check_autostart_agent
-  # Installation and login leave an already-open session alone.
-  AUTOSTART_PREVIOUS_PID="$(codex_main_pids | /usr/bin/head -n 1)"
+  AUTOSTART_PREVIOUS_PID=""
   trap 'exit 0' INT TERM
   local event event_pid
   "$PROJECT_ROOT/bin/CodexLauncher" --watch-launches "$CODEX_BUNDLE" | while read -r event event_pid; do

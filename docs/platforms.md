@@ -1,8 +1,10 @@
 # 平台对照
 
-macOS/plugin and Windows **1.9.10** include the 1.9.6 fix for a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Windows standalone/plugin downloads and checksums are available under [windows-v1.9.10](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.10).
+macOS **1.9.12** applies the saved background when Codex opens during login before the launch observer is ready. Enabling or updating Xskin leaves an already-open Codex session running.
 
-macOS/plugin **1.9.10** and Windows **1.9.10** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
+macOS/plugin and Windows **1.9.12** include the 1.9.6 fix for a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Windows standalone/plugin downloads and checksums are available under [windows-v1.9.12](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.12).
+
+macOS/plugin **1.9.12** and Windows **1.9.12** share the embedded studio, completed original-media previews, host-bounded scrolling, mask, four languages and explicit recovery. Windows uses its existing PowerShell/Flutter engine, native Windows picker and registered MSIX activation. Its opt-in per-user login monitor applies backgrounds to future fresh official launches with one graceful reopen; an existing ordinary session is left running. See [Windows parity and validation](windows-parity.md) and [in-app studio](in-app-studio.md).
 
 ## 1.9.10 interaction checks
 
@@ -16,6 +18,12 @@ macOS/plugin **1.9.10** and Windows **1.9.10** share the embedded studio, comple
 | Both injectors | A document that changes after discovery and a child frame that exposes a matching shell must not receive the skin. |
 
 The fixtures drive Xskin and simulated host events. Actual message delivery and navigation belong to the official desktop app and require separate end-to-end testing.
+
+## Full-screen previews
+
+The shared macOS and Windows skin leaves native full-screen preview dialogs in charge of their own backdrop. This prevents Xskin's floating-panel blur and tint from covering the whole window when an image preview opens over a PDF. The PDF zoom menu continues to use the normal theme.
+
+Opening the PDF side panel also mounts a transparent full-window popover for the resize handle. The skin excludes that layer from its floating-panel styling so the document and chat stay clear while the panel is open.
 
 ## 2026-11-09 desktop compatibility and streaming
 
