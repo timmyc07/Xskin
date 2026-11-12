@@ -4,6 +4,7 @@
 
 - Keep the PDF side panel's full-window resize overlay transparent so opening a PDF leaves the window clear.
 - Fix the tinted blur that covers the window when a full-screen image preview opens over a PDF.
+- Apply the saved background when Codex opens during macOS login before Xskin's launch observer is ready. Enabling or updating Xskin leaves an already-open Codex session running.
 
 ## 1.9.10 — 2026-11-10
 

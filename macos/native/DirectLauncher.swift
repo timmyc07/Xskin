@@ -149,16 +149,22 @@ private struct DirectLauncher {
     if args.count == 2, args[0] == "--watch-launches" {
       let official = URL(fileURLWithPath: args[1]).standardizedFileURL
       guard Bundle(url: official)?.bundleIdentifier == "com.openai.codex" else { throw CocoaError(.fileReadCorruptFile) }
-      let center = NSWorkspace.shared.notificationCenter
+      let workspace = NSWorkspace.shared
+      let center = workspace.notificationCenter
+      let report: @Sendable (String, NSRunningApplication) -> Void = { event, app in
+        guard app.bundleIdentifier == "com.openai.codex", app.bundleURL?.standardizedFileURL == official else { return }
+        FileHandle.standardOutput.write(Data("\(event) \(app.processIdentifier)\n".utf8))
+      }
       let observers = [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification].map { name in
         center.addObserver(forName: name, object: nil, queue: .main) { notification in
-          guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-            app.bundleIdentifier == "com.openai.codex", app.bundleURL?.standardizedFileURL == official else { return }
+          guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
           let event = notification.name == NSWorkspace.didTerminateApplicationNotification ? "terminate" : "launch"
-          FileHandle.standardOutput.write(Data("\(event) \(app.processIdentifier)\n".utf8))
+          report(event, app)
         }
       }
       defer { observers.forEach(center.removeObserver) }
+      // Login can open Codex before notification registration completes.
+      for app in workspace.runningApplications where app.isFinishedLaunching { report("launch", app) }
       RunLoop.main.run()
       return
     }
