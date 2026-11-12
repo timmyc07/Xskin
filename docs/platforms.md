@@ -17,6 +17,10 @@ macOS/plugin **1.9.10** and Windows **1.9.10** share the embedded studio, comple
 
 The fixtures drive Xskin and simulated host events. Actual message delivery and navigation belong to the official desktop app and require separate end-to-end testing.
 
+## Full-screen previews
+
+The shared macOS and Windows skin leaves native full-screen preview dialogs in charge of their own backdrop. This prevents Xskin's floating-panel blur and tint from covering the whole window when an image preview opens over a PDF. The PDF zoom menu continues to use the normal theme.
+
 ## 2026-11-09 desktop compatibility and streaming
 
 - The installed ChatGPT/Codex desktop app (26.1027.61615, build 24141) exposes ordinary Chat and Work through the same embedded origin. Ordinary Chat has the new app shell and composer but lacks the Work markers used for background injection. Xskin 1.9.8 kept re-registering the full payload on that guest after the startup deadline.

@@ -10,6 +10,13 @@ const macosRoot = path.resolve(here, "..");
 const template = await fs.readFile(path.join(macosRoot, "assets", "renderer-inject.js"), "utf8");
 const css = await fs.readFile(path.join(macosRoot, "assets", "dream-skin.css"), "utf8");
 
+const dialogRules = css.match(/^[^{}\n]*\[role="dialog"\][^{}\n]*\s*\{[^}]*\}/gm) ?? [];
+assert.equal(dialogRules.length, 2);
+for (const rule of dialogRules) {
+  assert.match(rule.split("{")[0], /:not\(:where\(\.codex-dialog\.fixed\.inset-0\)\)/,
+    "Floating surface styles must leave native full-screen file and image previews alone.");
+}
+
 assert.match(css,
   /data-dream-wallpaper="true"\] main\[data-app-shell-main-surface\] \.messaging-root\.messaging-embedded,\s*html\.codex-dream-skin\[data-dream-wallpaper="true"\] main\[data-app-shell-main-surface\] \.messaging-root\.messaging-embedded \.thread-pane\s*\{\s*background: transparent !important;/,
   "Native Your dot must reveal the shared wallpaper through every nested messaging root and thread pane.",

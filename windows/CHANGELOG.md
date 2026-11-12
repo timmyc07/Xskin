@@ -1,5 +1,9 @@
 # Windows Changelog
 
+## Unreleased
+
+- Fix the tinted blur that covers the window when a full-screen image preview opens over a PDF.
+
 ## 1.9.10 — 2026-11-10
 
 - Keep login monitor startup readable while the monitor atomically replaces its state file.

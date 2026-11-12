@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix the tinted blur that covers the window when a full-screen image preview opens over a PDF.
+
 ## 1.9.10 — 2026-11-10
 
 - Keep an installed newer runtime when a panel prepares the background service. Explicit installation can still select an older package.

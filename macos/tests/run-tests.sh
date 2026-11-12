@@ -801,6 +801,10 @@ CRLF_BACKUP="$TMP/config-crlf-backup.json"
 /usr/bin/cmp -s "$CRLF_CONFIG" "$TMP/original-crlf.toml"
 
 /usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.9.10" ]' _ "$ROOT"
-"$ROOT/scripts/doctor-macos.sh" >/dev/null
+
+# Verify the checkout without picking up a different running Xskin version.
+/bin/mkdir -p "$SWITCH_HOME/.codex"
+/bin/cp "$CONFIG" "$SWITCH_HOME/.codex/config.toml"
+/usr/bin/env HOME="$SWITCH_HOME" "$ROOT/scripts/doctor-macos.sh" >/dev/null
 
 printf 'PASS: syntax, payload, bundled presets, preset seeding, runtime-state safety, custom-theme, config round-trips, HOME recovery, signature, and doctor checks.\n'
