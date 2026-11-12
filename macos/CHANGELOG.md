@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.9.12 — 2026-11-12
 
 - Keep the PDF side panel's full-window resize overlay transparent so opening a PDF leaves the window clear.
 - Fix the tinted blur that covers the window when a full-screen image preview opens over a PDF.

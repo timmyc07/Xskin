@@ -1,8 +1,8 @@
 # Xskin for macOS
 
-**1.9.10** keeps background changes and page reloads in order, rejects usage data from a previous composer, and reports the installed studio version. See the [interaction checks](../docs/platforms.md#1910-interaction-checks).
+**1.9.12** keeps the window clear when opening a PDF or full-screen image preview. See the [preview fixes](../docs/platforms.md#full-screen-previews).
 
-[Download the macOS Codex plugin 1.9.10](https://github.com/timmyc07/Xskin/releases/download/v1.9.10/xskin-plugin-v1.9.10.zip), retain the complete folder and follow the [in-app installation guide](../docs/in-app-studio.md#install-or-update-locally). The standalone native app remains available below.
+[Download the macOS Codex plugin 1.9.12](https://github.com/timmyc07/Xskin/releases/download/v1.9.12/xskin-plugin-v1.9.12.zip), retain the complete folder and follow the [in-app installation guide](../docs/in-app-studio.md#install-or-update-locally). The standalone native app remains available below.
 
 **1.8.5** retains the latest valid plan reported in the same session and identifies it as conversation history, not live account status. Zero cache writes are “unconfirmed” with an explanation and source value in the tooltip; missing fields never become zero. [Usage fields, source evidence and validation](https://github.com/timmyc07/Xskin/blob/v1.8.5/docs/usage-fields.md).
 
@@ -14,11 +14,11 @@ Xskin is a native macOS app for importing, previewing, and applying local images
 
 ## Native app
 
-[Download Xskin 1.9.10](https://github.com/timmyc07/Xskin/releases/download/v1.9.10/Xskin-v1.9.10-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires macOS 13 or later, Apple Silicon and official Codex Desktop; no separate Node.js or Xcode installation is needed. The release uses an ad-hoc signature and is not Apple Developer ID notarized. The [release page](https://github.com/timmyc07/Xskin/releases/tag/v1.9.10) provides the matching plugin ZIP and SHA-256 files.
+[Download Xskin 1.9.12](https://github.com/timmyc07/Xskin/releases/download/v1.9.12/Xskin-v1.9.12-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires macOS 13 or later, Apple Silicon and official Codex Desktop; no separate Node.js or Xcode installation is needed. The release uses an ad-hoc signature and is not Apple Developer ID notarized. The [release page](https://github.com/timmyc07/Xskin/releases/tag/v1.9.12) provides the matching plugin ZIP and SHA-256 files.
 
 Use the system file picker or drag a local image or MP4 into the app, inspect its native preview, and apply when ready. The mask-depth slider updates all surfaces together (0–100%, default 62%); release it to apply, or adjust it with the keyboard. Mask depth, pending imports, and your language preference persist locally. English is the default interface, with Traditional Chinese, Simplified Chinese, and Japanese available in the app.
 
-Version 1.9.10 keeps the **official Codex app** as the normal macOS entry. Enable **Apply when official Codex opens**, then open the official app from Finder, Spotlight or its existing Dock icon. A per-user login service observes new launches and gracefully reopens each ordinary session once to apply the saved background and overlay. Xskin can stay closed. Installation/login leaves an already-open session alone. Windows uses its matching embedded panel and opt-in official-launch service; see the [Windows guide](../windows/README.en.md). Opening the embedded panel does not enable automatic startup or rewrite official appearance preferences; embedded Apply requires an existing verified connection.
+Version 1.9.12 keeps the **official Codex app** as the normal macOS entry. Enable **Apply when official Codex opens**, then open the official app from Finder, Spotlight or its existing Dock icon. A per-user login service observes new launches and gracefully reopens each ordinary session once to apply the saved background and overlay. Xskin can stay closed. Installation/login leaves an already-open session alone. Windows uses its matching embedded panel and opt-in official-launch service; see the [Windows guide](../windows/README.en.md). Opening the embedded panel does not enable automatic startup or rewrite official appearance preferences; embedded Apply requires an existing verified connection.
 
 Paused or disabled sessions are skipped and stay paused until explicit Apply. If Codex refuses to quit, the service leaves it running and does not force termination. A failed managed relaunch is not retried. The optional **~/Applications/Codex (Xskin).app** starts with the background connection directly, avoiding that reopen. Upgrades replace only the verified Xskin LaunchAgent and preserve media, language, opacity and pause. New setup never replaces official Dock pins automatically.
 
