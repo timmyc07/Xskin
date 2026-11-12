@@ -21,6 +21,8 @@ The fixtures drive Xskin and simulated host events. Actual message delivery and 
 
 The shared macOS and Windows skin leaves native full-screen preview dialogs in charge of their own backdrop. This prevents Xskin's floating-panel blur and tint from covering the whole window when an image preview opens over a PDF. The PDF zoom menu continues to use the normal theme.
 
+Opening the PDF side panel also mounts a transparent full-window popover for the resize handle. The skin excludes that layer from its floating-panel styling so the document and chat stay clear while the panel is open.
+
 ## 2026-11-09 desktop compatibility and streaming
 
 - The installed ChatGPT/Codex desktop app (26.1027.61615, build 24141) exposes ordinary Chat and Work through the same embedded origin. Ordinary Chat has the new app shell and composer but lacks the Work markers used for background injection. Xskin 1.9.8 kept re-registering the full payload on that guest after the startup deadline.

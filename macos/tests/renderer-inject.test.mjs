@@ -12,6 +12,8 @@ const css = await fs.readFile(path.join(macosRoot, "assets", "dream-skin.css"), 
 
 const dialogRules = css.match(/^[^{}\n]*\[role="dialog"\][^{}\n]*\s*\{[^}]*\}/gm) ?? [];
 assert.equal(dialogRules.length, 2);
+assert.match(dialogRules[0].split("{")[0], /\[popover\]:not\(:where\(\[popover="manual"\]\.pointer-events-none\)\)/,
+  "The native PDF panel's transparent resize boundary must never receive floating surface styles.");
 for (const rule of dialogRules) {
   assert.match(rule.split("{")[0], /:not\(:where\(\.codex-dialog\.fixed\.inset-0\)\)/,
     "Floating surface styles must leave native full-screen file and image previews alone.");
