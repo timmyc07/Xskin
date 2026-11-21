@@ -1,5 +1,16 @@
 # 平台对照
 
+## Opening Codex with a saved background
+
+| Entry | Cold launch with automatic backgrounds enabled |
+|---|---|
+| Codex (Xskin) | The shortcut starts the official app with the background connection on its first launch. On macOS, the locked shortcut delegates signature validation, interrupted-operation recovery and startup to the same script. |
+| Official app icon | The macOS LaunchAgent receives a native launch notification. The Windows per-user monitor checks candidates every second. An eligible, newly opened ordinary session gets one graceful reopen so the app can establish the background connection. A declined quit leaves the app running. |
+
+Two community animation launchers use a dedicated entry for the first launch. The macOS launcher uses Launch Services and the Windows launcher activates the registered package. [macOS launcher source](https://github.com/panding999/codex-startup-animation/blob/c743c2b5eceaa7be9dc511d23a1a77f7c4ce6248/extension/run.mjs) · [Windows launcher source](https://github.com/lilhuu/Codex-Startup-Windows/blob/10d986ca532564a7546c32838567eb01e94ef2dd/windows/launch.ps1)
+
+AutoSkin also handles the official icon on macOS. Its watcher polls, waits through a grace period and limits restarts. Xskin uses native notifications on macOS and checks each fresh launch before handing it off. [AutoSkin watcher source](https://github.com/Finderchangchang/codex-autoskin/blob/b021bf2244371848e2dbe6c39352b05ad4adf9d6/scripts/watch-dream-skin.sh)
+
 ## Desktop appearance and wallpaper startup (1.9.13)
 
 Both platforms inherit the host UI font. Wallpaper mode reveals the image or video behind the existing mask over 240 ms. The system's Reduced Motion preference skips the reveal. The composer and sidebar remain interactive throughout. [Official Appearance settings](https://learn.chatgpt.com/docs/reference/settings#appearance)

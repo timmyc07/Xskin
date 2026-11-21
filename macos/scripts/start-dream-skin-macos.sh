@@ -53,6 +53,22 @@ if [ -e "$THEME_DIR/.studio-transaction.json" ] || [ -L "$THEME_DIR/.studio-tran
   fi
 fi
 
+if [ "$DIRECT_LAUNCH" = true ] && [ "$AUTOMATIC_HANDOFF" = false ]; then
+  if [ ! -f "$STATE_ROOT/shortcut-enabled" ] || { [ -f "$STATE_PATH" ] && [ "$(state_field session)" = paused ]; }; then
+    if codex_is_running; then activate_codex; else launch_codex_normally; fi
+    exit 0
+  fi
+  if codex_is_running; then
+    port="$(state_field port)" || fail "The saved Xskin connection is unavailable. Fully quit Codex and retry Codex (Xskin)."
+    verified_cdp_endpoint "$port" || fail "Fully quit Codex, then open Codex (Xskin). Your app was left running."
+    if ! current_injector_is_running "$port"; then
+      hot_reapply_theme "$port" || fail "The Xskin connection could not be repaired. Your app was left running."
+    fi
+    activate_codex
+    exit 0
+  fi
+fi
+
 if [ "$PORT_EXPLICIT" = "false" ] && [ -f "$STATE_PATH" ]; then
   saved_port="$(state_field port)" || fail "Could not read the existing state port."
   [ -n "$saved_port" ] && PORT="$saved_port"

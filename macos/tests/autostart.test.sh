@@ -124,18 +124,27 @@ for pid in 110 120 130; do
   CURRENT_PID="$pid"
   autostart_step launch "$pid"
   autostart_step launch "$pid"
+  touch "$TEMPORARY/debug"
   autostart_step launch "$CURRENT_PID"
+  rm "$TEMPORARY/debug"
 done
 [ "$(cat "$TEMPORARY/events")" = $'handoff:110\nhandoff:120\nhandoff:130' ]
 CURRENT_PID=140
 touch "$TEMPORARY/fail-apply"
 autostart_step launch 140 2>/dev/null
+touch "$TEMPORARY/debug"
 autostart_step launch "$CURRENT_PID"
+rm "$TEMPORARY/debug"
 rm "$TEMPORARY/fail-apply"
 [ "$(tail -n 1 "$TEMPORARY/events")" = handoff:140 ]
+# A user can reopen ordinary Codex while the previous handoff is finishing.
+CURRENT_PID=145
+autostart_step launch 145
+autostart_step launch 146
+[ "$(tail -n 2 "$TEMPORARY/events")" = $'handoff:145\nhandoff:146' ]
 printf active > "$STATE_PATH"
 autostart_step terminate 998
-[ "$(tail -n 1 "$TEMPORARY/events")" = handoff:140 ]
+[ "$(tail -n 1 "$TEMPORARY/events")" = handoff:146 ]
 autostart_step terminate 999
 [ "$(tail -n 1 "$TEMPORARY/events")" = stop-injector ]
 rm "$STATE_ROOT/shortcut-enabled"

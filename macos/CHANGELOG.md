@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Validate the signed runtime once on cold starts from Codex (Xskin). Recognize a fresh ordinary launch if the user reopens Codex while an earlier automatic handoff is finishing.
+
 ## 1.9.13 — 2026-11-21
 
 - Respect the UI font selected in desktop Appearance.

@@ -109,13 +109,11 @@ autostart_step() {
   [ "$pid $started_at" != "${XSKIN_AUTOSTART_EXISTING_PROCESS:-}" ] || return 0
   [ -f "$STATE_ROOT/shortcut-enabled" ] || return 0
   [ ! -f "$STATE_PATH" ] || [ "$(state_field session)" != paused ] || return 0
-  command_line="$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)"
+  command_line="$(/bin/ps -p "$pid" -o command= 2>/dev/null)" || return 0
   case "$command_line" in *--remote-debugging-port=*) return 0 ;; esac
   if ! apply_new_launch "$pid" "$started_at"; then
     printf 'Automatic apply failed; this launch will not be retried.\n' >&2
   fi
-  # Consume the managed relaunch too, even if its connection failed.
-  AUTOSTART_PREVIOUS_PID="$(codex_main_pids | /usr/bin/head -n 1)"
 }
 
 watch_normal_launches() {
