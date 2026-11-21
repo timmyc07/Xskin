@@ -189,7 +189,6 @@ html.codex-dream-skin[data-dream-shell="light"]:is([data-dream-art-safe="none"],
 html.codex-dream-skin body {
   background: var(--ds-bg) !important;
   color: var(--ds-text) !important;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif !important;
 }
 
 html.codex-dream-skin body::before {
@@ -216,13 +215,23 @@ html.codex-dream-skin[data-dream-wallpaper="true"] body {
   background-repeat: no-repeat !important;
 }
 
-html.codex-dream-skin[data-dream-wallpaper="true"] body::before {
+html[data-dream-wallpaper="true"] body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   background: rgb(0 0 0 / var(--dream-skin-mask-opacity, .62));
   pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-dream-wallpaper="true"] body::before {
+    animation: dream-skin-wallpaper-reveal 240ms ease-out;
+  }
+}
+
+@keyframes dream-skin-wallpaper-reveal {
+  from { background-color: var(--ds-bg); }
 }
 
 html.codex-dream-skin[data-dream-video-ready="true"] #codex-dream-skin-video {
@@ -1209,13 +1218,9 @@ html.codex-dream-skin [data-message-author-role] { border-radius: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.codex-dream-skin *,
-  html.codex-dream-skin *::before,
-  html.codex-dream-skin *::after {
-    scroll-behavior: auto !important;
-    transition-duration: .01ms !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
+  html.codex-dream-skin aside.app-shell-left-panel :is(button, a),
+  .dream-skin-home .group\/home-suggestions button {
+    transition: none !important;
   }
 }
 

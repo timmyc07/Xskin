@@ -1,5 +1,11 @@
 # 平台对照
 
+## Desktop appearance and wallpaper startup (1.9.13)
+
+Both platforms inherit the host UI font. Wallpaper mode reveals the image or video behind the existing mask over 240 ms. The system's Reduced Motion preference skips the reveal. The composer and sidebar remain interactive throughout. [Official Appearance settings](https://learn.chatgpt.com/docs/reference/settings#appearance)
+
+The community [CodeFace](https://github.com/sundy-li/CodeFace) project integrates theme management into Settings, while [Codex Startup Windows](https://github.com/lilhuu/Codex-Startup-Windows) offers a separate skippable startup sequence. Xskin keeps its existing studio and animates the wallpaper mask in the renderer.
+
 macOS **1.9.12** applies the saved background when Codex opens during login before the launch observer is ready. Enabling or updating Xskin leaves an already-open Codex session running.
 
 macOS/plugin and Windows **1.9.12** include the 1.9.6 fix for a runtime-upgrade and Apply failure caused by treating a hidden, intentionally suspended Dot video as failed playback. Only that hidden surface defers decoding and clipping checks; visible windows still verify playback, and all surfaces retain theme, stylesheet and mask validation. Embedded reapplication retains the existing watcher, including during transaction recovery. Windows standalone/plugin downloads and checksums are available under [windows-v1.9.12](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.12).
