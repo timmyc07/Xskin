@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## 1.9.13 — 2026-11-21
+
+- Respect the UI font selected in desktop Appearance.
+- Reveal the wallpaper over 240 ms when the system allows motion. Reduced Motion skips the reveal and leaves native controls in charge of their animations.
+
 ## 1.9.12 — 2026-11-12
 
 - Keep the PDF side panel's full-window resize overlay transparent so opening a PDF leaves the window clear.

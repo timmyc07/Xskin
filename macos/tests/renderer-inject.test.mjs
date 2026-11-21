@@ -10,6 +10,11 @@ const macosRoot = path.resolve(here, "..");
 const template = await fs.readFile(path.join(macosRoot, "assets", "renderer-inject.js"), "utf8");
 const css = await fs.readFile(path.join(macosRoot, "assets", "dream-skin.css"), "utf8");
 
+assert.doesNotMatch(css, /html\.codex-dream-skin body\s*\{[^}]*font-family:/,
+  "Desktop Appearance controls the UI font.");
+assert.match(css, /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*html\[data-dream-wallpaper="true"\] body::before\s*\{\s*animation: dream-skin-wallpaper-reveal/,
+  "Only the wallpaper scrim animates when motion is enabled.");
+
 const dialogRules = css.match(/^[^{}\n]*\[role="dialog"\][^{}\n]*\s*\{[^}]*\}/gm) ?? [];
 assert.equal(dialogRules.length, 2);
 assert.match(dialogRules[0].split("{")[0], /\[popover\]:not\(:where\(\[popover="manual"\]\.pointer-events-none\)\)/,
