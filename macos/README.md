@@ -1,8 +1,8 @@
 # Xskin for macOS
 
-**1.9.13** respects the Codex UI font and reveals the wallpaper over 240 ms when motion is enabled. See the [preview fixes](../docs/platforms.md#full-screen-previews).
+**1.9.14** respects the Codex UI font and reveals the wallpaper over 240 ms when motion is enabled. See the [preview fixes](../docs/platforms.md#full-screen-previews).
 
-[Download the macOS Codex plugin 1.9.13](https://github.com/timmyc07/Xskin/releases/download/v1.9.13/xskin-plugin-v1.9.13.zip), retain the complete folder and follow the [in-app installation guide](../docs/in-app-studio.md#install-or-update-locally). The standalone native app remains available below.
+[Download the macOS Codex plugin 1.9.14](https://github.com/timmyc07/Xskin/releases/download/v1.9.14/xskin-plugin-v1.9.14.zip), retain the complete folder and follow the [in-app installation guide](../docs/in-app-studio.md#install-or-update-locally). The standalone native app remains available below.
 
 **1.8.5** retains the latest valid plan reported in the same session and identifies it as conversation history, not live account status. Zero cache writes are “unconfirmed” with an explanation and source value in the tooltip; missing fields never become zero. [Usage fields, source evidence and validation](https://github.com/timmyc07/Xskin/blob/v1.8.5/docs/usage-fields.md).
 
@@ -14,7 +14,7 @@ Xskin is a native macOS app for importing, previewing, and applying local images
 
 ## Native app
 
-[Download Xskin 1.9.13](https://github.com/timmyc07/Xskin/releases/download/v1.9.13/Xskin-v1.9.13-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires macOS 13 or later, Apple Silicon and official Codex Desktop; no separate Node.js or Xcode installation is needed. The release uses an ad-hoc signature and is not Apple Developer ID notarized. The [release page](https://github.com/timmyc07/Xskin/releases/tag/v1.9.13) provides the matching plugin ZIP and SHA-256 files.
+[Download Xskin 1.9.14](https://github.com/timmyc07/Xskin/releases/download/v1.9.14/Xskin-v1.9.14-macos-arm64.zip), extract the archive, and move **Xskin.app** to Applications. The prebuilt app requires macOS 13 or later, Apple Silicon and official Codex Desktop; no separate Node.js or Xcode installation is needed. The release uses an ad-hoc signature and is not Apple Developer ID notarized. The [release page](https://github.com/timmyc07/Xskin/releases/tag/v1.9.14) provides the matching plugin ZIP and SHA-256 files.
 
 Use the system file picker or drag a local image or MP4 into the app, inspect its native preview, and apply when ready. The mask-depth slider updates all surfaces together (0–100%, default 62%); release it to apply, or adjust it with the keyboard. Mask depth, pending imports, and your language preference persist locally. English is the default interface, with Traditional Chinese, Simplified Chinese, and Japanese available in the app.
 

@@ -25,7 +25,7 @@ INJECTOR=/fixture/injector.mjs
 THEME_DIR=/fixture/theme
 SKIN_VERSION=fixture
 discover_codex_app() { :; }
-require_macos_runtime() { NODE="${FIXTURE_NODE:-$SCRIPT_DIR/node}"; }
+require_macos_runtime() { echo verify >> "$SCRIPT_DIR/checks"; NODE="${FIXTURE_NODE:-$SCRIPT_DIR/node}"; }
 ensure_state_root() { :; }
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 state_field() { case "$1" in port) printf 19341 ;; injectorPid) printf '%s' "${FIXTURE_INJECTOR_PID:-}" ;; session) if [ -f "$SCRIPT_DIR/paused" ]; then printf paused; else printf active; fi ;; esac; }
@@ -75,7 +75,9 @@ rm "$TEMPORARY/scripts/paused"
 # Three isolated cold-start fixtures, with a repeated click after each launch.
 for attempt in 1 2 3; do
   rm -f "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/events" "$TEMPORARY/scripts/state/state.json"
+  : > "$TEMPORARY/scripts/checks"
   bash "$launch"
+  [ "$(cat "$TEMPORARY/scripts/checks")" = verify ]
   bash "$launch"
   [ "$(cat "$TEMPORARY/scripts/events")" = $'launch\ninject\nactivate' ]
 done
@@ -154,7 +156,7 @@ FIXTURE_NODE="${NODE:-/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/
 # Exercise real state parsing, process identity and detached Node recovery; only
 # the official-app boundary is replaced, so this never opens or closes Codex.
 mkdir -p "$TEMPORARY/recovery/scripts"
-cp "$ROOT/scripts/direct-launch-macos.sh" "$TEMPORARY/recovery/scripts/"
+cp "$ROOT/scripts/direct-launch-macos.sh" "$ROOT/scripts/start-dream-skin-macos.sh" "$TEMPORARY/recovery/scripts/"
 cat > "$TEMPORARY/recovery/scripts/common-macos.sh" <<'RECOVERY'
 . "$FIXTURE_COMMON"
 SCRIPT_DIR="$FIXTURE_ROOT/scripts"

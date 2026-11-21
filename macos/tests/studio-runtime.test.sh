@@ -117,8 +117,7 @@ for code in 0 75 1; do
 backend:$INSTALLED/scripts/background-studio.mjs status" ]
   fi
 done
-for entry in start-dream-skin-macos.sh direct-launch-macos.sh; do
-/usr/bin/sed -n '/^if \[ -e "\$THEME_DIR\/\.studio-transaction.json"/,/^fi$/p' "$ROOT/scripts/$entry" > "$TEMPORARY/recover-start.sh"
+/usr/bin/sed -n '/^if \[ -e "\$THEME_DIR\/\.studio-transaction.json"/,/^fi$/p' "$ROOT/scripts/start-dream-skin-macos.sh" > "$TEMPORARY/recover-start.sh"
 [ -s "$TEMPORARY/recover-start.sh" ]
 for code in 0 75 1; do
   export FIXTURE_RECOVER_CODE="$code"
@@ -130,7 +129,6 @@ for code in 0 75 1; do
     [ "$code" -eq 1 ]
     ! /usr/bin/grep -Fxq continue "$FIXTURE_EVENTS"
   fi
-done
 done
 printf 'PASS: same-version runtime changes update once, matching payloads skip updates, media is excluded, and failed deployment never starts a stale backend.\n'
 printf 'PASS: panel and startup recover pending transactions before loading settings, tolerate live operation locks, and stop on invalid recovery.\n'

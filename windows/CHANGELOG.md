@@ -1,5 +1,9 @@
 # Windows Changelog
 
+## 1.9.14 — 2026-11-21
+
+- Rebuild the Windows standalone app and Codex plugin with matching 1.9.14 versions.
+
 ## 1.9.13 — 2026-11-21
 
 - Respect the UI font selected in desktop Appearance.
