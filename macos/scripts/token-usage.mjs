@@ -111,11 +111,18 @@ async function readEarlierState(handle, end, minimum, completeFirstLine, tailPre
     const chunk = bytes.subarray(0, bytesRead);
     const data = pending.length ? Buffer.concat([chunk, pending]) : chunk;
     let lineEnd = data.length;
-    for (let newline = data.lastIndexOf(10); newline !== -1;
-      newline = lineEnd > 0 ? data.lastIndexOf(10, lineEnd - 1) : -1) {
-      if (!discard && accept(data.subarray(newline + 1, lineEnd))) return;
+    const firstNewline = data.indexOf(10);
+    if (firstNewline !== -1 && data.length >= 4096 && !hasEventMarker(data)) {
+      // Keep the leading fragment: its marker may start in the preceding chunk.
+      lineEnd = firstNewline;
       discard = false;
-      lineEnd = newline;
+    } else {
+      for (let newline = data.lastIndexOf(10); newline !== -1;
+        newline = lineEnd > 0 ? data.lastIndexOf(10, lineEnd - 1) : -1) {
+        if (!discard && accept(data.subarray(newline + 1, lineEnd))) return;
+        discard = false;
+        lineEnd = newline;
+      }
     }
     if (start === minimum && completeFirstLine && !discard && accept(data.subarray(0, lineEnd))) return;
     discard ||= lineEnd > MAX_READ_BYTES;

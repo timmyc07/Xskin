@@ -39,6 +39,20 @@ const until = async predicate => {
   assert.ok(predicate(), "File notifications must publish without waiting for a heartbeat");
 };
 
+async function countLineDecodes(line, run) {
+  const original = Buffer.prototype.toString;
+  let count = 0;
+  try {
+    Buffer.prototype.toString = function (...args) {
+      const value = original.apply(this, args);
+      if (value === line) count++;
+      return value;
+    };
+    await run();
+  } finally { Buffer.prototype.toString = original; }
+  return count;
+}
+
 try {
   await fs.mkdir(directory, { recursive: true });
   assert.equal(await reader.read("../../auth.json"), null);
@@ -60,16 +74,9 @@ try {
   const splitUsage = usage(1300);
   const splitAt = splitUsage.indexOf("token_count") + 3;
   await fs.appendFile(filename, (unrelated + "\n").repeat(1000) + splitUsage.slice(0, splitAt));
-  const originalToString = Buffer.prototype.toString;
-  let unrelatedDecodes = 0;
-  try {
-    Buffer.prototype.toString = function (...args) {
-      const value = originalToString.apply(this, args);
-      if (value === unrelated) unrelatedDecodes++;
-      return value;
-    };
+  const unrelatedDecodes = await countLineDecodes(unrelated, async () => {
     assert.deepEqual(await reader.read(threadId), first);
-  } finally { Buffer.prototype.toString = originalToString; }
+  });
   assert.equal(unrelatedDecodes, 0, "A batch without usage markers skips decoding individual records");
   await fs.appendFile(filename, splitUsage.slice(splitAt) + "\n");
   assert.equal((await reader.read(threadId)).totalTokens, 1300, "A marker split across appends is preserved");
@@ -382,6 +389,15 @@ try {
     await fs.writeFile(historyFile, `${boundaryStart}${boundaryOutput}\n${boundaryUsage}`);
     assert.equal((await historyReader.read(historyId)).running, true, "A lifecycle line split between reverse-read chunks is reconstructed");
 
+    const splitMarker = boundaryStart.indexOf("task_started") + 4;
+    const afterMarker = 2 * 1024 * 1024 - (boundaryStart.length - splitMarker);
+    const filler = "x\n".repeat(Math.floor(afterMarker / 2)).padEnd(afterMarker, "\n");
+    await fs.writeFile(historyFile, usage(3450) + "\n" + boundaryStart + filler);
+    const splitMarkerReader = new TokenUsageReader({ codexHome: root, now: () => now });
+    const splitMarkerHistory = await splitMarkerReader.read(historyId);
+    assert.equal(splitMarkerHistory.totalTokens, 3450);
+    assert.equal(splitMarkerHistory.running, true, "Backward skipping preserves a marker split across chunks");
+
     const partialStart = `${lifecycle("task_started")}\n`;
     const split = Math.floor(partialStart.length / 2);
     await fs.writeFile(historyFile, `${usage(3500)}\n${partialStart.slice(0, split)}`);
@@ -407,9 +423,13 @@ try {
     await fs.writeFile(historyFile, denseHistory);
     const denseReader = new TokenUsageReader({codexHome:root,now:() => now});
     const beforeDense = readBytes;
-    const dense = await denseReader.read(historyId);
-    assert.equal(dense.totalTokens, 4000);
-    assert.equal(dense.running, true);
+    const denseDecodes = await countLineDecodes(shortOutput.trimEnd(), async () => {
+      const dense = await denseReader.read(historyId);
+      assert.equal(dense.totalTokens, 4000);
+      assert.equal(dense.running, true);
+    });
+    console.log(`Dense history: decoded ${denseDecodes} unrelated lines.`);
+    assert.ok(denseDecodes < 1000, "Marker-free reverse chunks skip individual line decoding");
     console.log(`Dense history: ${Buffer.byteLength(denseHistory)} bytes, ${readBytes - beforeDense} bytes read.`);
     assert.ok(readBytes - beforeDense <= Buffer.byteLength(denseHistory) + 1024,
       "Reverse recovery must not reread the parsed 1 MiB tail; only its first partial line may overlap.");

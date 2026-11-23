@@ -2,7 +2,7 @@
 
 ## 1.9.15 — 2026-11-23
 
-- Skip batches of unrelated session entries without decoding every line, while retaining split events for the next update.
+- Skip batches of unrelated entries during live updates and backward history scans, preserving events split across writes or read boundaries.
 - Show usage for both conversations when two older chats open while the session index is loading.
 - Reuse the session log tail when recovering usage from long tool results. Skip decoding large unrelated entries and check the expected date directory first.
 
