@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Check large session entries for usage and activity markers before decoding text. New chat lookups check the expected date before adjacent dates.
 - Show usage for both conversations when two older chats open while the session index is loading.
 - Reuse the already-read tail when recovering usage from long session logs. A 2,097,787-byte fixture with a large tool result now reads 2,097,787 bytes instead of 3,146,273.
 

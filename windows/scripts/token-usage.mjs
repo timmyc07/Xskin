@@ -7,6 +7,8 @@ const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 const SESSION_FILE = /^rollout-.*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
 const MAX_READ_BYTES = 1024 * 1024;
 const DISCOVERY_DELAY_MS = 5000;
+const eventMarkers = ["token_count", "task_started", "task_complete", "turn_aborted"]
+  .map(type => Buffer.from(JSON.stringify(type)));
 const count = value => Number.isSafeInteger(value) && value >= 0;
 const percent = value => Math.max(0, Math.min(100, value));
 const snapshot = (threadId, record, now) => record?.usage || Number.isFinite(record?.activityAt) ? {
@@ -26,8 +28,11 @@ function limitWindow(value) {
   };
 }
 
-function readEvent(line, record, now) {
-  if (!/"(?:token_count|task_started|task_complete|turn_aborted)"/.test(line)) return;
+function readEvent(bytes, record, now) {
+  // Large tool results can be skipped before allocating a UTF-8 string.
+  if (bytes.length >= 4096 && !eventMarkers.some(marker => bytes.includes(marker))) return;
+  const line = bytes.toString("utf8");
+  if (bytes.length < 4096 && !/"(?:token_count|task_started|task_complete|turn_aborted)"/.test(line)) return;
   let event;
   try { event = JSON.parse(line); } catch { return; }
   if (event.type !== "event_msg") return;
@@ -79,9 +84,8 @@ async function readEarlierState(handle, end, minimum, completeFirstLine, tailPre
   let pending = tailPrefix ?? Buffer.alloc(0);
   const accept = bytes => {
     if (bytes.length > MAX_READ_BYTES) return false;
-    const line = bytes.toString("utf8");
     const earlier = { activityAt: null };
-    readEvent(line, earlier, now);
+    readEvent(bytes, earlier, now);
     if (!record.usage && earlier.usage) {
       record.usage = earlier.usage;
       record.sampledAt = earlier.sampledAt;
@@ -150,7 +154,7 @@ export class TokenUsageReader {
     const dates = new Set();
     const createdAt = threadId[14] === "7" ? Number.parseInt(threadId.replaceAll("-", "").slice(0, 12), 16) : this.now();
     for (const timestamp of [createdAt, this.now()]) {
-      for (const offset of [-86400000, 0, 86400000]) {
+      for (const offset of [0, -86400000, 86400000]) {
         dates.add(new Date(timestamp + offset).toISOString().slice(0, 10).replaceAll("-", path.sep));
       }
     }
@@ -293,7 +297,7 @@ export class TokenUsageReader {
         let start = 0;
         for (let end = firstNewline; end !== -1; end = data.indexOf(10, start)) {
           if (record.skipFirst) record.skipFirst = false;
-          else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end).toString("utf8"), updates, this.now());
+          else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end), updates, this.now());
           start = end + 1;
         }
         if (data.length - start > MAX_READ_BYTES) record.skipFirst = true;

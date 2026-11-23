@@ -106,6 +106,15 @@ try {
   await fs.mkdir(olderDirectory, { recursive: true });
   await fs.writeFile(path.join(olderDirectory, `rollout-old-${olderId}.jsonl`), `${usage()}\n`);
   const olderReader = new TokenUsageReader({ codexHome: root, now: () => now });
+  const largeId = "11111111-2222-4333-8444-555555555559";
+  const largeFile = path.join(directory, `rollout-large-${largeId}.jsonl`);
+  const largeEvent = JSON.parse(usage(2100));
+  largeEvent.padding = "中文".repeat(4096);
+  await fs.writeFile(largeFile, [JSON.stringify(largeEvent), lifecycle("task_complete"),
+    JSON.stringify({ type: "response_item", payload: { type: "task_started", text: largeEvent.padding } }), ""].join("\n"));
+  const largeSnapshot = await olderReader.read(largeId);
+  assert.equal(largeSnapshot.totalTokens, 2100);
+  assert.equal(largeSnapshot.running, false);
   assert.equal((await olderReader.read(olderId)).totalTokens, 1200, "A one-time directory index also finds older IDs.");
   const secondOldId = "11111111-2222-4333-8444-555555555556";
   await fs.writeFile(path.join(olderDirectory, `rollout-old-${secondOldId}.jsonl`), `${usage(2200)}\n`);
