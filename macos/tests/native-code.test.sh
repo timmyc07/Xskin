@@ -10,6 +10,16 @@ trap 'for pidfile in "$TEMPORARY/scripts/daemon-pids" "$TEMPORARY/recovery/daemo
 if "$TEMPORARY/launcher-check" --quit-new-launch /unrelated -1 >/dev/null 2>&1; then exit 1; fi
 if "$TEMPORARY/launcher-check" --quit-new-launch /unrelated "$$" >/dev/null 2>&1; then exit 1; fi
 mkdir -p "$TEMPORARY/scripts/state"
+(
+  . "$ROOT/scripts/common-macos.sh"
+  CODEX_EXE="$(cd "$TEMPORARY" && pwd -P)/測試 Codex"
+  cp /bin/sleep "$CODEX_EXE"
+  cp /bin/sleep "$CODEX_EXE Helper"
+  "$CODEX_EXE" 120 & main=$!
+  "$CODEX_EXE Helper" 120 & helper=$!
+  trap 'kill "$main" "$helper" 2>/dev/null || true' EXIT
+  [ "$(codex_main_pids)" = "$main" ]
+)
 cp "$ROOT/scripts/direct-launch-macos.sh" "$ROOT/scripts/start-dream-skin-macos.sh" "$TEMPORARY/scripts/"
 cat > "$TEMPORARY/scripts/common-macos.sh" <<'STUB'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -89,10 +99,13 @@ if bash "$launch" >/dev/null 2>&1; then exit 1; fi
 rm "$TEMPORARY/scripts/fail-repair"
 # Ordinary existing windows and failed cold starts are never closed or reopened.
 touch "$TEMPORARY/scripts/no-cdp"
-rm -f "$TEMPORARY/scripts/events"
-if bash "$launch" >/dev/null 2>&1; then exit 1; fi
-[ ! -e "$TEMPORARY/scripts/events" ]
-rm "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/state/state.json"
+for state in saved missing; do
+  rm -f "$TEMPORARY/scripts/events"
+  [ "$state" != missing ] || rm "$TEMPORARY/scripts/state/state.json"
+  bash "$launch"
+  [ "$(cat "$TEMPORARY/scripts/events")" = activate ]
+done
+rm "$TEMPORARY/scripts/running" "$TEMPORARY/scripts/events"
 if bash "$launch" >/dev/null 2>&1; then exit 1; fi
 [ "$(cat "$TEMPORARY/scripts/events")" = $'launch\ninject' ]
 touch "$TEMPORARY/scripts/state/agent.plist"

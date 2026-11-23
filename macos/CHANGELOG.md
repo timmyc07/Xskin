@@ -2,6 +2,7 @@
 
 ## 1.9.15 — 2026-11-23
 
+- Focus an already-open ordinary Codex window from the shortcut and apply its saved theme on the next shortcut cold launch. Speed up macOS launch detection and remove the new-watcher delay when applying to an existing session.
 - Skip batches of unrelated entries during live updates and backward history scans, preserving events split across writes or read boundaries.
 - Show usage for both conversations when two older chats open while the session index is loading.
 - Reuse the session log tail when recovering usage from long tool results. Skip decoding large unrelated entries and check the expected date directory first.

@@ -170,14 +170,11 @@ require_macos_runtime() {
 }
 
 codex_main_pids() {
-  local pid
-  local command_line
-  while read -r pid command_line; do
-    [ -n "$pid" ] || continue
-    case "$command_line" in
-      "$CODEX_EXE"*) printf '%s\n' "$pid" ;;
-    esac
-  done < <(/bin/ps -axo pid=,command=)
+  # Match the executable path without fetching arguments for every process.
+  /bin/ps -axww -o pid=,comm= | CODEX_MAIN_EXE="$CODEX_EXE" /usr/bin/awk '
+    { pid = $1; sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "") }
+    $0 == ENVIRON["CODEX_MAIN_EXE"] { print pid }
+  '
 }
 
 codex_is_running() {

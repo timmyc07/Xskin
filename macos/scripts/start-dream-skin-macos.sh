@@ -59,8 +59,15 @@ if [ "$DIRECT_LAUNCH" = true ] && [ "$AUTOMATIC_HANDOFF" = false ]; then
     exit 0
   fi
   if codex_is_running; then
-    port="$(state_field port)" || fail "The saved Xskin connection is unavailable. Fully quit Codex and retry Codex (Xskin)."
-    verified_cdp_endpoint "$port" || fail "Fully quit Codex, then open Codex (Xskin). Your app was left running."
+    port=""
+    if [ -f "$STATE_PATH" ]; then
+      port="$(state_field port)" || fail "The saved Xskin connection could not be read."
+    fi
+    if [ -z "$port" ] || ! verified_cdp_endpoint "$port"; then
+      activate_codex
+      printf 'Codex is already open. The saved background will apply on the next cold launch from Codex (Xskin).\n'
+      exit 0
+    fi
     if ! current_injector_is_running "$port"; then
       hot_reapply_theme "$port" || fail "The Xskin connection could not be repaired. Your app was left running."
     fi
@@ -101,7 +108,7 @@ if [ "$AUTOMATIC_HANDOFF" = true ]; then
   fi
   PORT="$(select_available_port "$PORT")"
   stop_new_codex_launch "$STARTUP_PID" "$STARTUP_STARTED_AT"
-elif codex_is_running && [ "$DEBUG_READY" = "false" ]; then
+elif [ "$DEBUG_READY" = "false" ] && codex_is_running; then
   fail "Codex is already open without a verified Xskin connection. Fully quit Codex, then open Codex (Xskin). Your app was left running."
 fi
 
@@ -132,7 +139,7 @@ fi
 if [ -z "$INJECTOR_PID" ]; then
   INJECTOR_PID="$(launch_injector_daemon "$PORT")"
 fi
-/bin/sleep 0.15
+if [ "$HOT_REUSED_WATCHER" != "true" ]; then /bin/sleep 0.15; fi
 /bin/kill -0 "$INJECTOR_PID" 2>/dev/null || fail "The injector exited during startup. See $INJECTOR_ERROR_LOG"
 INJECTOR_STARTED_AT="$(process_started_at "$INJECTOR_PID")"
 [ -n "$INJECTOR_STARTED_AT" ] || fail "Could not record the injector process start time."
