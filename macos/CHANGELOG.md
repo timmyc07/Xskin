@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.15 — 2026-11-23
+
+- Show usage for both conversations when two older chats open while the session index is loading.
+- Reuse the session log tail when recovering usage from long tool results. Skip decoding large unrelated entries and check the expected date directory first.
+
 ## 1.9.14 — 2026-11-21
 
 - Validate the signed runtime once on cold starts from Codex (Xskin). Recognize a fresh ordinary launch if the user reopens Codex while an earlier automatic handoff is finishing.

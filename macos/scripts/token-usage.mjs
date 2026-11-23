@@ -7,6 +7,8 @@ const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 const SESSION_FILE = /^rollout-.*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
 const MAX_READ_BYTES = 1024 * 1024;
 const DISCOVERY_DELAY_MS = 5000;
+const eventMarkers = ["token_count", "task_started", "task_complete", "turn_aborted"]
+  .map(type => Buffer.from(JSON.stringify(type)));
 const count = value => Number.isSafeInteger(value) && value >= 0;
 const percent = value => Math.max(0, Math.min(100, value));
 const snapshot = (threadId, record, now) => record?.usage || Number.isFinite(record?.activityAt) ? {
@@ -26,8 +28,11 @@ function limitWindow(value) {
   };
 }
 
-function readEvent(line, record, now) {
-  if (!/"(?:token_count|task_started|task_complete|turn_aborted)"/.test(line)) return;
+function readEvent(bytes, record, now) {
+  // Large tool results can be skipped before allocating a UTF-8 string.
+  if (bytes.length >= 4096 && !eventMarkers.some(marker => bytes.includes(marker))) return;
+  const line = bytes.toString("utf8");
+  if (bytes.length < 4096 && !/"(?:token_count|task_started|task_complete|turn_aborted)"/.test(line)) return;
   let event;
   try { event = JSON.parse(line); } catch { return; }
   if (event.type !== "event_msg") return;
@@ -72,16 +77,15 @@ function readEvent(line, record, now) {
   }
 }
 
-async function readEarlierState(handle, end, minimum, completeFirstLine, record, now) {
+async function readEarlierState(handle, end, minimum, completeFirstLine, tailPrefix, record, now) {
   const complete = () => record.usage && Number.isFinite(record.activityAt) && record.limitsRead && record.planType;
   if (complete()) return;
-  let pending = Buffer.alloc(0);
-  let discard = true;
+  let discard = tailPrefix === null;
+  let pending = tailPrefix ?? Buffer.alloc(0);
   const accept = bytes => {
     if (bytes.length > MAX_READ_BYTES) return false;
-    const line = bytes.toString("utf8");
     const earlier = { activityAt: null };
-    readEvent(line, earlier, now);
+    readEvent(bytes, earlier, now);
     if (!record.usage && earlier.usage) {
       record.usage = earlier.usage;
       record.sampledAt = earlier.sampledAt;
@@ -103,7 +107,8 @@ async function readEarlierState(handle, end, minimum, completeFirstLine, record,
     const bytes = Buffer.alloc(end - start);
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, start);
     if (!bytesRead) return;
-    const data = Buffer.concat([bytes.subarray(0, bytesRead), pending]);
+    const chunk = bytes.subarray(0, bytesRead);
+    const data = pending.length ? Buffer.concat([chunk, pending]) : chunk;
     let lineEnd = data.length;
     for (let newline = data.lastIndexOf(10); newline !== -1;
       newline = lineEnd > 0 ? data.lastIndexOf(10, lineEnd - 1) : -1) {
@@ -126,7 +131,7 @@ export class TokenUsageReader {
     this.misses = new Map();
     this.records = new Map();
     this.reads = new Map();
-    this.indexed = false;
+    this.historyIndex = null;
   }
 
   async indexDirectory(directory, recursive = false) {
@@ -149,7 +154,7 @@ export class TokenUsageReader {
     const dates = new Set();
     const createdAt = threadId[14] === "7" ? Number.parseInt(threadId.replaceAll("-", "").slice(0, 12), 16) : this.now();
     for (const timestamp of [createdAt, this.now()]) {
-      for (const offset of [-86400000, 0, 86400000]) {
+      for (const offset of [0, -86400000, 86400000]) {
         dates.add(new Date(timestamp + offset).toISOString().slice(0, 10).replaceAll("-", path.sep));
       }
     }
@@ -157,11 +162,9 @@ export class TokenUsageReader {
       await this.indexDirectory(path.join(this.sessionsRoot, date));
       if (this.index.has(threadId)) return this.index.get(threadId);
     }
-    if (!this.indexed) {
-      this.indexed = true;
-      await this.indexDirectory(this.sessionsRoot, true);
-      if (this.index.has(threadId)) return this.index.get(threadId);
-    }
+    this.historyIndex ??= this.indexDirectory(this.sessionsRoot, true);
+    await this.historyIndex;
+    if (this.index.has(threadId)) return this.index.get(threadId);
     this.misses.set(threadId, this.now() + DISCOVERY_DELAY_MS);
     while (this.misses.size > 32) this.misses.delete(this.misses.keys().next().value);
     return null;
@@ -288,23 +291,21 @@ export class TokenUsageReader {
         const bytes = Buffer.alloc(stat.size - record.offset);
         const { bytesRead } = await handle.read(bytes, 0, bytes.length, record.offset);
         record.offset += bytesRead;
-        const data = Buffer.concat([record.pending, bytes.subarray(0, bytesRead)]);
+        const chunk = bytes.subarray(0, bytesRead);
+        const data = record.pending.length ? Buffer.concat([record.pending, chunk]) : chunk;
         const firstNewline = data.indexOf(10);
         let start = 0;
         for (let end = firstNewline; end !== -1; end = data.indexOf(10, start)) {
           if (record.skipFirst) record.skipFirst = false;
-          else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end).toString("utf8"), updates, this.now());
+          else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end), updates, this.now());
           start = end + 1;
         }
-        record.pending = Buffer.from(data.subarray(start));
-        if (record.pending.length > MAX_READ_BYTES) {
-          record.pending = Buffer.alloc(0);
-          record.skipFirst = true;
-        }
+        if (data.length - start > MAX_READ_BYTES) record.skipFirst = true;
+        record.pending = record.skipFirst ? Buffer.alloc(0) : Buffer.from(data.subarray(start));
         // Recover each missing event type without revisiting previously parsed history.
         if (recoveryStart !== null) {
-          const recoveryEnd = readStart + (firstNewline === -1 ? data.length : firstNewline + 1);
-          await readEarlierState(handle, recoveryEnd, recoveryStart, completeFirstLine, updates, this.now());
+          const tailPrefix = firstNewline === -1 ? null : data.subarray(0, firstNewline);
+          await readEarlierState(handle, readStart, recoveryStart, completeFirstLine, tailPrefix, updates, this.now());
           if (updates.usage) { record.usage = updates.usage; record.sampledAt = updates.sampledAt; }
           if (Number.isFinite(updates.activityAt)) { record.running = updates.running; record.activityAt = updates.activityAt; }
           if (updates.limitsRead) {
