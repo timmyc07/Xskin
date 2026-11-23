@@ -56,6 +56,25 @@ try {
   });
   assert.deepEqual(await reader.read(threadId), first, "Unchanged snapshots must not add tokens or resample time.");
 
+  const unrelated = JSON.stringify({ type: "response_item", payload: { text: "工具輸出" } });
+  const splitUsage = usage(1300);
+  const splitAt = splitUsage.indexOf("token_count") + 3;
+  await fs.appendFile(filename, (unrelated + "\n").repeat(1000) + splitUsage.slice(0, splitAt));
+  const originalToString = Buffer.prototype.toString;
+  let unrelatedDecodes = 0;
+  try {
+    Buffer.prototype.toString = function (...args) {
+      const value = originalToString.apply(this, args);
+      if (value === unrelated) unrelatedDecodes++;
+      return value;
+    };
+    assert.deepEqual(await reader.read(threadId), first);
+  } finally { Buffer.prototype.toString = originalToString; }
+  assert.equal(unrelatedDecodes, 0, "A batch without usage markers skips decoding individual records");
+  await fs.appendFile(filename, splitUsage.slice(splitAt) + "\n");
+  assert.equal((await reader.read(threadId)).totalTokens, 1300, "A marker split across appends is preserved");
+  await fs.appendFile(filename, usage() + "\n");
+
   await fs.appendFile(filename, `${lifecycle("task_started")}\n`);
   const running = await reader.read(threadId);
   assert.equal(running.running, true, "A task starts before its next token event");

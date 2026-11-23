@@ -9,6 +9,7 @@ const MAX_READ_BYTES = 1024 * 1024;
 const DISCOVERY_DELAY_MS = 5000;
 const eventMarkers = ["token_count", "task_started", "task_complete", "turn_aborted"]
   .map(type => Buffer.from(JSON.stringify(type)));
+const hasEventMarker = bytes => eventMarkers.some(marker => bytes.includes(marker));
 const count = value => Number.isSafeInteger(value) && value >= 0;
 const percent = value => Math.max(0, Math.min(100, value));
 const snapshot = (threadId, record, now) => record?.usage || Number.isFinite(record?.activityAt) ? {
@@ -30,7 +31,7 @@ function limitWindow(value) {
 
 function readEvent(bytes, record, now) {
   // Large tool results can be skipped before allocating a UTF-8 string.
-  if (bytes.length >= 4096 && !eventMarkers.some(marker => bytes.includes(marker))) return;
+  if (bytes.length >= 4096 && !hasEventMarker(bytes)) return;
   const line = bytes.toString("utf8");
   if (bytes.length < 4096 && !/"(?:token_count|task_started|task_complete|turn_aborted)"/.test(line)) return;
   let event;
@@ -295,10 +296,16 @@ export class TokenUsageReader {
         const data = record.pending.length ? Buffer.concat([record.pending, chunk]) : chunk;
         const firstNewline = data.indexOf(10);
         let start = 0;
-        for (let end = firstNewline; end !== -1; end = data.indexOf(10, start)) {
-          if (record.skipFirst) record.skipFirst = false;
-          else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end), updates, this.now());
-          start = end + 1;
+        if (firstNewline !== -1 && data.length >= 4096 && !hasEventMarker(data)) {
+          // Skip complete unrelated lines together and keep the unfinished suffix for the next append.
+          start = data.lastIndexOf(10) + 1;
+          record.skipFirst = false;
+        } else {
+          for (let end = firstNewline; end !== -1; end = data.indexOf(10, start)) {
+            if (record.skipFirst) record.skipFirst = false;
+            else if (end - start <= MAX_READ_BYTES) readEvent(data.subarray(start, end), updates, this.now());
+            start = end + 1;
+          }
         }
         if (data.length - start > MAX_READ_BYTES) record.skipFirst = true;
         record.pending = record.skipFirst ? Buffer.alloc(0) : Buffer.from(data.subarray(start));
