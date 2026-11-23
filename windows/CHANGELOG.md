@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## Unreleased
+
+- Show usage for both conversations when two older chats open while the session index is loading.
+- Reuse the already-read tail when recovering usage from long session logs. A 2,097,787-byte fixture with a large tool result now reads 2,097,787 bytes instead of 3,146,273.
+
 ## 1.9.14 — 2026-11-21
 
 - Rebuild the Windows standalone app and Codex plugin with matching 1.9.14 versions.
