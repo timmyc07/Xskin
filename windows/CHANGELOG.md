@@ -1,6 +1,6 @@
 # Windows Changelog
 
-## Unreleased
+## 1.9.15 — 2026-11-23
 
 - Check large session entries for usage and activity markers before decoding text. New chat lookups check the expected date before adjacent dates.
 - Show usage for both conversations when two older chats open while the session index is loading.
