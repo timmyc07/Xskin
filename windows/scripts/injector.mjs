@@ -9,7 +9,7 @@ import { TokenUsageReader } from "./token-usage.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.9.15";
+const SKIN_VERSION = "1.9.16";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -382,6 +382,7 @@ async function loadTheme(themeDir) {
     quote: normalizedText(raw.quote, 'quote', 'MAKE SOMETHING WONDERFUL', 80),
     image,
     layout: normalizedChoice(raw.layout, "layout", new Set(["adaptive", "wallpaper"]), "adaptive"),
+    playWithReducedMotion: raw.playWithReducedMotion === true,
     maskOpacity: normalizedUnit(raw.maskOpacity, "maskOpacity") ?? 0.62,
     appearance: normalizedChoice(raw.appearance, "appearance", THEME_CHOICES.appearance, "auto"),
     art: {
@@ -842,6 +843,7 @@ async function verifySession(session) {
       dotClipVerified,
       installed: document.documentElement.classList.contains('codex-dream-skin'),
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
+      playWithReducedMotion: window.__CODEX_DREAM_SKIN_STATE__?.playWithReducedMotion === true,
       themeId: window.__CODEX_DREAM_SKIN_STATE__?.themeId ?? null,
       videoKey: window.__CODEX_DREAM_SKIN_STATE__?.videoKey ?? null,
       stylePresent: Boolean(document.getElementById('codex-dream-skin-style')),
@@ -911,6 +913,7 @@ export async function waitForVerifiedSession(session, timeoutMs, expectedTheme, 
     lastResult = await verifySession(session);
     // A previous, healthy background can remain visible while the next injector starts.
     lastResult.themeMatches = lastResult.themeId === expectedTheme.id
+      && Boolean(lastResult.playWithReducedMotion) === Boolean(expectedTheme.playWithReducedMotion)
       && Boolean(lastResult.video) === Boolean(expectedTheme.video)
       && lastResult.videoKey === (expectedTheme.videoKey ?? null);
     lastResult.pass &&= lastResult.themeMatches;

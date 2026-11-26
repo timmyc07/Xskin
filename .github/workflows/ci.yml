@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:
@@ -103,9 +104,10 @@ jobs:
           test -n "$expected"
           test "$common" = "$expected"
           test "$macos_injector" = "$expected"
-          node -e 'const fs = require("node:fs"); for (const file of ["plugin.json", "plugin/package.json", "macos/package.json"]) { if (JSON.parse(fs.readFileSync(file)).version !== process.argv[1]) process.exit(1); }' "$expected"
+          node -e 'if (require("./macos/package.json").version !== process.argv[1]) process.exit(1)' "$expected"
           windows_expected="$(tr -d '\r\n' < windows/VERSION)"
           test "$windows_injector" = "$windows_expected"
+          node -e 'const v = require("./plugin.json").version; if (!process.argv.slice(1).includes(v) || require("./plugin/package.json").version !== v || require("./plugin/package-lock.json").packages[""].version !== v) process.exit(1)' "$expected" "$windows_expected"
 
       - name: Run portable Node.js regressions
         shell: bash

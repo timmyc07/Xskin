@@ -1,6 +1,8 @@
 name: Windows Flutter
 on:
   push:
+    branches: ['**']
+    tags: ['windows-v*']
     paths: ['windows/**', 'plugin/**', 'plugin.json', 'mcp.windows.json', 'skills/background-studio/**', '.github/workflows/windows.yml']
   pull_request:
     paths: ['windows/**', 'plugin/**', 'plugin.json', 'mcp.windows.json', 'skills/background-studio/**', '.github/workflows/windows.yml']
@@ -35,3 +37,30 @@ jobs:
             build/windows/*.zip
             build/windows/*.sha256
           if-no-files-found: error
+  cross-platform:
+    if: startsWith(github.ref, 'refs/tags/windows-v')
+    uses: ./.github/workflows/ci.yml
+  publish:
+    if: startsWith(github.ref, 'refs/tags/windows-v')
+    needs: [build, cross-platform]
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Xskin-Windows
+          path: build/windows
+      - name: Publish verified Windows packages
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content windows/VERSION -Raw).Trim()
+          if ($env:GITHUB_REF_NAME -cne "windows-v$version") { throw 'Tag and package versions differ.' }
+          $notes = ((Get-Content windows/CHANGELOG.md -Raw) -split '(?m)^## ', 3)[1]
+          $notes | Set-Content "$env:RUNNER_TEMP/release-notes.md"
+          $files = @(Get-ChildItem build/windows/*.zip, build/windows/*.zip.sha256 | ForEach-Object FullName)
+          if ($files.Count -ne 4) { throw 'Expected two ZIPs and two checksums.' }
+          gh release create $env:GITHUB_REF_NAME @files --verify-tag --title "Xskin $version for Windows" --notes-file "$env:RUNNER_TEMP/release-notes.md"

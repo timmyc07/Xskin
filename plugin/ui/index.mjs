@@ -52,7 +52,7 @@ function releaseBackground() {
 
 function backgroundPlayback() {
   const video = elements["background-video"];
-  if (disposed || document.hidden || motion.matches || backgroundFailed || video.hidden || !video.hasAttribute("src")) video.pause();
+  if (disposed || document.hidden || (motion.matches && !controller.view.state?.playWithReducedMotion) || backgroundFailed || video.hidden || !video.hasAttribute("src")) video.pause();
   else if (video.paused) video.play().catch(() => {});
 }
 
@@ -154,6 +154,9 @@ function render(view) {
   for (const node of document.querySelectorAll("[data-text]")) node.textContent = t(node.dataset.text);
   elements.version.textContent = version;
   elements.studio.setAttribute("aria-busy", String(Boolean(busy) || (!connected && !connectionFailed)));
+  elements["playback-setting"].hidden = state?.platform !== "windows" || state.needsSetup;
+  elements.playback.checked = state?.playWithReducedMotion === true;
+  elements.playback.disabled = !connected || Boolean(busy) || Boolean(state?.pendingRecovery);
   elements.language.value = language();
   elements.language.disabled = !connected || Boolean(busy) || Boolean(state?.pendingRecovery);
   elements.refresh.disabled = !connected || Boolean(busy);
@@ -242,6 +245,7 @@ elements.pause.addEventListener("click", () => controller.run("xskin_pause"));
 elements.resume.addEventListener("click", () => controller.run("xskin_resume"));
 elements.recover.addEventListener("click", () => controller.run("xskin_recover"));
 elements.autostart.addEventListener("change", () => controller.run("xskin_autostart", { enabled: elements.autostart.checked }));
+elements.playback.addEventListener("change", () => controller.run("xskin_playback", { enabled: elements.playback.checked }));
 elements.language.addEventListener("change", () => controller.language(elements.language.value));
 elements.retry.addEventListener("click", () => {
   if (!connected) window.location.reload();

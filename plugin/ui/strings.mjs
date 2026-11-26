@@ -1,4 +1,5 @@
 export const translations = {
+  playWithReducedMotion: ["Play videos when Reduce Motion is on", "開啟減少動態效果時仍播放影片", "开启减少动态效果时仍播放视频", "視差効果を減らす設定でも動画を再生"],
   language: ["Language", "語言", "语言", "言語"],
   refresh: ["Refresh", "重新整理", "刷新", "更新"],
   preview: ["Preview", "預覽", "预览", "プレビュー"],

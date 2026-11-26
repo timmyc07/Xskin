@@ -20,7 +20,7 @@ const state = {
 const argumentsByTool = {
   xskin_open: {}, xskin_status: {}, xskin_choose_media: {},
   xskin_apply: { selectionId }, xskin_mask: { opacity: 0.07 },
-  xskin_autostart: { enabled: false }, xskin_pause: {}, xskin_resume: {},
+  xskin_playback: { enabled: true }, xskin_autostart: { enabled: false }, xskin_pause: {}, xskin_resume: {},
   xskin_set_language: { language: "ja" }, xskin_recover: {},
 };
 
@@ -28,7 +28,7 @@ async function fixture(t, overrides = {}) {
   const calls = [];
   let closed = 0;
   const studio = { close: async () => { closed += 1; } };
-  for (const method of ["status", "choose", "apply", "mask", "autostart", "pause", "resume", "setLanguage", "recover"]) {
+  for (const method of ["status", "choose", "apply", "mask", "playback", "autostart", "pause", "resume", "setLanguage", "recover"]) {
     studio[method] = async (...args) => { calls.push([method, ...args]); return state; };
   }
   Object.assign(studio, overrides);
@@ -85,7 +85,7 @@ test("tool calls return state privately and pass only validated setting values",
   assert.equal(calls[2][0], "choose");
   assert.ok(calls[2][1] instanceof AbortSignal);
   assert.deepEqual(calls.slice(3), [
-    ["apply", selectionId], ["mask", 0.07], ["autostart", false],
+    ["apply", selectionId], ["mask", 0.07], ["playback", true], ["autostart", false],
     ["pause"], ["resume"], ["setLanguage", "ja"], ["recover"],
   ]);
   for (const opacity of [0, 1, 0.29]) {

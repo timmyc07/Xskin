@@ -13,6 +13,7 @@ class PanelState {
   PanelState.fromJson(Map<String, dynamic> json)
     : name = json['name'] as String,
       imagePath = json['imagePath'] as String,
+      playWithReducedMotion = json['playWithReducedMotion'] == true,
       videoPath = json['videoPath'] as String?,
       bytes = json['bytes'] as int,
       maskOpacity = (json['maskOpacity'] as num).toDouble(),
@@ -33,6 +34,7 @@ class PanelState {
   final String name;
   final String imagePath;
   final String? videoPath;
+  final bool playWithReducedMotion;
   final int bytes;
   final double maskOpacity;
   final bool pending;

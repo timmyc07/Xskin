@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## 1.9.16 — 2026-11-26
+
+- Show a paused frame from the selected MP4 when Windows reduces motion. Enable video playback independently in the standalone or embedded Xskin panel.
+- Skip processes that exit before the launch monitor can read their start time.
+
 ## 1.9.15 — 2026-11-23
 
 - Check large session entries for usage and activity markers before decoding text. New chat lookups check the expected date before adjacent dates.

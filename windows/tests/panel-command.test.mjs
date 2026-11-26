@@ -162,6 +162,10 @@ function Install-DreamSkinRuntimeEngine {
   assert.equal(mask.state.maskOpacity, 0.27);
   assert.equal(mask.state.pending, true);
   assert.equal(mask.state.language, "zh-Hant");
+  const playback = await run("playback", { enabled: true });
+  assert.equal(playback.code, 0);
+  assert.equal(playback.state.playWithReducedMotion, true);
+  assert.equal(playback.state.maskOpacity, 0.27);
   const movie = path.join(temporary, "original.mp4");
   const movieBytes = Buffer.from("000000186674797069736f6d0000020069736f6d6d703431", "hex");
   await fs.writeFile(movie, movieBytes);

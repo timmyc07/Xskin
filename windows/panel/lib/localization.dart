@@ -55,6 +55,7 @@ const translations = <String, List<String>>{
   "resolution": ["Resolution", "解析度", "分辨率", "解像度"],
   "fileSize": ["File size", "檔案大小", "文件大小", "ファイルサイズ"],
   "reading": ["Loading…", "讀取中…", "读取中…", "読み込み中…"],
+  "playWithReducedMotion": ["Play videos when Reduce Motion is on", "開啟減少動態效果時仍播放影片", "开启减少动态效果时仍播放视频", "視差効果を減らす設定でも動画を再生"],
   "videoHint": [
     "Preview starts paused. Backgrounds loop silently at original quality and frame rate.",
     "預覽預設暫停。套用後靜音循環，保留原始畫質與幀率。",

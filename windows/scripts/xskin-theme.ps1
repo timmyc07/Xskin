@@ -321,15 +321,20 @@ function Repair-XskinTransaction {
   } catch { throw (New-XskinFailure -Code invalidBackground -Message $_.Exception.Message) }
 }
 
-function Set-XskinMask {
-  param([Parameter(Mandatory = $true)][double]$Opacity, [Parameter(Mandatory = $true)][string]$StateRoot,
+function Set-XskinAppearance {
+  param([Parameter(Mandatory = $true, ParameterSetName = 'Mask')][double]$Opacity,
+    [Parameter(Mandatory = $true, ParameterSetName = 'Playback')][bool]$PlayWithReducedMotion, [Parameter(Mandatory = $true)][string]$StateRoot,
     [Parameter(Mandatory = $true)][scriptblock]$Apply)
   if ([double]::IsNaN($Opacity) -or [double]::IsInfinity($Opacity) -or $Opacity -lt 0 -or $Opacity -gt 1) {
     throw (New-XskinFailure -Code invalidMask -Message 'Mask opacity must be a number between 0 and 1.')
   }
   $active = Join-Path $StateRoot 'active-theme'
   $theme = Read-DreamSkinTheme -ThemeDirectory $active
-  $theme.Theme | Add-Member -NotePropertyName maskOpacity -NotePropertyValue $Opacity -Force
+  if ($PSCmdlet.ParameterSetName -eq 'Playback') {
+    $theme.Theme | Add-Member -NotePropertyName playWithReducedMotion -NotePropertyValue $PlayWithReducedMotion -Force
+  } else {
+    $theme.Theme | Add-Member -NotePropertyName maskOpacity -NotePropertyValue $Opacity -Force
+  }
   $next = ($theme.Theme | ConvertTo-Json -Depth 8) + "`r`n"
   Start-XskinTransaction -StateRoot $StateRoot -Next $next
   try {

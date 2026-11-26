@@ -1,16 +1,16 @@
-# Xskin for Windows 1.9.15
+# Xskin for Windows 1.9.16
 
-Version 1.9.15 fixes usage reporting when older chats open together and reduces duplicate work when reading long session logs. See the [Windows changelog](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md).
+Version 1.9.16 fixes usage reporting when older chats open together and reduces duplicate work when reading long session logs. See the [Windows changelog](https://github.com/timmyc07/Xskin/blob/main/windows/CHANGELOG.md).
 
 Windows now mirrors the completed macOS 1.9.4 embedded studio, retained original-media previews, recovery, six presets and official-launch background option. It reuses the Windows Flutter/PowerShell engine. [Parity and validation](../docs/windows-parity.md) · [繁體中文](README.md)
 
-**Download Windows 1.9.15: [standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.15/Xskin-1.9.15-windows-x64.zip) · [Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.15/xskin-plugin-v1.9.15-windows-x64.zip) · [Release and SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.15#release-assets).** Verify each ZIP against its matching `.zip.sha256` before running it. To install both with a local coding assistant, copy the [AI installation prompt](https://github.com/timmyc07/Xskin#install-with-your-ai).
+**Download Windows 1.9.16: [standalone](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.16/Xskin-1.9.16-windows-x64.zip) · [Codex plugin](https://github.com/timmyc07/Xskin/releases/download/windows-v1.9.16/xskin-plugin-v1.9.16-windows-x64.zip) · [Release and SHA-256 checksums](https://github.com/timmyc07/Xskin/releases/tag/windows-v1.9.16#release-assets).** Verify each ZIP against its matching `.zip.sha256` before running it. To install both with a local coding assistant, copy the [AI installation prompt](https://github.com/timmyc07/Xskin#install-with-your-ai).
 
 **First test after upgrading:** close the Xskin panel, install the complete new packages and keep existing data. Enable **Apply when official Codex opens**, fully quit Codex, then reopen the official app once. The fresh launch gracefully reopens once to establish the connection; retry the retained pending media afterward.
 
 ## Embedded studio
 
-Download and extract the complete `xskin-plugin-v1.9.15-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
+Download and extract the complete `xskin-plugin-v1.9.16-windows-x64.zip` into a persistent folder. The path below must identify the extracted root containing `plugin.json`, `mcp.json` and `.agents/plugins/marketplace.json`. It includes its Windows launcher, Node runtime and compiled UI; users need neither npm nor Flutter.
 
 When updating an existing installation from a different extracted path, first run `codex plugin marketplace remove codex-background-studio-local`, then run the two commands below. This replaces only the Xskin marketplace source; keep existing background data and other marketplaces.
 
@@ -27,11 +27,11 @@ Opening/refreshing the panel or importing alone does not enable automatic backgr
 
 ## Standalone app, media and data
 
-Extract the full `Xskin-1.9.15-windows-x64.zip` and open Install Xskin.exe or xskin.exe. Keep all adjacent files. Flutter supports drag/drop, preview, explicit Apply, mask and four languages. Fully exit an ordinary session before using the direct shortcut. Installation leaves existing official sessions running.
+Extract the full `Xskin-1.9.16-windows-x64.zip` and open Install Xskin.exe or xskin.exe. Keep all adjacent files. Flutter supports drag/drop, preview, explicit Apply, mask and four languages. Fully exit an ordinary session before using the direct shortcut. Installation leaves existing official sessions running.
 
 New stores default to midnight aurora and contain all six byte-identical macOS preset packs. Existing backgrounds, imports, language, opacity and pause survive updates. Physical/MSIX-aware state roots, the per-user locator and owned shortcut checks remain in place. Do not move or delete the data directory to repair a connection.
 
-Images: PNG/JPEG/WebP/HEIC/TIFF, ≤50 MiB/16384px/50MP before normalization to ≤4096px/16 MiB; HEIF/WebP depend on installed Windows codecs. MP4: ≤256 MiB, original bytes/resolution/frame rate, muted loop, suspended while hidden or Reduce Motion is enabled. Mask: 0–100%, default 62%. Existing Codex/Work/Dot backgrounds and official local usage/cache/quota/plan overlay are retained, with original-video frame/drop diagnostics.
+Images: PNG/JPEG/WebP/HEIC/TIFF, ≤50 MiB/16384px/50MP before normalization to ≤4096px/16 MiB; HEIF/WebP depend on installed Windows codecs. MP4: ≤256 MiB, original bytes/resolution/frame rate, muted loop, paused while hidden. With Reduce Motion enabled, Xskin shows a still frame of the selected MP4. Select **Play videos when Reduce Motion is on** in Xskin to keep it playing. Mask: 0–100%, default 62%. Existing Codex/Work/Dot backgrounds and official local usage/cache/quota/plan overlay are retained, with original-video frame/drop diagnostics.
 
 Restore disables the owned monitor and skin while retaining data. Full removal may explicitly ask to close/reopen Codex. Selective appearance restoration preserves unrelated strict UTF-8 TOML and a recoverable backup; only explicit RecoverConfigBackup restores the complete backup. Never modify WindowsApps, app.asar, official signatures, accounts, API keys or Base URLs. CDP remains verified loopback-only; official CDP/CSS authorization is unconfirmed.
 

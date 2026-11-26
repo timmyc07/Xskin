@@ -13,9 +13,9 @@ try {
 
   $active = Read-DreamSkinTheme -ThemeDirectory $paths.Active
   $hash = (Get-FileHash -LiteralPath $active.ImagePath).Hash
-  Set-XskinMask -Opacity 0.27 -StateRoot $stateRoot -Apply {}
+  Set-XskinAppearance -Opacity 0.27 -StateRoot $stateRoot -Apply {}
   $before = Read-DreamSkinUtf8File -Path $active.ThemePath
-  try { Set-XskinMask -Opacity 0.8 -StateRoot $stateRoot -Apply { throw 'forced mask failure' }; throw 'Mask failure was ignored.' }
+  try { Set-XskinAppearance -Opacity 0.8 -StateRoot $stateRoot -Apply { throw 'forced mask failure' }; throw 'Mask failure was ignored.' }
   catch { if ($_.Exception.Message -notmatch 'forced mask failure') { throw } }
   if ((Read-DreamSkinUtf8File -Path $active.ThemePath) -cne $before -or
     (Get-FileHash -LiteralPath $active.ImagePath).Hash -cne $hash -or
