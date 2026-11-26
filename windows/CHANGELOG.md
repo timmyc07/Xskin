@@ -1,5 +1,16 @@
 # Windows Changelog
 
+## 1.9.16 — 2026-11-26
+
+- Show a paused frame from the selected MP4 when Windows reduces motion. Enable video playback independently in the standalone or embedded Xskin panel.
+- Skip processes that exit before the launch monitor can read their start time.
+
+## 1.9.15 — 2026-11-23
+
+- Check large session entries for usage and activity markers before decoding text. New chat lookups check the expected date before adjacent dates.
+- Show usage for both conversations when two older chats open while the session index is loading.
+- Reuse the already-read tail when recovering usage from long session logs. A 2,097,787-byte fixture with a large tool result now reads 2,097,787 bytes instead of 3,146,273.
+
 ## 1.9.14 — 2026-11-21
 
 - Rebuild the Windows standalone app and Codex plugin with matching 1.9.14 versions.

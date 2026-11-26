@@ -229,7 +229,9 @@ function Invoke-DreamSkinAutostartStep {
   foreach ($process in $Candidates) {
     $key = $null
     try {
-      $startedAt = $process.StartTime.ToUniversalTime().ToString('o')
+      $processStart = $process.StartTime
+      if ($null -eq $processStart) { continue }
+      $startedAt = $processStart.ToUniversalTime().ToString('o')
       $key = "$($process.Id):$startedAt"
       $live[$key] = $true
       if ($Context.Seen.ContainsKey($key)) { continue }

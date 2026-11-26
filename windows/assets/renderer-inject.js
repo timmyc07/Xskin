@@ -154,11 +154,10 @@
     video.tabIndex = -1;
     video.muted = video.defaultMuted = true;
     video.volume = 0;
-    video.autoplay = video.loop = video.playsInline = true;
+    video.loop = video.playsInline = true;
     video.preload = "auto";
     video.controls = false;
     video.disablePictureInPicture = video.disableRemotePlayback = true;
-    video.poster = artUrl;
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let disposed = false;
     let failed = false;
@@ -217,7 +216,7 @@
       }
     };
     const hostHidden = () => SURFACE === "work" && window[HOST_VISIBLE_KEY] === false;
-    const suspended = () => document.hidden || motionQuery.matches || workVisible ||
+    const suspended = () => document.hidden || (motionQuery.matches && !THEME.playWithReducedMotion) || workVisible ||
       (SURFACE === "work" && window[HOST_VISIBLE_KEY] !== true) || (SURFACE === "dot" && !dotVisible);
     const hide = () => {
       document.documentElement.removeAttribute("data-dream-video-ready");
@@ -231,7 +230,7 @@
     };
     const revealFrame = () => {
       // Keep one decoded frame ready while hidden so presentation does not flash the poster.
-      if (!disposed && !failed && !motionQuery.matches && video.readyState >= 2) {
+      if (!disposed && !failed && video.readyState >= 2) {
         document.documentElement.setAttribute("data-dream-video-ready", "true");
         document.documentElement.style.setProperty("--dream-skin-art", "none");
         metrics.videoFrameReadyAt ??= Date.now();
@@ -239,7 +238,7 @@
     };
     const syncPlayback = () => {
       if (disposed) return;
-      if (motionQuery.matches || failed) {
+      if (failed) {
         hide();
         video.pause();
       } else if (suspended()) {
@@ -1005,6 +1004,7 @@
     artUrl,
     surface: SURFACE,
     videoKey: THEME.videoKey,
+    playWithReducedMotion: THEME.playWithReducedMotion === true,
     wallpaper: WALLPAPER,
     videoStatus: THEME.video ? () => videoController?.status() ?? {
       ready: false, suspended: false, failed: false, paused: true, currentTime: 0, quality: null,

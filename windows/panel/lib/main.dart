@@ -557,6 +557,13 @@ class _XskinPanelState extends State<XskinPanel> with WidgetsBindingObserver {
             text('videoHint'),
             style: const TextStyle(fontSize: 11, color: _muted),
           ),
+          SwitchListTile(
+            title: Text(text('playWithReducedMotion')),
+            value: state!.playWithReducedMotion,
+            onChanged: _busy
+                ? null
+                : (enabled) => _action('playback', {'enabled': enabled}),
+          ),
           if (_player != null)
             StreamBuilder<bool>(
               stream: _player!.stream.playing,

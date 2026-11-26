@@ -1,7 +1,7 @@
 ﻿[CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('state','status','recover','import','apply','mask','autostart','preferences','pause','resume','launch','restore','save','select')][string]$Action,
+  [ValidateSet('state','status','recover','import','apply','mask','playback','autostart','preferences','pause','resume','launch','restore','save','select')][string]$Action,
   [Parameter(Mandatory = $true)][string]$RequestPath,
   [string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'),
   [switch]$Embedded
@@ -49,6 +49,7 @@ function Get-XskinPanelState {
     videoPath = $preview.VideoPath
     bytes = (Get-Item -LiteralPath $media).Length
     maskOpacity = if ($null -ne $active.Theme.maskOpacity) { $active.Theme.maskOpacity } else { 0.62 }
+    playWithReducedMotion = $active.Theme.playWithReducedMotion -eq $true
     activeName = $active.Theme.name
     activeImagePath = $active.ImagePath
     activeVideoPath = $active.VideoPath
@@ -71,7 +72,7 @@ try {
   $inputText = Read-DreamSkinUtf8File -Path $RequestPath
   $request = if ($inputText.Trim()) { $inputText | ConvertFrom-Json } else { [pscustomobject]@{} }
   if ($request -is [array] -or $request -is [string] -or $null -eq $request) { throw (New-XskinFailure -Code invalidCommand -Message 'Panel request must be an object.') }
-  if ($Embedded -and $Action -notin @('status','recover','import','apply','mask','autostart','pause','resume','preferences')) {
+  if ($Embedded -and $Action -notin @('status','recover','import','apply','mask','playback','autostart','pause','resume','preferences')) {
     throw (New-XskinFailure -Code invalidCommand -Message 'This operation is unavailable in the embedded panel.')
   }
   if ($Action -ne 'status') {
@@ -149,6 +150,7 @@ try {
       }
       $candidate = Read-DreamSkinTheme -ThemeDirectory $preview.directory
       $candidate.Theme | Add-Member -NotePropertyName maskOpacity -NotePropertyValue $opacity -Force
+      $candidate.Theme | Add-Member -NotePropertyName playWithReducedMotion -NotePropertyValue $preview.playWithReducedMotion -Force
       $candidate.Theme | Add-Member -NotePropertyName layout -NotePropertyValue 'wallpaper' -Force
       $candidate.Theme.appearance = 'dark'
       Write-DreamSkinTheme -ThemeDirectory $candidate.Directory -Theme $candidate.Theme
@@ -166,11 +168,17 @@ try {
       catch { Write-Warning "The background is applied; its draft could not be removed: $($_.Exception.Message)" }
       $messageCode = 'applied'
     }
-    'mask' {
-      if ($request.maskOpacity -isnot [double] -and $request.maskOpacity -isnot [int] -and
-        $request.maskOpacity -isnot [decimal] -and $request.maskOpacity -isnot [long]) { throw (New-XskinFailure -Code invalidMask -Message 'Mask opacity must be a number between 0 and 1.') }
+    { $_ -in @('mask','playback') } {
+      if ($Action -eq 'playback') {
+        if ($request.enabled -isnot [bool]) { throw 'Playback preference must be a boolean.' }
+        $appearance = @{ PlayWithReducedMotion = $request.enabled }
+      } else {
+        $appearance = @{ Opacity = $request.maskOpacity }
+      }
+      if ($Action -eq 'mask' -and ($request.maskOpacity -isnot [double] -and $request.maskOpacity -isnot [int] -and
+        $request.maskOpacity -isnot [decimal] -and $request.maskOpacity -isnot [long])) { throw (New-XskinFailure -Code invalidMask -Message 'Mask opacity must be a number between 0 and 1.') }
       $live = Test-XskinApplied -StateRoot $StateRoot
-      Set-XskinMask -Opacity $request.maskOpacity -StateRoot $StateRoot -Apply {
+      Set-XskinAppearance @appearance -StateRoot $StateRoot -Apply {
         if ($Embedded) {
           & (Join-Path $PSScriptRoot 'start-dream-skin.ps1') -ExistingOnly -ReuseWatcher -Resume -StateRoot $StateRoot
         } elseif ($live) {
@@ -178,7 +186,7 @@ try {
           if ($LASTEXITCODE -ne 0) { throw 'The overlay did not verify. Previous overlay restored.' }
         }
       }
-      $messageCode = 'maskUpdated'
+      if ($Action -eq 'mask') { $messageCode = 'maskUpdated' }
     }
     'autostart' {
       if ($request.enabled -isnot [bool]) { throw (New-XskinFailure -Code invalidAutostart -Message 'Automatic apply must be true or false.') }

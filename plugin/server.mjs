@@ -51,6 +51,8 @@ export function createMcpServer(studio, html) {
     false, ({ selectionId }) => studio.apply(selectionId));
   tool("xskin_mask", "Set the full-window background mask.",
     z.strictObject({ opacity: z.number().min(0).max(1).multipleOf(0.01) }), false, ({ opacity }) => studio.mask(opacity));
+  tool("xskin_playback", "Set Windows video playback when Reduce Motion is on.",
+    z.strictObject({ enabled: z.boolean() }), false, ({ enabled }) => studio.playback(enabled));
   tool("xskin_autostart", "Change automatic background application for future official app launches.",
     z.strictObject({ enabled: z.boolean() }), false, ({ enabled }) => studio.autostart(enabled));
   tool("xskin_pause", "Pause the background while preserving saved settings.", empty, false, () => studio.pause());

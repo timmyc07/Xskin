@@ -56,6 +56,7 @@ export async function createWindowsBackend(runtimeRoot, { execute, options }) {
     return { version: raw.version,
       active: media(raw.activeVideoPath || raw.activeImagePath, raw.activeBytes, raw.activeName, { applied: raw.applied === true }),
       selection: raw.pending ? media(raw.videoPath || raw.imagePath, raw.bytes, raw.name, { id: publicId(raw.selectionId) }) : null,
+      playWithReducedMotion: raw.playWithReducedMotion === true,
       maskOpacity: raw.maskOpacity, autostart: raw.autostart, autostartLoaded: raw.autostartLoaded,
       pendingRecovery: raw.pendingRecovery, language: raw.language, needsSetup: raw.needsSetup === true };
   };
@@ -88,9 +89,10 @@ export async function createWindowsBackend(runtimeRoot, { execute, options }) {
         if (publicId(current.selectionId) !== value) throw failure("select_media");
         request = { selectionId: current.selectionId, imagePath: current.imagePath, maskOpacity: current.maskOpacity };
       } else if (name === "mask") request = { maskOpacity: Number(value) };
+      else if (name === "playback") request = { enabled: value };
       else if (name === "autostart") request = { enabled: value === "true" };
       else if (name === "status") action = "recover";
-      return checked(await invoke(action, request, { timeout: ["apply", "mask"].includes(name) ? 0 : options.timeout }));
+      return checked(await invoke(action, request, { timeout: ["apply", "mask", "playback"].includes(name) ? 0 : options.timeout }));
     },
   };
 }

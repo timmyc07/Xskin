@@ -84,6 +84,7 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
       value.previewError = !reference;
     }
     return { version: raw.version, platform: windows ? "windows" : "macos", active, selection,
+      playWithReducedMotion: raw.playWithReducedMotion === true,
       maskOpacity: raw.maskOpacity, autostart: raw.autostart, autostartLoaded: raw.autostartLoaded,
       pendingRecovery: raw.pendingRecovery === true, language: await language(), needsSetup: raw.needsSetup === true };
   };
@@ -196,6 +197,10 @@ export async function createStudio(runtimeRoot, { home = process.env.HOME || os.
     mask: opacity => mutate(async () => {
       if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1 || Math.abs(opacity * 100 - Math.round(opacity * 100)) > 1e-9) throw failure("invalid_mask");
       return dispatch("mask", opacity.toFixed(2));
+    }),
+    playback: enabled => mutate(async () => {
+      if (!windows || typeof enabled !== "boolean") throw failure("invalid_command");
+      return dispatch("playback", enabled);
     }),
     autostart: enabled => mutate(async () => {
       if (typeof enabled !== "boolean") throw failure("invalid_autostart");

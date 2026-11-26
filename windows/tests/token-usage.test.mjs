@@ -106,7 +106,22 @@ try {
   await fs.mkdir(olderDirectory, { recursive: true });
   await fs.writeFile(path.join(olderDirectory, `rollout-old-${olderId}.jsonl`), `${usage()}\n`);
   const olderReader = new TokenUsageReader({ codexHome: root, now: () => now });
+  const largeId = "11111111-2222-4333-8444-555555555559";
+  const largeFile = path.join(directory, `rollout-large-${largeId}.jsonl`);
+  const largeEvent = JSON.parse(usage(2100));
+  largeEvent.padding = "中文".repeat(4096);
+  await fs.writeFile(largeFile, [JSON.stringify(largeEvent), lifecycle("task_complete"),
+    JSON.stringify({ type: "response_item", payload: { type: "task_started", text: largeEvent.padding } }), ""].join("\n"));
+  const largeSnapshot = await olderReader.read(largeId);
+  assert.equal(largeSnapshot.totalTokens, 2100);
+  assert.equal(largeSnapshot.running, false);
   assert.equal((await olderReader.read(olderId)).totalTokens, 1200, "A one-time directory index also finds older IDs.");
+  const secondOldId = "11111111-2222-4333-8444-555555555556";
+  await fs.writeFile(path.join(olderDirectory, `rollout-old-${secondOldId}.jsonl`), `${usage(2200)}\n`);
+  const concurrentReader = new TokenUsageReader({ codexHome: root, now: () => now });
+  const oldSessions = await Promise.all([olderId, secondOldId].map(id => concurrentReader.read(id)));
+  assert.deepEqual(oldSessions.map(session => session?.totalTokens), [1200, 2200],
+    "Concurrent first lookups must both await the historical index");
 
   const numeric = usage(1200, { info: {
     total_token_usage: { total_tokens: 1200, input_tokens: 1000, cached_input_tokens: 0, output_tokens: 200 },
@@ -313,6 +328,24 @@ try {
     const afterBootstrap = readBytes;
     assert.deepEqual(await historyReader.read(historyId), activeHistory);
     assert.equal(readBytes, afterBootstrap, "An unchanged session does not repeat backward discovery");
+    const longLineId = "11111111-2222-4333-8444-555555555557";
+    const longLine = `${usage(3100)}\n${toolOutput}${lifecycle("task_started")}\n`;
+    await fs.writeFile(path.join(directory, `rollout-long-${longLineId}.jsonl`), longLine);
+    const beforeLong = readBytes;
+    const longSnapshot = await historyReader.read(longLineId);
+    assert.equal(longSnapshot.totalTokens, 3100);
+    assert.equal(longSnapshot.running, true);
+    assert.equal(readBytes - beforeLong, Buffer.byteLength(longLine),
+      "Recovery reads each byte once even when the tail starts inside a large tool result");
+    await fs.writeFile(path.join(directory, `rollout-long-${longLineId}.jsonl`),
+      `${usage(3150)}\n${lifecycle("task_started")}\n${"x".repeat(2 * 1024 * 1024)}`);
+    const incompleteTail = await historyReader.read(longLineId);
+    assert.equal(incompleteTail.totalTokens, 3150);
+    assert.equal(incompleteTail.running, true, "An unfinished tool result leaves the previous events visible");
+    assert.equal(historyReader.records.get(longLineId).pending.length, 0,
+      "A partial line being discarded must not retain a 1 MiB buffer between updates");
+    await fs.appendFile(path.join(directory, `rollout-long-${longLineId}.jsonl`), `x\n${usage(3200)}\n`);
+    assert.equal((await historyReader.read(longLineId)).totalTokens, 3200);
     await fs.appendFile(historyFile, `${lifecycle("task_complete")}\n${toolOutput}${usage(3200)}\n`);
     assert.equal((await historyReader.read(historyId)).running, false, "The newest completed marker wins across skipped output chunks");
     await fs.appendFile(historyFile, `${lifecycle("task_started")}\n${toolOutput}${lifecycle("turn_aborted")}\n${toolOutput}${usage(3300)}\n`);

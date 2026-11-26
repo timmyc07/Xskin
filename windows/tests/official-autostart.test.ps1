@@ -42,6 +42,11 @@ try {
   Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State @{ processId = 999; startedAt = 'previous boot' }
   $initial = New-DreamSkinAutostartContext -Candidates @($fake) -StateRoot $stateRoot
   if ($initial.Seen.Count -ne 0) { throw 'Login startup suppressed a fresh Codex launch that won the startup race.' }
+  $vanished = [pscustomobject]@{ Id = 102; StartTime = $null }
+  Invoke-DreamSkinAutostartStep -Candidates @($vanished) -Context $initial -StateRoot $stateRoot
+  if ($initial.Seen.Count -or (Test-Path (Join-Path $stateRoot 'autostart-error.log'))) {
+    throw 'A candidate without a start time was reported as a failed background application.'
+  }
   $script:quitCalls = 0
   $script:exitResult = $true
   $script:refuseQuit = $false
