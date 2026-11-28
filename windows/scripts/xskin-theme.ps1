@@ -221,7 +221,7 @@ function Get-XskinAutostart {
 function Initialize-XskinAutostart {
   param([Parameter(Mandatory = $true)][string]$SkillRoot, [Parameter(Mandatory = $true)][string]$StateRoot)
   $settings = Read-XskinSettings -StateRoot $StateRoot
-  if ($settings.launchSetupVersion -eq 4) {
+  if ($settings.launchSetupVersion -eq 5) {
     if ($settings.shortcutSkinEnabled -ne $true) { return }
     $startup = Get-DreamSkinAutostart -StateRoot $StateRoot
     if ($startup.Foreign) { throw 'Refusing to change an unrelated automatic-startup task.' }
@@ -248,7 +248,7 @@ function Set-XskinAutostart {
   Save-XskinStateRoot -StateRoot $StateRoot
   if ($Enabled) { Enable-DreamSkinAutostart -StateRoot $StateRoot }
   else { Disable-DreamSkinAutostart -StateRoot $StateRoot }
-  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 4; shortcutSkinEnabled = $Enabled }
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 5; shortcutSkinEnabled = $Enabled }
 }
 
 function Test-XskinApplied {

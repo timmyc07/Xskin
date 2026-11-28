@@ -36,17 +36,6 @@ try {
 
   $fake = [pscustomobject]@{ Id = 101; StartTime = [datetime]$startedAt; MainWindowHandle = [IntPtr]1; Path = $codex.Executable }
   $fake | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($Timeout) return $script:exitResult }
-  Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State @{ preserveExistingBefore = [datetimeoffset]::UtcNow.ToString('o') }
-  $initial = New-DreamSkinAutostartContext -Candidates @($fake) -StateRoot $stateRoot
-  if (-not $initial.Seen.ContainsKey("101:$startedAt")) { throw 'Manual setup did not preserve an already-open session.' }
-  Write-DreamSkinState -Path (Join-Path $stateRoot 'autostart.json') -State @{ processId = 999; startedAt = 'previous boot' }
-  $initial = New-DreamSkinAutostartContext -Candidates @($fake) -StateRoot $stateRoot
-  if ($initial.Seen.Count -ne 0) { throw 'Login startup suppressed a fresh Codex launch that won the startup race.' }
-  $vanished = [pscustomobject]@{ Id = 102; StartTime = $null }
-  Invoke-DreamSkinAutostartStep -Candidates @($vanished) -Context $initial -StateRoot $stateRoot
-  if ($initial.Seen.Count -or (Test-Path (Join-Path $stateRoot 'autostart-error.log'))) {
-    throw 'A candidate without a start time was reported as a failed background application.'
-  }
   $script:quitCalls = 0
   $script:exitResult = $true
   $script:refuseQuit = $false
@@ -74,47 +63,22 @@ param([int]$NewLaunchPid, [string]$NewLaunchStartedAt, [string]$StateRoot)
 [IO.File]::AppendAllText((Join-Path $StateRoot 'handoffs'), "$NewLaunchPid`n")
 if (Test-Path -LiteralPath (Join-Path $StateRoot 'fail')) { throw 'fixture failure' }
 '@, [Text.UTF8Encoding]::new($true))
-  $context = @{ Seen = @{ "101:$startedAt" = $true } }
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-  if (Test-Path -LiteralPath (Join-Path $stateRoot 'handoffs')) { throw 'Already-open session was changed.' }
-  foreach ($id in @(110, 120, 130)) {
-    $fake.Id = $id; $info.ProcessId = $id
-    Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-    Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-  }
-  if ((Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs') -Raw) -cne "110`n120`n130`n") { throw 'Rapid independent launches were repeated or suppressed.' }
-  $fake.Id = 140; $info.ProcessId = 140
+  function Test-DreamSkinAutostartEnabled { return $true }
+  function Get-Process { param($Name) if ($Name -cne 'ChatGPT') { throw 'Unexpected process lookup.' }; return $fake }
+  $fake | Add-Member -MemberType ScriptMethod -Name Refresh -Value {}
+  $eventTime = [datetimeoffset]::UtcNow
+  Invoke-DreamSkinLaunchEvent -LaunchPid 102 -EventTime $eventTime -StateRoot $stateRoot
+  Invoke-DreamSkinLaunchEvent -LaunchPid 101 -EventTime $eventTime.AddMinutes(-2) -StateRoot $stateRoot
   $null = Set-DreamSkinPaused -Paused $true -StateRoot $stateRoot
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
+  Invoke-DreamSkinLaunchEvent -LaunchPid 101 -EventTime $eventTime -StateRoot $stateRoot
   $null = Set-DreamSkinPaused -Paused $false -StateRoot $stateRoot
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-  if (@(Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs')).Count -ne 3) { throw 'Pause/resume restarted an existing session.' }
-  $fake.Id = 150; $info.ProcessId = 150
-  [IO.File]::WriteAllText((Join-Path $stateRoot 'fail'), 'fail')
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot 3>$null
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot 3>$null
-  if (@(Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs')).Count -ne 4) { throw 'Failed handoff was retried.' }
-  Remove-Item -LiteralPath (Join-Path $stateRoot 'fail')
-  $fake.Id = 160; $info.ProcessId = 160
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-  if (@(Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs')).Count -ne 5) { throw 'A failed handoff suppressed a new user launch.' }
-  $fake.Id = 170; $info.ProcessId = 170
+  if (Test-Path (Join-Path $stateRoot 'handoffs')) { throw 'An unrelated, delayed or paused event started Xskin.' }
   $info.CommandLine += ' --remote-debugging-port=9335'
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-  if (@(Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs')).Count -ne 5) { throw 'Managed relaunch looped.' }
-  $fake.Id = 180; $info.ProcessId = 180
+  Invoke-DreamSkinLaunchEvent -LaunchPid 101 -EventTime $eventTime -StateRoot $stateRoot
+  if (Test-Path (Join-Path $stateRoot 'handoffs')) { throw 'A managed relaunch looped.' }
   $info.CommandLine = '"C:\Store\Official\ChatGPT.exe"'
-  function Get-CimInstance { return $null }
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-  if ($context.Seen.ContainsKey("180:$startedAt")) { throw 'Transient startup metadata permanently consumed the launch.' }
-  function Get-CimInstance { return $info }
-  Invoke-DreamSkinAutostartStep -Candidates @($fake) -Context $context -StateRoot $stateRoot
-  if (@(Get-Content -LiteralPath (Join-Path $stateRoot 'handoffs')).Count -ne 6) { throw 'The fresh launch was not applied after metadata became available.' }
-  $stopped = 0
-  function Stop-DreamSkinRecordedInjector { $script:stopped++; return $true }
-  Write-DreamSkinState -Path (Join-Path $stateRoot 'state.json') -State @{ codexPid = 999; codexStartedAt = 'old' }
-  Invoke-DreamSkinAutostartStep -Candidates @() -Context $context -StateRoot $stateRoot
-  if ($stopped -ne 1) { throw 'Exited session retained its recorded injector.' }
+  Invoke-DreamSkinLaunchEvent -LaunchPid 101 -EventTime $eventTime -StateRoot $stateRoot
+  if ((Get-Content (Join-Path $stateRoot 'handoffs')) -ne '101') { throw 'The event PID did not reach the official startup path.' }
 
   $fake | Add-Member -MemberType NoteProperty -Name HasExited -Value $false
   $script:exitDuringMonitorWait = $false
@@ -150,4 +114,4 @@ if (Test-Path -LiteralPath (Join-Path $StateRoot 'fail')) { throw 'fixture failu
 } finally {
   Remove-Item -LiteralPath $temporary -Recurse -Force
 }
-Write-Host 'PASS: fresh exact identities, graceful refusal, existing/paused/debug skipping, rapid launches, failure isolation, injector cleanup and monitor query/exit race.'
+Write-Host 'PASS: fresh event identities, graceful refusal, unrelated/paused/debug skipping and legacy monitor cleanup.'

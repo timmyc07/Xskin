@@ -3,7 +3,10 @@
 }
 
 function Get-DreamSkinAutostartArguments {
-  param([string]$StateRoot)
+  param([string]$StateRoot, [switch]$EventTrigger)
+  if ($EventTrigger) {
+    return ConvertTo-DreamSkinArgumentLine -Arguments @('watch','-StateRoot',$StateRoot,'-LaunchPid','$(LaunchPid)','-EventTime','$(EventTime)')
+  }
   return ConvertTo-DreamSkinArgumentLine -Arguments @('watch', '-StateRoot', $StateRoot)
 }
 
@@ -19,19 +22,31 @@ function Test-DreamSkinAutostartUser {
   catch { return $false }
 }
 
+function Get-DreamSkinLaunchSubscription {
+  return '<QueryList><Query Id="0" Path="Microsoft-Windows-AppModel-Runtime/Admin"><Select Path="Microsoft-Windows-AppModel-Runtime/Admin">*[System[EventID=201] and EventData[Data[@Name="ApplicationName"]="OpenAI.Codex_2p2nqsd0c76g0!App" and Data[@Name="ImageName"]="ChatGPT.exe"]]</Select></Query></QueryList>'
+}
+
 function Test-DreamSkinAutostartTask {
   param([AllowNull()][object]$Task, [string]$StateRoot)
   if (-not $Task -or -not $StateRoot) { return $false }
   $definition = $Task.Definition
+  if ($definition.Triggers.Count -ne 1) { return $false }
+  $trigger = $definition.Triggers.Item(1)
+  $eventTrigger = $trigger.Type -eq 0
+  if ($eventTrigger) {
+    if ($trigger.Subscription -cne (Get-DreamSkinLaunchSubscription) -or $trigger.ValueQueries.Count -ne 2) { return $false }
+    $queries = @{}
+    foreach ($pair in $trigger.ValueQueries) { $queries[$pair.Name] = $pair.Value }
+    if ($queries.LaunchPid -cne "Event/EventData/Data[@Name='ProcessID']" -or
+      $queries.EventTime -cne 'Event/System/TimeCreated/@SystemTime') { return $false }
+  } elseif ($trigger.Type -ne 9 -or -not (Test-DreamSkinAutostartUser -Identity $trigger.UserId)) { return $false }
   return $definition.RegistrationInfo.Description -ceq 'Xskin official Codex launch monitor' -and
     (Test-DreamSkinAutostartUser -Identity $definition.Principal.UserId) -and $definition.Principal.LogonType -eq 3 -and
     $definition.Principal.RunLevel -eq 0 -and $definition.Actions.Count -eq 1 -and
     $definition.Actions.Item(1).Type -eq 0 -and
     (Test-DreamSkinPathEqual -Left $definition.Actions.Item(1).Path -Right (Join-Path $StateRoot 'engine\scripts\xskin-quiet.exe')) -and
-    $definition.Actions.Item(1).Arguments -ceq (Get-DreamSkinAutostartArguments -StateRoot $StateRoot) -and
-    (Test-DreamSkinPathEqual -Left $definition.Actions.Item(1).WorkingDirectory -Right $StateRoot) -and
-    $definition.Triggers.Count -eq 1 -and $definition.Triggers.Item(1).Type -eq 9 -and
-    (Test-DreamSkinAutostartUser -Identity $definition.Triggers.Item(1).UserId)
+    $definition.Actions.Item(1).Arguments -ceq (Get-DreamSkinAutostartArguments -StateRoot $StateRoot -EventTrigger:$eventTrigger) -and
+    (Test-DreamSkinPathEqual -Left $definition.Actions.Item(1).WorkingDirectory -Right $StateRoot)
 }
 
 function Get-DreamSkinAutostartTaskFolder {
@@ -64,13 +79,13 @@ function Register-DreamSkinAutostartTask {
   $definition.Settings.StopIfGoingOnBatteries = $false
   $definition.Settings.ExecutionTimeLimit = 'PT0S'
   $definition.Settings.MultipleInstances = 2
-  $definition.Settings.RestartCount = 999
-  $definition.Settings.RestartInterval = 'PT1M'
-  $trigger = $definition.Triggers.Create(9)
-  $trigger.UserId = $sid
+  $trigger = $definition.Triggers.Create(0)
+  $trigger.Subscription = Get-DreamSkinLaunchSubscription
+  $null = $trigger.ValueQueries.Create('LaunchPid', "Event/EventData/Data[@Name='ProcessID']")
+  $null = $trigger.ValueQueries.Create('EventTime', 'Event/System/TimeCreated/@SystemTime')
   $action = $definition.Actions.Create(0)
   $action.Path = Get-DreamSkinQuietLauncher -StateRoot $StateRoot
-  $action.Arguments = Get-DreamSkinAutostartArguments -StateRoot $StateRoot
+  $action.Arguments = Get-DreamSkinAutostartArguments -StateRoot $StateRoot -EventTrigger
   $action.WorkingDirectory = $StateRoot
   $null = $scheduler.GetFolder('\').RegisterTaskDefinition((Get-DreamSkinAutostartTaskName), $definition, 6, $sid, $null, 3)
 }
@@ -99,33 +114,22 @@ function Get-DreamSkinAutostartProcess {
 function Start-DreamSkinAutostart {
   param([string]$StateRoot)
   $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
-  if (Get-DreamSkinAutostartProcess -StateRoot $StateRoot -Strict) { return }
-  $startup = Get-DreamSkinAutostart -StateRoot $StateRoot
-  if (-not $startup.Enabled -or $startup.Foreign) { throw 'The Xskin login task is disabled or its identity does not match.' }
-  $null = Get-DreamSkinQuietLauncher -StateRoot $StateRoot
   $task = Get-DreamSkinAutostartTask
-  $statePath = Join-Path $StateRoot 'autostart.json'
-  Assert-DreamSkinNoReparseComponents -Path $statePath
-  # Manual setup preserves open sessions; a login trigger has no such cutoff.
-  Write-DreamSkinState -Path $statePath -State @{ preserveExistingBefore = [datetimeoffset]::UtcNow.ToString('o') }
-  $running = $task.Run($null)
-  try {
-    $deadline = [datetime]::UtcNow.AddSeconds(15)
-    do {
-      if (Get-DreamSkinAutostartProcess -StateRoot $StateRoot) { return }
-      try { $running.Refresh() } catch {
-        if ($_.Exception.GetBaseException().HResult -eq -2147216629) {
-          throw "The automatic-startup monitor exited (task result $($task.LastTaskResult))."
-        }
-        throw
-      }
-      if ($running.State -notin @(2, 4) -and $task.State -notin @(2, 4)) { throw "The automatic-startup monitor exited (task result $($task.LastTaskResult))." }
-      Start-Sleep -Milliseconds 100
-    } while ([datetime]::UtcNow -lt $deadline)
-    throw 'The automatic-startup monitor did not become ready.'
-  } catch {
-    try { $running.Stop() } catch { }
-    throw
+  if (-not (Test-DreamSkinAutostartTask -Task $task -StateRoot $StateRoot) -or -not $task.Enabled) {
+    throw 'The Xskin task is disabled or its identity does not match.'
+  }
+  $null = Get-DreamSkinQuietLauncher -StateRoot $StateRoot
+  if ($task.Definition.Triggers.Item(1).Type -eq 0) {
+    if (-not $task.Definition.Triggers.Item(1).Enabled) { throw 'The Xskin event trigger is disabled.' }
+    return
+  }
+  # A failed engine swap may have restored the pre-event runtime and its login task.
+  $version = [version](Read-DreamSkinUtf8File -Path (Join-Path $StateRoot 'engine/VERSION')).Trim()
+  if ($version -ge [version]'1.9.18') {
+    Register-DreamSkinAutostartTask -StateRoot $StateRoot
+  } else {
+    Write-DreamSkinState -Path (Join-Path $StateRoot 'autostart.json') -State @{ preserveExistingBefore = [datetimeoffset]::UtcNow.ToString('o') }
+    $null = $task.Run($null)
   }
 }
 
@@ -204,82 +208,28 @@ function Stop-DreamSkinNewCodexLaunch {
   }
 }
 
-function New-DreamSkinAutostartContext {
-  param([object[]]$Candidates, [string]$StateRoot)
-  $context = @{ Seen = @{} }
-  $statePath = Join-Path $StateRoot 'autostart.json'
-  Assert-DreamSkinNoReparseComponents -Path $statePath
-  $startup = Read-DreamSkinState -Path $statePath
-  if ($startup.preserveExistingBefore) {
-    $cutoff = [datetimeoffset]$startup.preserveExistingBefore
-    foreach ($process in $Candidates) {
-      try {
-        if ([datetimeoffset]$process.StartTime.ToUniversalTime() -le $cutoff) {
-          $context.Seen["$($process.Id):$($process.StartTime.ToUniversalTime().ToString('o'))"] = $true
-        }
-      } catch { }
+function Invoke-DreamSkinLaunchEvent {
+  param([int]$LaunchPid, [datetimeoffset]$EventTime, [string]$StateRoot)
+  $age = ([datetimeoffset]::UtcNow - $EventTime).TotalSeconds
+  if ($LaunchPid -le 0 -or $age -lt -2 -or $age -ge 60 -or
+    -not (Test-DreamSkinAutostartEnabled -StateRoot $StateRoot) -or
+    (Test-DreamSkinPaused -StateRoot $StateRoot) -or
+    (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $false) { return }
+  $process = Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Where-Object Id -eq $LaunchPid
+  if (-not $process -or -not $process.StartTime) { return }
+  $startedAt = $process.StartTime.ToUniversalTime()
+  if ($startedAt -gt $EventTime.UtcDateTime.AddSeconds(2)) { return }
+  $codex = Get-DreamSkinCodexInstall
+  do {
+    $fresh = Test-DreamSkinNewCodexLaunch -Codex $codex -ProcessId $LaunchPid -StartedAt $startedAt.ToString('o')
+    if ($fresh -eq $false -or $process.HasExited) { return }
+    $process.Refresh()
+    if ($fresh -and $process.MainWindowHandle -ne [IntPtr]::Zero) {
+      & (Join-Path $StateRoot 'engine/scripts/start-dream-skin.ps1') -NewLaunchPid $LaunchPid -NewLaunchStartedAt $startedAt.ToString('o') -StateRoot $StateRoot
+      return
     }
-  }
-  return $context
-}
-
-function Invoke-DreamSkinAutostartStep {
-  param([object[]]$Candidates, [hashtable]$Context, [string]$StateRoot)
-  $live = @{}
-  $registeredCodex = $null
-  foreach ($process in $Candidates) {
-    $key = $null
-    try {
-      $processStart = $process.StartTime
-      if ($null -eq $processStart) { continue }
-      $startedAt = $processStart.ToUniversalTime().ToString('o')
-      $key = "$($process.Id):$startedAt"
-      $live[$key] = $true
-      if ($Context.Seen.ContainsKey($key)) { continue }
-      if ((Test-DreamSkinPaused -StateRoot $StateRoot) -or
-        (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $false) {
-        $Context.Seen[$key] = $true
-        continue
-      }
-      if (-not $registeredCodex) { $registeredCodex = Get-DreamSkinCodexInstall }
-      $fresh = Test-DreamSkinNewCodexLaunch -Codex $registeredCodex -ProcessId $process.Id -StartedAt $startedAt
-      if ($null -eq $fresh) { continue }
-      if (-not $fresh) {
-        $Context.Seen[$key] = $true
-        continue
-      }
-      if ($process.MainWindowHandle -eq [IntPtr]::Zero) { continue }
-      $Context.Seen[$key] = $true
-      try {
-        & (Join-Path $StateRoot 'engine\scripts\start-dream-skin.ps1') -NewLaunchPid $process.Id -NewLaunchStartedAt $startedAt -StateRoot $StateRoot
-      } finally {
-        # Consume managed and ordinary recovery launches even if applying failed.
-        foreach ($relaunch in @(Get-DreamSkinCodexProcesses -Codex $registeredCodex)) {
-          $relaunchStart = Get-DreamSkinProcessStartedAt -ProcessId $relaunch.ProcessId
-          if ($relaunchStart) {
-            $relaunchKey = "$($relaunch.ProcessId):$relaunchStart"
-            $Context.Seen[$relaunchKey] = $true
-            $live[$relaunchKey] = $true
-          }
-        }
-      }
-    } catch {
-      if ($key) { $Context.Seen[$key] = $true }
-      $diagnostic = [datetimeoffset]::UtcNow.ToString('o') + " Automatic apply failed ($key): " + $_.Exception.Message
-      Write-Warning $diagnostic
-      try {
-        $failurePath = Join-Path $StateRoot 'autostart-error.log'
-        Assert-DreamSkinNoReparseComponents -Path $failurePath
-        Write-DreamSkinUtf8FileAtomically -Path $failurePath -Content ($diagnostic.Substring(0, [Math]::Min(4096, $diagnostic.Length)) + "`r`n")
-      } catch { Write-Warning 'Could not save the automatic-apply diagnostic.' }
-    }
-  }
-  foreach ($key in @($Context.Seen.Keys)) { if (-not $live.ContainsKey($key)) { $Context.Seen.Remove($key) } }
-  $state = Read-DreamSkinState -Path (Join-Path $StateRoot 'state.json')
-  if ($state -and $state.codexPid -and $state.codexStartedAt) {
-    $currentStart = Get-DreamSkinProcessStartedAt -ProcessId ([int]$state.codexPid)
-    if ($currentStart -cne $state.codexStartedAt) { $null = Stop-DreamSkinRecordedInjector -State $state }
-  }
+    Start-Sleep -Milliseconds 200
+  } while (([datetimeoffset]::UtcNow - $EventTime).TotalSeconds -lt 60)
 }
 
 function Test-DreamSkinAutostartEnabled {
@@ -295,7 +245,7 @@ function Get-DreamSkinAutostart {
   $owned = Test-DreamSkinAutostartTask -Task $task -StateRoot $StateRoot
   return [pscustomobject]@{
     Enabled = $owned -and $task.Enabled; Foreign = $null -ne $task -and -not $owned
-    Loaded = $owned -and $task.Enabled -and $null -ne (Get-DreamSkinAutostartProcess -StateRoot $StateRoot)
+    Loaded = $owned -and $task.Enabled -and $task.Definition.Triggers.Item(1).Type -eq 0 -and $task.Definition.Triggers.Item(1).Enabled
   }
 }
 
@@ -309,6 +259,7 @@ function Stop-DreamSkinAutostart {
   $startup = Get-DreamSkinAutostart -StateRoot $StateRoot
   $task = Get-DreamSkinAutostartTask
   if ($task -and -not $startup.Foreign) {
+    if ($task.Definition.Triggers.Item(1).Type -eq 0 -and $task.State -in @(2, 4)) { $task.Stop(0) }
     $deadline = [datetime]::UtcNow.AddSeconds(5)
     while ($task.State -in @(2, 4)) {
       if ([datetime]::UtcNow -ge $deadline) { throw 'The quiet automatic-startup host did not stop.' }

@@ -1,32 +1,8 @@
 ﻿[CmdletBinding()]
-param([string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'))
+param([string]$StateRoot = (Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'), [int]$LaunchPid, [datetimeoffset]$EventTime)
 
 $ErrorActionPreference = 'Stop'
+if (-not $LaunchPid) { return }
 . (Join-Path $PSScriptRoot 'xskin-theme.ps1')
 $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
-Ensure-DreamSkinManagedDirectory -Path $StateRoot -Root $StateRoot
-$hash = [Security.Cryptography.SHA256]::Create()
-try { $key = [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($StateRoot.ToLowerInvariant()))).Replace('-', '') }
-finally { $hash.Dispose() }
-$mutex = [Threading.Mutex]::new($false, "Local\CodexDreamSkin.Autostart.$key")
-$acquired = $false
-try {
-  try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
-  if (-not $acquired) { exit 0 }
-  $sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
-  $candidates = @(Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $sessionId })
-  $context = New-DreamSkinAutostartContext -Candidates $candidates -StateRoot $StateRoot
-  Assert-DreamSkinNoReparseComponents -Path (Join-Path $StateRoot 'autostart.json')
-  Write-DreamSkinState -Path (Join-Path $StateRoot 'autostart.json') -State @{
-    processId = $PID; startedAt = Get-DreamSkinProcessStartedAt -ProcessId $PID
-  }
-  while (Test-DreamSkinAutostartEnabled -StateRoot $StateRoot) {
-    $candidates = @(Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $sessionId })
-    Invoke-DreamSkinAutostartStep -Candidates $candidates -Context $context -StateRoot $StateRoot
-    if ($candidates.Count -eq 0) { Start-Sleep -Milliseconds 300 }
-    else { Start-Sleep -Seconds 1 }
-  }
-} finally {
-  if ($acquired) { $mutex.ReleaseMutex() }
-  $mutex.Dispose()
-}
+Invoke-DreamSkinLaunchEvent -LaunchPid $LaunchPid -EventTime $EventTime -StateRoot $StateRoot

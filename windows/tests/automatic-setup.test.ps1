@@ -21,7 +21,7 @@ try {
   Initialize-XskinAutostart -SkillRoot $PSScriptRoot -StateRoot $state
   Initialize-XskinAutostart -SkillRoot $PSScriptRoot -StateRoot $state
   $settings = Read-XskinSettings -StateRoot $state
-  if ($script:installs -ne 1 -or $settings.launchSetupVersion -ne 4 -or $settings.language -cne 'zh-Hant' -or
+  if ($script:installs -ne 1 -or $settings.launchSetupVersion -ne 5 -or $settings.language -cne 'zh-Hant' -or
     $settings.pending -cne 'keep' -or -not (Test-DreamSkinPaused -StateRoot $state)) { throw 'Migration lost preferences/pause or ran more than once.' }
   $script:startup.Loaded = $false
   Initialize-XskinAutostart -SkillRoot $PSScriptRoot -StateRoot $state
@@ -45,6 +45,6 @@ try {
   if ((Read-XskinSettings -StateRoot $retry).launchSetupVersion) { throw 'Failed migration was marked complete.' }
   $script:failInstall = $false
   Initialize-XskinAutostart -SkillRoot $PSScriptRoot -StateRoot $retry
-  if ((Read-XskinSettings -StateRoot $retry).launchSetupVersion -ne 4) { throw 'Migration did not retry.' }
+  if ((Read-XskinSettings -StateRoot $retry).launchSetupVersion -ne 5) { throw 'Migration did not retry.' }
 } finally { Remove-Item -LiteralPath $temporary -Recurse -Force }
 Write-Host 'PASS: one-time shortcut migration preserves pause, language, pending data, disabled preference and retries.'

@@ -24,12 +24,12 @@ try {
   if (-not $startup.Enabled -or -not $startup.Loaded -or $startup.Foreign) { throw 'The real login task was not registered and ready.' }
   $task = Get-DreamSkinAutostartTask
   if (-not (Test-DreamSkinAutostartTask -Task $task -StateRoot $stateRoot) -or
-    $task.Definition.Settings.ExecutionTimeLimit -cne 'PT0S' -or $task.Definition.Settings.RestartCount -ne 999) {
+    $task.Definition.Settings.ExecutionTimeLimit -cne 'PT0S' -or $task.Definition.Triggers.Item(1).Type -ne 0) {
     throw 'The observer lacks its exact least-privilege task identity or restart policy.'
   }
   $before = Get-DreamSkinAutostartProcess -StateRoot $stateRoot
   Start-DreamSkinAutostart -StateRoot $stateRoot
-  if ((Get-DreamSkinAutostartProcess -StateRoot $stateRoot).Id -ne $before.Id) { throw 'Repeated start created another observer.' }
+  if ($before -or (Get-DreamSkinAutostartProcess -StateRoot $stateRoot) -or $task.State -ne 3) { throw 'Repeated start created another observer.' }
   $definition = $task.Definition
   $definition.Actions.Item(1).Arguments += ' extra'
   if (Test-DreamSkinAutostartTask -Task ([pscustomobject]@{ Definition = $definition }) -StateRoot $stateRoot) { throw 'An extra foreign task argument was accepted.' }
@@ -39,11 +39,11 @@ try {
   catch { if ($_.Exception.Message -notmatch 'fixture task registration failure') { throw } }
   Set-Item -Path Function:\Register-DreamSkinAutostartTask -Value $register
   $before = Get-DreamSkinAutostartProcess -StateRoot $stateRoot
-  if (-not $before -or -not (Get-XskinAutostart -StateRoot $stateRoot).Loaded) { throw 'Failed enable did not restore the prior enabled monitor.' }
+  if ($before -or -not (Get-XskinAutostart -StateRoot $stateRoot).Loaded) { throw 'Failed enable did not restore the prior enabled monitor.' }
   $null = Set-DreamSkinPaused -Paused $true -StateRoot $stateRoot
   $null = Install-DreamSkinRuntimeEngine -SkillRoot $source -StateRoot $stateRoot
   $after = Get-DreamSkinAutostartProcess -StateRoot $stateRoot
-  if (-not $after -or $after.Id -eq $before.Id -or -not $before.WaitForExit(5000) -or
+  if ($after -or -not (Get-XskinAutostart -StateRoot $stateRoot).Loaded -or
     -not (Test-DreamSkinPaused -StateRoot $stateRoot)) { throw 'Runtime replacement did not resume the monitor and preserve pause.' }
   $before = $after
   $script:failedSwap = $false
@@ -60,9 +60,42 @@ try {
   catch { if ($_.Exception.Message -notmatch 'fixture engine swap failure') { throw } }
   Remove-Item Function:\Move-Item
   $after = Get-DreamSkinAutostartProcess -StateRoot $stateRoot
-  if (-not $after -or $after.Id -eq $before.Id -or -not $before.WaitForExit(5000) -or
+  if ($after -or -not (Get-XskinAutostart -StateRoot $stateRoot).Loaded -or
     -not (Test-DreamSkinPaused -StateRoot $stateRoot)) { throw 'Failed engine swap did not restore and resume the previous monitor.' }
   if (@(Get-ChildItem -LiteralPath $stateRoot -Directory -Filter '.engine-backup-*').Count -ne 0) { throw 'The quiet monitor kept an engine backup locked.' }
+  # Exercise real event substitution and the quiet launcher without opening Codex.
+  $probeName = "$taskName-event"
+  $folder = Get-DreamSkinAutostartTaskFolder
+  $definition = (Get-DreamSkinAutostartTask).Definition
+  $trigger = $definition.Triggers.Item(1)
+  $trigger.Subscription = '<QueryList><Query Id="0" Path="Windows PowerShell"><Select Path="Windows PowerShell">*[System[EventID=400]]</Select></Query></QueryList>'
+  $trigger.ValueQueries.Clear()
+  $null = $trigger.ValueQueries.Create('LaunchPid','Event/System/EventRecordID')
+  $null = $trigger.ValueQueries.Create('EventTime','Event/System/TimeCreated/@SystemTime')
+  $probeWorker = Join-Path $stateRoot 'engine/scripts/watch-codex-launches.ps1'
+  [IO.File]::WriteAllText($probeWorker, @'
+param([string]$StateRoot, [int]$LaunchPid, [datetimeoffset]$EventTime)
+[IO.File]::WriteAllText((Join-Path $StateRoot 'probe-result'), "$LaunchPid $($EventTime.ToUnixTimeMilliseconds())")
+Start-Sleep -Seconds 3
+'@)
+  $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  $probe = $folder.RegisterTaskDefinition($probeName,$definition,2,$sid,$null,3)
+  try {
+    & powershell.exe -NoProfile -NonInteractive -Command 'exit 0'
+    $result = Join-Path $stateRoot 'probe-result'
+    $deadline = [datetimeoffset]::UtcNow.AddSeconds(20)
+    while (-not (Test-Path -LiteralPath $result) -and [datetimeoffset]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    $parts = ([IO.File]::ReadAllText($result)).Split(' ')
+    $recordId = [int]$parts[0]
+    $event = Get-WinEvent -LogName 'Windows PowerShell' -FilterXPath "*[System[EventID=400 and EventRecordID=$recordId]]" -MaxEvents 1
+    if (-not $event -or ([datetimeoffset]$event.TimeCreated).ToUnixTimeMilliseconds() -ne [long]$parts[1]) {
+      throw 'The quiet task did not receive its triggering event values.'
+    }
+  } finally {
+    $probe.Enabled = $false
+    $folder.DeleteTask($probeName,0)
+    Start-Sleep -Seconds 3
+  }
   Disable-DreamSkinAutostart -StateRoot $stateRoot
   if ((Get-DreamSkinAutostartTask) -or (Get-DreamSkinAutostartProcess -StateRoot $stateRoot)) { throw 'Disable retained its owned observer or task.' }
   if (-not (Test-DreamSkinPaused -StateRoot $stateRoot)) { throw 'Disable cleared the paused state.' }
@@ -84,4 +117,4 @@ try {
   if (Get-DreamSkinAutostartTask) { Disable-DreamSkinAutostart -StateRoot $stateRoot }
   Remove-Item -LiteralPath $temporary -Recurse -Force
 }
-Write-Host 'PASS: real isolated login task, exact identity, single observer, runtime upgrade/rollback, pause preservation and disable.'
+Write-Host 'PASS: real event delivery and value substitution, quiet launcher, idle task, runtime upgrade/rollback, pause preservation and disable.'

@@ -1,5 +1,9 @@
 # Windows Changelog
 
+## 1.9.18 — 2026-11-28
+
+- Wake Xskin on the official Codex package activation event. Windows keeps the task ready without a polling process or console window.
+
 ## 1.9.17 — 2026-11-28
 
 - Respond sooner to official Codex launches. The monitor checks task ownership without querying its own process, shares package discovery across launch candidates, and checks for a cold launch every 300 ms.

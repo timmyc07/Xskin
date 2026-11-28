@@ -11,6 +11,10 @@ Two community animation launchers use a dedicated entry for the first launch. Th
 
 AutoSkin also handles the official icon on macOS. Its watcher polls, waits through a grace period and limits restarts. Xskin uses native notifications on macOS and checks each fresh launch before handing it off. [AutoSkin watcher source](https://github.com/Finderchangchang/codex-autoskin/blob/b021bf2244371848e2dbe6c39352b05ad4adf9d6/scripts/watch-dream-skin.sh)
 
+## Windows activation events (1.9.18)
+
+The per-user event task listens for AppModel-Runtime/Admin event 201 matching the official Codex application ID and executable. Its windowless handler validates the event PID, process start time, session and registered executable before applying the background. Windows keeps the task ready while Codex is closed.
+
 ## Desktop appearance and wallpaper startup (1.9.13)
 
 Both platforms inherit the host UI font. Wallpaper mode reveals the image or video behind the existing mask over 240 ms. The system's Reduced Motion preference skips the reveal. The composer and sidebar remain interactive throughout. [Official Appearance settings](https://learn.chatgpt.com/docs/reference/settings#appearance)

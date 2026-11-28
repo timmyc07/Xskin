@@ -23,7 +23,7 @@ Reload the plugin host and open Xskin from navigation (possibly under More), or 
 
 Embedded Apply, mask and Resume require an existing verified background connection and never open or restart the current app. To establish one, explicitly enable **Apply when official Codex opens**, fully exit Codex and open the official app. Each future fresh ordinary launch gracefully reopens once. Existing, paused, disabled and debugging sessions are skipped; a refused quit is never forced or repeatedly retried.
 
-Opening/refreshing the panel or importing alone does not enable automatic backgrounds or change official appearance settings. The per-user Task Scheduler monitor works with the panel closed and starts at login without opening Codex. Disable or Restore removes only the owned service. The existing Codex (Xskin) Desktop/Start shortcut remains a direct-launch option.
+Opening/refreshing the panel or importing alone does not enable automatic backgrounds or change official appearance settings. From 1.9.18, Task Scheduler starts a windowless handler when Windows reports an official Codex package launch. Waiting uses no resident Xskin monitor. Disable or Restore removes only the owned service. The existing Codex (Xskin) Desktop/Start shortcut remains a direct-launch option.
 
 ## Standalone app, media and data
 

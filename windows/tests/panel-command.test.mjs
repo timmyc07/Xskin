@@ -64,7 +64,7 @@ function Set-XskinAutostart {
     [IO.File]::WriteAllText($file, 'enabled')
     [IO.File]::AppendAllText((Join-Path $StateRoot 'automatic-setups.txt'), 'setup')
   } elseif (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
-  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 4; shortcutSkinEnabled = $Enabled }
+  Write-XskinSettings -StateRoot $StateRoot -Values @{ launchSetupVersion = 5; shortcutSkinEnabled = $Enabled }
 }
 function Install-DreamSkinRuntimeEngine {
   param([string]$StateRoot)
