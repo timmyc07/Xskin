@@ -1,5 +1,10 @@
 # Windows Changelog
 
+## 1.9.17 — 2026-11-28
+
+- Respond sooner to official Codex launches. The monitor checks task ownership without querying its own process, shares package discovery across launch candidates, and checks for a cold launch every 300 ms.
+- Validate the selected background on startup and leave preset synchronization to setup. Reuse the verified current package when it matches the saved installation.
+
 ## 1.9.16 — 2026-11-26
 
 - Show a paused frame from the selected MP4 when Windows reduces motion. Enable video playback independently in the standalone or embedded Xskin panel.

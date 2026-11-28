@@ -44,7 +44,7 @@ function Get-DreamSkinCodexProcesses {
   return ,@()
 }
 function Get-DreamSkinRegisteredCodexInstalls { return @(Get-DreamSkinCodexInstall) }
-function Get-DreamSkinAutostart { return @{ Enabled = $true } }
+function Test-DreamSkinAutostartEnabled { return $true }
 function Test-DreamSkinNewCodexLaunch { return $true }
 function Stop-DreamSkinNewCodexLaunch {
   Event 'graceful'
@@ -103,6 +103,13 @@ function Invoke-DreamSkinNative {
     assert.equal(result.code, 0, result.output);
     assert.equal(await fs.readFile(path.join(state, "events.txt"), "utf8"), "lock\nlaunch\ninjector\nverify\nunlock\nlock\nactivate\nunlock\n");
   }
+  const invalidTheme = path.join(temporary, "invalid active theme");
+  await fs.mkdir(invalidTheme);
+  await fs.writeFile(path.join(invalidTheme, "theme.json"), "{");
+  const invalidStart = await run("auto", invalidTheme, ["-NewLaunchPid", "12345", "-NewLaunchStartedAt", new Date().toISOString()]);
+  assert.equal(invalidStart.code, 1, invalidStart.output);
+  assert.equal(await fs.readFile(path.join(invalidTheme, "events.txt"), "utf8"), "lock\nunlock\n",
+    "An invalid active theme must fail before closing the official window.");
   const existing = path.join(temporary, "existing-only");
   const refusedExisting = await run("ordinary", existing, ["-ExistingOnly"]);
   assert.equal(refusedExisting.code, 1, refusedExisting.output);

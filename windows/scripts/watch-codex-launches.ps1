@@ -20,10 +20,11 @@ try {
   Write-DreamSkinState -Path (Join-Path $StateRoot 'autostart.json') -State @{
     processId = $PID; startedAt = Get-DreamSkinProcessStartedAt -ProcessId $PID
   }
-  while ((Get-DreamSkinAutostart -StateRoot $StateRoot).Enabled) {
+  while (Test-DreamSkinAutostartEnabled -StateRoot $StateRoot) {
     $candidates = @(Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $sessionId })
     Invoke-DreamSkinAutostartStep -Candidates $candidates -Context $context -StateRoot $StateRoot
-    Start-Sleep -Seconds 1
+    if ($candidates.Count -eq 0) { Start-Sleep -Milliseconds 300 }
+    else { Start-Sleep -Seconds 1 }
   }
 } finally {
   if ($acquired) { $mutex.ReleaseMutex() }

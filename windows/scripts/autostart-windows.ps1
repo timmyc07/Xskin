@@ -226,6 +226,7 @@ function New-DreamSkinAutostartContext {
 function Invoke-DreamSkinAutostartStep {
   param([object[]]$Candidates, [hashtable]$Context, [string]$StateRoot)
   $live = @{}
+  $registeredCodex = $null
   foreach ($process in $Candidates) {
     $key = $null
     try {
@@ -240,8 +241,8 @@ function Invoke-DreamSkinAutostartStep {
         $Context.Seen[$key] = $true
         continue
       }
-      $codex = Get-DreamSkinCodexInstall
-      $fresh = Test-DreamSkinNewCodexLaunch -Codex $codex -ProcessId $process.Id -StartedAt $startedAt
+      if (-not $registeredCodex) { $registeredCodex = Get-DreamSkinCodexInstall }
+      $fresh = Test-DreamSkinNewCodexLaunch -Codex $registeredCodex -ProcessId $process.Id -StartedAt $startedAt
       if ($null -eq $fresh) { continue }
       if (-not $fresh) {
         $Context.Seen[$key] = $true
@@ -253,7 +254,7 @@ function Invoke-DreamSkinAutostartStep {
         & (Join-Path $StateRoot 'engine\scripts\start-dream-skin.ps1') -NewLaunchPid $process.Id -NewLaunchStartedAt $startedAt -StateRoot $StateRoot
       } finally {
         # Consume managed and ordinary recovery launches even if applying failed.
-        foreach ($relaunch in @(Get-DreamSkinCodexProcesses -Codex $codex)) {
+        foreach ($relaunch in @(Get-DreamSkinCodexProcesses -Codex $registeredCodex)) {
           $relaunchStart = Get-DreamSkinProcessStartedAt -ProcessId $relaunch.ProcessId
           if ($relaunchStart) {
             $relaunchKey = "$($relaunch.ProcessId):$relaunchStart"
@@ -279,6 +280,12 @@ function Invoke-DreamSkinAutostartStep {
     $currentStart = Get-DreamSkinProcessStartedAt -ProcessId ([int]$state.codexPid)
     if ($currentStart -cne $state.codexStartedAt) { $null = Stop-DreamSkinRecordedInjector -State $state }
   }
+}
+
+function Test-DreamSkinAutostartEnabled {
+  param([string]$StateRoot)
+  $task = Get-DreamSkinAutostartTask
+  return $null -ne $task -and $task.Enabled -and (Test-DreamSkinAutostartTask -Task $task -StateRoot $StateRoot)
 }
 
 function Get-DreamSkinAutostart {

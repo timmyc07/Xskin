@@ -15,7 +15,6 @@ $ErrorActionPreference = 'Stop'
 $StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 $Injector = Join-Path $PSScriptRoot 'injector.mjs'
-. (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'xskin-theme.ps1')
 $StateRoot = Resolve-DreamSkinStateRoot -StateRoot $StateRoot
 
@@ -34,12 +33,16 @@ try {
   $StdoutPath = Join-Path $StateRoot 'injector.log'
   $StderrPath = Join-Path $StateRoot 'injector-error.log'
   $VerifyPath = Join-Path $StateRoot 'verify.log'
-  $themePaths = Initialize-DreamSkinThemeStore -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+  if (Test-Path -LiteralPath (Join-Path $themePaths.Active 'theme.json') -PathType Leaf) {
+    $null = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
+  } else {
+    $themePaths = Initialize-DreamSkinThemeStore -SkillRoot (Split-Path -Parent $PSScriptRoot) -StateRoot $StateRoot
+  }
   $pauseWasSet = Test-DreamSkinPaused -StateRoot $StateRoot
 
   if ($NewLaunchPid -or $NewLaunchStartedAt) {
     if ($ExistingOnly -or -not $NewLaunchPid -or -not $NewLaunchStartedAt -or
-      -not (Get-DreamSkinAutostart -StateRoot $StateRoot).Enabled -or $pauseWasSet -or
+      -not (Test-DreamSkinAutostartEnabled -StateRoot $StateRoot) -or $pauseWasSet -or
       (Read-XskinSettings -StateRoot $StateRoot).shortcutSkinEnabled -eq $false -or
       -not (Test-DreamSkinNewCodexLaunch -Codex $currentCodex -ProcessId $NewLaunchPid -StartedAt $NewLaunchStartedAt)) {
       throw 'Automatic apply is disabled, paused, or its fresh official process identity changed.'
@@ -55,10 +58,14 @@ try {
     $Port = $savedPort
   }
   $savedPathCandidate = Get-DreamSkinCodexStatePathCandidate -State $previousState
-  $savedCodex = Get-DreamSkinCodexInstallFromState -State $previousState
   $candidateMatchesCurrent = [bool]($null -ne $savedPathCandidate -and
     (Test-DreamSkinPathEqual -Left $savedPathCandidate.PackageRoot -Right $currentCodex.PackageRoot) -and
     (Test-DreamSkinPathEqual -Left $savedPathCandidate.Executable -Right $currentCodex.Executable))
+  $savedCodex = if ($candidateMatchesCurrent) {
+    Resolve-DreamSkinCodexInstallFromState -State $previousState -RegisteredInstalls @($currentCodex)
+  } elseif ($null -ne $savedPathCandidate) {
+    Get-DreamSkinCodexInstallFromState -State $previousState
+  }
   if ($null -ne $savedPathCandidate -and $null -eq $savedCodex -and -not $candidateMatchesCurrent) {
     $unverifiedSavedRunning = (Get-DreamSkinCodexProcesses -Codex $savedPathCandidate).Count -gt 0
     $unverifiedSavedOwnsPort = Test-DreamSkinCodexPortOwner -Port $Port -Codex $savedPathCandidate
